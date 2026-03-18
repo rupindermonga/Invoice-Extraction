@@ -8,13 +8,11 @@ import os
 from ..database import get_db
 from ..models import User
 from ..schemas import UserCreate, UserLogin, UserOut, Token
-from ..dependencies import get_current_user
+from ..dependencies import get_current_user, SECRET_KEY, ALGORITHM
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = os.getenv("JWT_SECRET", "change-this-secret")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "10080"))
 
 

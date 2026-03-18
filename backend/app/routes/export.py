@@ -143,7 +143,7 @@ def export_excel(
                     item.get("line_no"),
                     item.get("sku"),
                     item.get("description"),
-                    item.get("quantity"),
+                    item.get("qty"),
                     item.get("unit"),
                     item.get("unit_price"),
                     item.get("discount_amount"),

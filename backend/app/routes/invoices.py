@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -98,10 +99,14 @@ async def stream_processing(
         while elapsed < timeout:
             updates = []
             for inv_id, info in list(processing_store.items()):
+                # Only stream events owned by the authenticated user
+                if info.get("user_id") != current_user.id:
+                    continue
                 key = f"{inv_id}:{info['status']}"
                 if key not in seen:
                     seen.add(key)
-                    updates.append({"id": inv_id, **info})
+                    # Strip internal user_id before sending to client
+                    updates.append({"id": inv_id, **{k: v for k, v in info.items() if k != "user_id"}})
 
             if updates:
                 yield f"data: {json.dumps(updates)}\n\n"
@@ -139,6 +144,14 @@ def delete_invoice(
     ).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
+
+    # Delete backing file from disk before removing the DB record
+    if inv.source_file and os.path.isfile(inv.source_file):
+        try:
+            os.remove(inv.source_file)
+        except OSError:
+            pass  # File already gone or no permission — proceed with DB delete
+
     db.delete(inv)
     db.commit()
     return {"message": "Invoice deleted"}

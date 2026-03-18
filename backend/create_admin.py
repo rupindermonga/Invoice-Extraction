@@ -13,9 +13,12 @@ from passlib.context import CryptContext
 
 Base.metadata.create_all(bind=engine)
 
-USERNAME = "admin"
-PASSWORD = "admin123"
-EMAIL    = "admin@hm.local"
+USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+EMAIL    = os.getenv("ADMIN_EMAIL", "admin@hm.local")
+
+if PASSWORD == "admin123":
+    print("WARNING: Using default admin password 'admin123'. Set ADMIN_PASSWORD in .env before going to production.")
 
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 db  = SessionLocal()

@@ -145,6 +145,7 @@ def create_category(
         name=body.name,
         parent_id=body.parent_id,
         display_order=body.display_order,
+        requires_sub_division=body.requires_sub_division,
     )
     db.add(item)
     db.commit()

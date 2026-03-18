@@ -67,8 +67,7 @@ class ColumnConfigOut(BaseModel):
 class InvoiceOut(BaseModel):
     id: int
     source: str
-    source_file: Optional[str]
-    original_filename: Optional[str]
+    original_filename: Optional[str]   # basename only — never the server path
     source_email: Optional[str]
     processed_at: datetime
     status: str

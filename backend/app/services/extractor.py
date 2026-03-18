@@ -1,10 +1,13 @@
 import os
 import shutil
 import uuid
+import logging
 from pathlib import Path
 from typing import List
 from datetime import datetime
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from ..models import Invoice, ColumnConfig, CategoryConfig
 from .gemini import extract_invoice_from_file
@@ -60,7 +63,7 @@ async def process_invoice_file(
     # Mark as processing
     invoice.status = "processing"
     db.commit()
-    processing_store[invoice_id] = {"status": "processing", "filename": invoice.original_filename}
+    processing_store[invoice_id] = {"user_id": user_id, "status": "processing", "filename": invoice.original_filename}
 
     try:
         columns = get_active_columns(db, user_id)
@@ -80,6 +83,7 @@ async def process_invoice_file(
         invoice.processed_at = datetime.utcnow()
 
         processing_store[invoice_id] = {
+            "user_id": user_id,
             "status": "processed",
             "filename": invoice.original_filename,
             "invoice_number": invoice.invoice_number,
@@ -89,12 +93,14 @@ async def process_invoice_file(
         }
 
     except Exception as e:
+        logger.exception("Invoice %s processing failed: %s", invoice_id, e)
         invoice.status = "error"
-        invoice.error_message = str(e)
+        invoice.error_message = "Processing failed. Check server logs for details."
         processing_store[invoice_id] = {
+            "user_id": user_id,
             "status": "error",
             "filename": invoice.original_filename,
-            "error": str(e),
+            "error": "Processing failed",
         }
 
     db.commit()

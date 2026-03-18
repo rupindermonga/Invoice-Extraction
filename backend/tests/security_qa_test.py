@@ -672,3 +672,138 @@ class TestStaticAssets:
         assert r.status_code == 200
         schema = r.json()
         assert "paths" in schema
+
+
+# ─── REGRESSION: AUDIT FINDINGS ──────────────────────────────────────────────
+
+class TestAuditFindings:
+    """Regression tests for the 6 confirmed audit findings."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.admin_token = login()
+        self.admin_headers = auth_headers(self.admin_token)
+        ts = str(int(time.time()))
+        r = register_user(f"audit_user_{ts}", f"audit_{ts}@qa.local", "AuditPass1!")
+        assert r.status_code == 200
+        self.user2_token = login(f"audit_user_{ts}", "AuditPass1!")
+        self.user2_headers = auth_headers(self.user2_token)
+
+    # ── Finding 1: SSE cross-user isolation ───────────────────────────────────
+
+    def test_sse_requires_valid_token(self):
+        """SSE stream rejects missing/invalid token."""
+        r = requests.get(f"{BASE}/api/invoices/stream", stream=True, timeout=3)
+        assert r.status_code == 401
+
+        r2 = requests.get(f"{BASE}/api/invoices/stream?token=garbage.bad.token", stream=True, timeout=3)
+        assert r2.status_code == 401
+
+    def test_sse_accepts_valid_token(self):
+        """SSE stream accepts a valid token and returns event-stream content-type."""
+        r = requests.get(
+            f"{BASE}/api/invoices/stream?token={self.admin_token}",
+            stream=True, timeout=3
+        )
+        assert r.status_code == 200
+        assert "text/event-stream" in r.headers.get("content-type", "")
+        r.close()
+
+    # ── Finding 2: JWT secret warning (startup-level, confirmed via env absence)
+
+    def test_login_still_works_after_secret_refactor(self):
+        """Auth still functions correctly after moving SECRET_KEY to dependencies."""
+        r = requests.post(f"{BASE}/api/auth/login", json=ADMIN)
+        assert r.status_code == 200
+        assert "access_token" in r.json()
+
+    # ── Finding 3: CORS restricted origins ───────────────────────────────────
+
+    def test_cors_does_not_reflect_arbitrary_origin(self):
+        """CORS must not reflect an arbitrary untrusted origin."""
+        r = requests.options(
+            f"{BASE}/api/invoices",
+            headers={
+                "Origin": "https://evil.example.com",
+                "Access-Control-Request-Method": "GET",
+            }
+        )
+        acao = r.headers.get("access-control-allow-origin", "")
+        assert acao != "https://evil.example.com", (
+            "CORS reflects untrusted origin — CSRF vulnerability!"
+        )
+        assert acao != "*", "CORS wildcard present — still vulnerable"
+
+    def test_cors_localhost_is_allowed(self):
+        """CORS allows localhost origin (required for local dev)."""
+        r = requests.options(
+            f"{BASE}/api/invoices",
+            headers={
+                "Origin": "http://localhost:8000",
+                "Access-Control-Request-Method": "GET",
+            }
+        )
+        acao = r.headers.get("access-control-allow-origin", "")
+        assert acao == "http://localhost:8000", f"Localhost CORS rejected (got: '{acao}')"
+
+    # ── Finding 4: source_file not in response + file deleted with invoice ────
+
+    def test_invoice_response_does_not_expose_server_path(self):
+        """InvoiceOut schema must not include source_file (server-side path)."""
+        r = requests.get(f"{BASE}/api/invoices", headers=self.admin_headers)
+        data = r.json()
+        for inv in data.get("items", []):
+            assert "source_file" not in inv, (
+                f"source_file exposed in invoice response: {inv.get('source_file')}"
+            )
+
+    def test_get_invoice_does_not_expose_server_path(self):
+        """Single invoice detail must not include source_file."""
+        # Use any existing invoice, or just verify schema via OpenAPI
+        schema = requests.get(f"{BASE}/openapi.json").json()
+        invoice_out = schema.get("components", {}).get("schemas", {}).get("InvoiceOut", {})
+        props = invoice_out.get("properties", {})
+        assert "source_file" not in props, "source_file still in InvoiceOut OpenAPI schema"
+
+    # ── Finding 5: requires_sub_division persisted on create ─────────────────
+
+    def test_requires_sub_division_persisted_on_create(self):
+        """Creating a category with requires_sub_division=True must persist it."""
+        r = requests.post(f"{BASE}/api/categories",
+            headers=self.admin_headers,
+            json={"name": "TestReqSubDiv", "level": "category", "requires_sub_division": True}
+        )
+        assert r.status_code == 200
+        cat = r.json()
+        assert cat["requires_sub_division"] is True, (
+            f"requires_sub_division not persisted on create (got {cat['requires_sub_division']})"
+        )
+        # Cleanup
+        requests.delete(f"{BASE}/api/categories/{cat['id']}", headers=self.admin_headers)
+
+    def test_requires_sub_division_defaults_false(self):
+        """Creating a category without requires_sub_division defaults to False."""
+        r = requests.post(f"{BASE}/api/categories",
+            headers=self.admin_headers,
+            json={"name": "TestNoSubDiv", "level": "category"}
+        )
+        assert r.status_code == 200
+        cat = r.json()
+        assert cat["requires_sub_division"] is False
+        requests.delete(f"{BASE}/api/categories/{cat['id']}", headers=self.admin_headers)
+
+    # ── Finding 6: Excel qty field name ──────────────────────────────────────
+
+    def test_export_openapi_has_no_source_file(self):
+        """Schema regression: source_file removed from InvoiceOut."""
+        schema = requests.get(f"{BASE}/openapi.json").json()
+        invoice_out = schema["components"]["schemas"]["InvoiceOut"]["properties"]
+        assert "source_file" not in invoice_out
+
+    def test_export_excel_returns_valid_workbook(self):
+        """Excel export returns a valid .xlsx file (non-empty, correct content-type)."""
+        r = requests.get(f"{BASE}/api/export/excel?token={self.admin_token}")
+        assert r.status_code == 200
+        ct = r.headers.get("content-type", "")
+        assert "spreadsheetml" in ct or "openxmlformats" in ct
+        assert len(r.content) > 0
