@@ -84,7 +84,15 @@ async def stream_processing(
     token: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """SSE endpoint — auth via ?token= query param (EventSource doesn't support headers)."""
+    """SSE endpoint — auth via ?token= query param.
+
+    SECURITY NOTE: EventSource API does not support custom headers, so the JWT
+    must be passed as a query parameter.  This means the token can appear in
+    browser history and server/proxy access logs.  Mitigations:
+      • Tokens expire (JWT_EXPIRE_MINUTES).
+      • SSE is only used during active upload processing (short-lived connection).
+      • All other endpoints use Authorization header exclusively.
+    """
     from ..dependencies import SECRET_KEY, ALGORITHM
     from jose import jwt, JWTError
     from ..models import User as UserModel

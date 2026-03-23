@@ -67,14 +67,14 @@ def _get_cell_value(invoice: Invoice, field_key: str):
     return _safe_cell(val)
 
 
-def _auth_from_token(token: Optional[str], db: Session, authorization: Optional[str] = None) -> User:
-    """Accept token from ?token= query param OR Authorization: Bearer header."""
+def _auth_from_header(authorization: str, db: Session) -> User:
+    """Authenticate via Authorization: Bearer header only — no query-string tokens."""
     from ..dependencies import SECRET_KEY, ALGORITHM
     from jose import jwt
-    raw_token = token
-    if authorization and authorization.startswith("Bearer "):
-        raw_token = authorization[7:]
-    payload = jwt.decode(raw_token or "", SECRET_KEY, algorithms=[ALGORITHM])
+    if not authorization or not authorization.startswith("Bearer "):
+        raise ValueError("missing Bearer token")
+    raw_token = authorization[7:]
+    payload = jwt.decode(raw_token, SECRET_KEY, algorithms=[ALGORITHM])
     user_id = int(payload.get("sub"))
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -90,12 +90,11 @@ def export_excel(
     end_date: Optional[str] = None,
     vendor: Optional[str] = None,
     currency: Optional[str] = None,
-    token: Optional[str] = None,
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
     try:
-        current_user = _auth_from_token(token, db, authorization)
+        current_user = _auth_from_header(authorization, db)
     except Exception:
         from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Invalid or missing token")
@@ -193,12 +192,11 @@ def export_json(
     end_date: Optional[str] = None,
     vendor: Optional[str] = None,
     currency: Optional[str] = None,
-    token: Optional[str] = None,
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
     try:
-        current_user = _auth_from_token(token, db, authorization)
+        current_user = _auth_from_header(authorization, db)
     except Exception:
         from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Invalid or missing token")
