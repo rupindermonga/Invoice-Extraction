@@ -92,8 +92,8 @@ async def stream_processing(
         payload = jwt.decode(token or "", SECRET_KEY, algorithms=[ALGORITHM])
         user_id = int(payload.get("sub"))
         current_user = db.query(UserModel).filter(UserModel.id == user_id).first()
-        if not current_user:
-            raise ValueError("user not found")
+        if not current_user or not current_user.is_active:
+            raise ValueError("user not found or disabled")
     except Exception:
         from fastapi.responses import Response
         return Response(status_code=401)

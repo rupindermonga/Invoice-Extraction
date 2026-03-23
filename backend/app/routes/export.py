@@ -79,6 +79,8 @@ def _auth_from_token(token: Optional[str], db: Session, authorization: Optional[
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise ValueError("not found")
+    if not user.is_active:
+        raise ValueError("account disabled")
     return user
 
 

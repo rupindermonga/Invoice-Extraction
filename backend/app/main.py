@@ -59,11 +59,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+_disable_docs = os.getenv("DISABLE_DOCS", "true").lower() in ("1", "true", "yes")
+
 app = FastAPI(
     title="Finel AI Invoice Extractor",
     description="AI-powered invoice extraction using Google Gemini",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url=None if _disable_docs else "/docs",
+    redoc_url=None if _disable_docs else "/redoc",
+    openapi_url=None if _disable_docs else "/openapi.json",
 )
 
 app.add_middleware(SecurityHeadersMiddleware)

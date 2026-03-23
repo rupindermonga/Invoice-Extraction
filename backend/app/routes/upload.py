@@ -15,6 +15,27 @@ router = APIRouter(prefix="/api/upload", tags=["upload"])
 
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".tiff", ".tif", ".webp"}
 
+# Magic byte signatures for allowed file types
+_MAGIC = {
+    b"%PDF":                        "pdf",
+    b"\xff\xd8\xff":                "jpeg",
+    b"\x89PNG\r\n\x1a\n":          "png",
+    b"II\x2a\x00":                  "tiff",   # little-endian TIFF
+    b"MM\x00\x2a":                  "tiff",   # big-endian TIFF
+    b"RIFF":                        "webp",   # RIFF container (check for WEBP after)
+}
+
+
+def _validate_magic(header: bytes) -> bool:
+    """Return True if the first bytes match a known file signature."""
+    for sig, fmt in _MAGIC.items():
+        if header[:len(sig)] == sig:
+            # RIFF container needs extra check for WEBP tag at offset 8
+            if fmt == "webp":
+                return header[8:12] == b"WEBP"
+            return True
+    return False
+
 
 @router.post("")
 async def upload_invoices(
@@ -71,6 +92,15 @@ async def upload_invoices(
             })
             continue
         content = b"".join(chunks)
+
+        # Validate file content matches a known type (not just extension)
+        if not _validate_magic(content[:12]):
+            results.append({
+                "filename": upload.filename,
+                "status": "rejected",
+                "reason": "File content does not match any supported format (PDF, JPG, PNG, TIFF, WEBP)"
+            })
+            continue
 
         # Save file to disk
         saved_path = save_upload_file(content, upload.filename)

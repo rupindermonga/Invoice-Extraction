@@ -2,11 +2,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./invoices.db")
+_raw_url = os.getenv("DATABASE_URL", "sqlite:///./invoices.db")
+
+# Resolve relative SQLite paths to absolute (relative to *this* file's directory)
+# so the DB location is stable regardless of the process's working directory.
+if _raw_url.startswith("sqlite:///./") or _raw_url.startswith("sqlite:///invoices"):
+    _rel = _raw_url.replace("sqlite:///", "")
+    _abs = str(Path(__file__).resolve().parent.parent / _rel)
+    DATABASE_URL = f"sqlite:///{_abs}"
+else:
+    DATABASE_URL = _raw_url
 
 engine = create_engine(
     DATABASE_URL,

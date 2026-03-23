@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 import os
+import secrets
 import logging
 
 from .database import get_db
@@ -13,12 +14,16 @@ logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 _INSECURE_DEFAULTS = {"change-this-secret", "change-this-to-a-long-random-secret-string", ""}
-SECRET_KEY = os.getenv("JWT_SECRET", "change-this-secret")
-if SECRET_KEY in _INSECURE_DEFAULTS:
+_raw_secret = os.getenv("JWT_SECRET", "")
+if _raw_secret in _INSECURE_DEFAULTS:
+    SECRET_KEY = secrets.token_hex(32)
     logger.warning(
-        "JWT_SECRET is not set or uses the default placeholder. "
-        "Set a strong random value in your .env file before exposing this service."
+        "JWT_SECRET is not set or uses a placeholder — generated a random secret. "
+        "Tokens will NOT survive server restarts. "
+        "Set a strong JWT_SECRET in your .env file for persistence."
     )
+else:
+    SECRET_KEY = _raw_secret
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 

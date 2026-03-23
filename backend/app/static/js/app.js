@@ -386,17 +386,27 @@ function app() {
 
 
     // ── Export ────────────────────────────────────────────────────
-    exportData(format) {
+    async exportData(format) {
       const params = new URLSearchParams();
       if (this.exportDates.start) params.set('start_date', this.exportDates.start);
       if (this.exportDates.end)   params.set('end_date',   this.exportDates.end);
       if (this.filters.vendor)    params.set('vendor',     this.filters.vendor);
       if (this.filters.currency)  params.set('currency',   this.filters.currency);
 
-      const url = `/api/export/${format}?${params}&token=${encodeURIComponent(this.token)}`;
-      const a = document.createElement('a');
-      a.href = url;
-      a.click();
+      try {
+        const res = await fetch(`/api/export/${format}?${params}`, { headers: this._headers() });
+        if (!res.ok) throw new Error('Export failed');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const ext = format === 'excel' ? 'xlsx' : 'json';
+        a.download = `invoices_${this.exportDates.start || 'all'}_${this.exportDates.end || 'all'}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('Export failed: ' + e.message);
+      }
     },
 
 
