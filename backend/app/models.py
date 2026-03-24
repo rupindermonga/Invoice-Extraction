@@ -49,6 +49,11 @@ class Invoice(Base):
     # All extracted data as JSON (flexible, driven by column config)
     extracted_data = Column(JSON, nullable=True)
 
+    # Entity / billing tracking
+    billed_to = Column(String, nullable=True, index=True)       # entity that received the invoice
+    billing_type = Column(String, nullable=True)                 # direct | pass_through
+    vendor_on_record = Column(String, nullable=True)             # subsidiary acting as intermediary
+
     # Payment tracking
     payment_status = Column(String, default="unpaid")  # unpaid | partially_paid | paid
     amount_paid = Column(Float, default=0.0)

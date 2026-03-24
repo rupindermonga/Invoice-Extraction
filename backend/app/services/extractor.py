@@ -125,6 +125,9 @@ async def process_invoice_file(
         invoice.currency = _str(data.get("currency"))
         invoice.total_due = _num(data.get("total_due"))
         invoice.confidence_score = _num(data.get("confidence_score"))
+        invoice.billed_to = _str(data.get("billed_to"))
+        invoice.billing_type = _str(data.get("billing_type"))
+        invoice.vendor_on_record = _str(data.get("vendor_on_record"))
         invoice.extracted_data = data
         invoice.status = "processed"
         invoice.processed_at = datetime.utcnow()

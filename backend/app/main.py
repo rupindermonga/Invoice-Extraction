@@ -23,6 +23,9 @@ def _run_migrations():
             "ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0",
             "ALTER TABLE invoices ADD COLUMN payment_status VARCHAR DEFAULT 'unpaid'",
             "ALTER TABLE invoices ADD COLUMN amount_paid FLOAT DEFAULT 0.0",
+            "ALTER TABLE invoices ADD COLUMN billed_to VARCHAR",
+            "ALTER TABLE invoices ADD COLUMN billing_type VARCHAR",
+            "ALTER TABLE invoices ADD COLUMN vendor_on_record VARCHAR",
         ]:
             try:
                 conn.execute(text(stmt))

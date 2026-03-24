@@ -123,6 +123,9 @@ class InvoiceOut(BaseModel):
     currency: Optional[str]
     total_due: Optional[float]
     extracted_data: Optional[Any]
+    billed_to: Optional[str] = None
+    billing_type: Optional[str] = None
+    vendor_on_record: Optional[str] = None
     payment_status: Optional[str] = "unpaid"
     amount_paid: Optional[float] = 0.0
 

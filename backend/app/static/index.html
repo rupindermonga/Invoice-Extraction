@@ -593,7 +593,12 @@
 
       <!-- ── PROJECT FINANCE ──────────────────────────────────────────── -->
       <div x-show="view==='finance'" class="p-6">
-        <h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fa-solid fa-chart-pie mr-2 text-blue-600"></i>Project Finance</h2>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-chart-pie mr-2 text-blue-600"></i>Project Finance</h2>
+          <button @click="exportBookkeeping()" class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
+            <i class="fa-solid fa-file-excel mr-1"></i> Export Bookkeeping
+          </button>
+        </div>
 
         <template x-if="projectDash?.project">
           <div>

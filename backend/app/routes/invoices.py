@@ -153,7 +153,7 @@ def get_invoice(
 
 
 # Indexed fields that live as columns on the Invoice table (not just in extracted_data JSON)
-_INDEXED_FIELDS = {"invoice_number", "invoice_date", "due_date", "vendor_name", "currency", "total_due"}
+_INDEXED_FIELDS = {"invoice_number", "invoice_date", "due_date", "vendor_name", "currency", "total_due", "billed_to", "billing_type", "vendor_on_record"}
 
 
 @router.patch("/{invoice_id}")

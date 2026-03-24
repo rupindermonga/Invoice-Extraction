@@ -1,8 +1,14 @@
-"""Project finance routes: project CRUD, cost categories, sub-divisions, allocations, payments, dashboard."""
-from fastapi import APIRouter, Depends, HTTPException
+"""Project finance routes: project CRUD, cost categories, sub-divisions, allocations, payments, dashboard, bookkeeping export."""
+from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
+from datetime import datetime
 
 from ..database import get_db
 from ..models import (
@@ -442,3 +448,243 @@ def project_dashboard(db: Session = Depends(get_db), current_user: User = Depend
         "unallocated_invoices": unallocated,
         "aging": {k: round(v, 2) for k, v in aging.items()},
     }
+
+
+# ─── Bookkeeping Export ──────────────────────────────────────────────────────
+
+def _auth_export(authorization: str, db: Session) -> User:
+    from ..dependencies import SECRET_KEY, ALGORITHM
+    from jose import jwt
+    if not authorization or not authorization.startswith("Bearer "):
+        raise ValueError("missing token")
+    payload = jwt.decode(authorization[7:], SECRET_KEY, algorithms=[ALGORITHM])
+    user = db.query(User).filter(User.id == int(payload.get("sub"))).first()
+    if not user or not user.is_active:
+        raise ValueError("invalid")
+    return user
+
+
+@router.get("/export/bookkeeping")
+def export_bookkeeping(
+    entity: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Export project finance data as Excel workbook for bookkeeping."""
+    try:
+        current_user = _auth_export(authorization, db)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
+
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="No project found")
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1E3A5F", end_color="1E3A5F", fill_type="solid")
+    alt_fill = PatternFill(start_color="F0F4F8", end_color="F0F4F8", fill_type="solid")
+
+    wb = openpyxl.Workbook()
+
+    # ── Sheet 1: Cost Summary ────────────────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "Cost Summary"
+    headers = ["Category", "Budget", "Invoiced", "Paid", "Remaining", "% Used"]
+    for i, h in enumerate(headers, 1):
+        c = ws1.cell(row=1, column=i, value=h)
+        c.font = header_font; c.fill = header_fill; c.alignment = Alignment(horizontal="center")
+
+    cats = db.query(CostCategory).filter(CostCategory.project_id == proj.id).order_by(CostCategory.display_order).all()
+    row = 2
+    for cat in cats:
+        invoiced = db.query(func.coalesce(func.sum(InvoiceAllocation.amount), 0.0)).filter(InvoiceAllocation.category_id == cat.id).scalar()
+        paid = 0.0
+        for a in db.query(InvoiceAllocation).filter(InvoiceAllocation.category_id == cat.id).all():
+            inv = db.query(Invoice).filter(Invoice.id == a.invoice_id).first()
+            if inv:
+                paid += (inv.amount_paid or 0) * (a.percentage / 100)
+        remaining = cat.budget - invoiced
+        pct = (invoiced / cat.budget * 100) if cat.budget else 0
+        ws1.cell(row=row, column=1, value=cat.name)
+        ws1.cell(row=row, column=2, value=round(cat.budget, 2))
+        ws1.cell(row=row, column=3, value=round(invoiced, 2))
+        ws1.cell(row=row, column=4, value=round(paid, 2))
+        ws1.cell(row=row, column=5, value=round(remaining, 2))
+        ws1.cell(row=row, column=6, value=round(pct, 1))
+        if row % 2 == 0:
+            for col in range(1, 7):
+                ws1.cell(row=row, column=col).fill = alt_fill
+        row += 1
+    for i in range(1, 7):
+        ws1.column_dimensions[get_column_letter(i)].width = 20
+
+    # ── Sheet 2: Invoice Register ────────────────────────────────────────────
+    ws2 = wb.create_sheet("Invoice Register")
+    inv_headers = ["Invoice #", "Date", "Due Date", "Vendor", "Billed To", "Billing Type",
+                   "Vendor on Record", "Amount", "Paid", "Balance", "Payment Status",
+                   "Cost Category", "Sub-Category", "Sub-Division", "Allocation %", "Aging Days"]
+    for i, h in enumerate(inv_headers, 1):
+        c = ws2.cell(row=1, column=i, value=h)
+        c.font = header_font; c.fill = header_fill; c.alignment = Alignment(horizontal="center")
+
+    invoices_q = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id, Invoice.status == "processed"
+    )
+    if entity:
+        invoices_q = invoices_q.filter(Invoice.billed_to.ilike(f"%{entity}%"))
+    invoices = invoices_q.order_by(Invoice.invoice_date.desc()).all()
+
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    row = 2
+    for inv in invoices:
+        allocs = db.query(InvoiceAllocation).filter(InvoiceAllocation.invoice_id == inv.id).all()
+        if not allocs:
+            allocs = [None]  # still show the invoice even if unallocated
+
+        for alloc in allocs:
+            due = inv.due_date or inv.invoice_date
+            try:
+                aging_days = (datetime.strptime(today_str, "%Y-%m-%d") - datetime.strptime(due, "%Y-%m-%d")).days if due else 0
+            except ValueError:
+                aging_days = 0
+
+            ws2.cell(row=row, column=1, value=inv.invoice_number)
+            ws2.cell(row=row, column=2, value=inv.invoice_date)
+            ws2.cell(row=row, column=3, value=inv.due_date)
+            ws2.cell(row=row, column=4, value=inv.vendor_name)
+            ws2.cell(row=row, column=5, value=inv.billed_to)
+            ws2.cell(row=row, column=6, value=inv.billing_type)
+            ws2.cell(row=row, column=7, value=inv.vendor_on_record)
+            ws2.cell(row=row, column=8, value=round(inv.total_due or 0, 2))
+            ws2.cell(row=row, column=9, value=round(inv.amount_paid or 0, 2))
+            ws2.cell(row=row, column=10, value=round((inv.total_due or 0) - (inv.amount_paid or 0), 2))
+            ws2.cell(row=row, column=11, value=inv.payment_status or "unpaid")
+
+            if alloc:
+                ws2.cell(row=row, column=12, value=alloc.category.name if alloc.category else "")
+                ws2.cell(row=row, column=13, value=alloc.sub_category.name if alloc.sub_category else "")
+                ws2.cell(row=row, column=14, value=alloc.subdivision.name if alloc.subdivision else "")
+                ws2.cell(row=row, column=15, value=alloc.percentage)
+            else:
+                ws2.cell(row=row, column=12, value="UNALLOCATED")
+
+            ws2.cell(row=row, column=16, value=aging_days if inv.payment_status != "paid" else 0)
+            row += 1
+
+    for i in range(1, len(inv_headers) + 1):
+        ws2.column_dimensions[get_column_letter(i)].width = 18
+
+    # ── Sheet 3: Payments Ledger ─────────────────────────────────────────────
+    ws3 = wb.create_sheet("Payments Ledger")
+    pmt_headers = ["Payment Date", "Invoice #", "Vendor", "Billed To", "Amount", "Method", "Reference", "Notes"]
+    for i, h in enumerate(pmt_headers, 1):
+        c = ws3.cell(row=1, column=i, value=h)
+        c.font = header_font; c.fill = header_fill; c.alignment = Alignment(horizontal="center")
+
+    payments = (
+        db.query(Payment)
+        .join(Invoice)
+        .filter(Invoice.user_id == current_user.id)
+        .order_by(Payment.payment_date.desc())
+        .all()
+    )
+    row = 2
+    for pmt in payments:
+        inv = db.query(Invoice).filter(Invoice.id == pmt.invoice_id).first()
+        if entity and inv and inv.billed_to and entity.lower() not in inv.billed_to.lower():
+            continue
+        ws3.cell(row=row, column=1, value=pmt.payment_date)
+        ws3.cell(row=row, column=2, value=inv.invoice_number if inv else "")
+        ws3.cell(row=row, column=3, value=inv.vendor_name if inv else "")
+        ws3.cell(row=row, column=4, value=inv.billed_to if inv else "")
+        ws3.cell(row=row, column=5, value=round(pmt.amount, 2))
+        ws3.cell(row=row, column=6, value=pmt.method)
+        ws3.cell(row=row, column=7, value=pmt.reference)
+        ws3.cell(row=row, column=8, value=pmt.notes)
+        row += 1
+    for i in range(1, len(pmt_headers) + 1):
+        ws3.column_dimensions[get_column_letter(i)].width = 18
+
+    # ── Sheet 4: Aging Report ────────────────────────────────────────────────
+    ws4 = wb.create_sheet("Aging Report")
+    aging_headers = ["Invoice #", "Vendor", "Billed To", "Invoice Date", "Due Date", "Total", "Paid", "Balance", "Days Overdue", "Bucket"]
+    for i, h in enumerate(aging_headers, 1):
+        c = ws4.cell(row=1, column=i, value=h)
+        c.font = header_font; c.fill = header_fill; c.alignment = Alignment(horizontal="center")
+
+    unpaid_invoices = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.status == "processed",
+        Invoice.payment_status != "paid",
+    ).order_by(Invoice.due_date).all()
+
+    row = 2
+    for inv in unpaid_invoices:
+        if entity and inv.billed_to and entity.lower() not in inv.billed_to.lower():
+            continue
+        due = inv.due_date or inv.invoice_date
+        try:
+            days = (datetime.strptime(today_str, "%Y-%m-%d") - datetime.strptime(due, "%Y-%m-%d")).days if due else 0
+        except ValueError:
+            days = 0
+        bucket = "Current" if days <= 30 else "31-60" if days <= 60 else "61-90" if days <= 90 else "90+"
+        balance = (inv.total_due or 0) - (inv.amount_paid or 0)
+
+        ws4.cell(row=row, column=1, value=inv.invoice_number)
+        ws4.cell(row=row, column=2, value=inv.vendor_name)
+        ws4.cell(row=row, column=3, value=inv.billed_to)
+        ws4.cell(row=row, column=4, value=inv.invoice_date)
+        ws4.cell(row=row, column=5, value=inv.due_date)
+        ws4.cell(row=row, column=6, value=round(inv.total_due or 0, 2))
+        ws4.cell(row=row, column=7, value=round(inv.amount_paid or 0, 2))
+        ws4.cell(row=row, column=8, value=round(balance, 2))
+        ws4.cell(row=row, column=9, value=days)
+        ws4.cell(row=row, column=10, value=bucket)
+        row += 1
+    for i in range(1, len(aging_headers) + 1):
+        ws4.column_dimensions[get_column_letter(i)].width = 18
+
+    # ── Sheet 5: Entity Summary ──────────────────────────────────────────────
+    ws5 = wb.create_sheet("Entity Summary")
+    ent_headers = ["Entity (Billed To)", "# Invoices", "Total Invoiced", "Total Paid", "Outstanding", "Billing Type"]
+    for i, h in enumerate(ent_headers, 1):
+        c = ws5.cell(row=1, column=i, value=h)
+        c.font = header_font; c.fill = header_fill; c.alignment = Alignment(horizontal="center")
+
+    # Group by billed_to
+    all_inv = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id, Invoice.status == "processed"
+    ).all()
+    entity_map = {}
+    for inv in all_inv:
+        ent = inv.billed_to or "Unknown"
+        if ent not in entity_map:
+            entity_map[ent] = {"count": 0, "invoiced": 0.0, "paid": 0.0, "billing_type": set()}
+        entity_map[ent]["count"] += 1
+        entity_map[ent]["invoiced"] += (inv.total_due or 0)
+        entity_map[ent]["paid"] += (inv.amount_paid or 0)
+        if inv.billing_type:
+            entity_map[ent]["billing_type"].add(inv.billing_type)
+
+    row = 2
+    for ent_name, data in sorted(entity_map.items()):
+        ws5.cell(row=row, column=1, value=ent_name)
+        ws5.cell(row=row, column=2, value=data["count"])
+        ws5.cell(row=row, column=3, value=round(data["invoiced"], 2))
+        ws5.cell(row=row, column=4, value=round(data["paid"], 2))
+        ws5.cell(row=row, column=5, value=round(data["invoiced"] - data["paid"], 2))
+        ws5.cell(row=row, column=6, value=", ".join(data["billing_type"]) if data["billing_type"] else "")
+        row += 1
+    for i in range(1, len(ent_headers) + 1):
+        ws5.column_dimensions[get_column_letter(i)].width = 22
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"bookkeeping_{proj.name.replace(' ', '_')}_{today_str}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )

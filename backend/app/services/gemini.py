@@ -169,6 +169,23 @@ def build_extraction_prompt(columns: List[ColumnConfig], categories: List[Catego
 
     fields_desc["confidence_score"] = "Your confidence in the overall extraction accuracy, 0.0 to 1.0 (number)"
 
+    # Billing entity fields
+    fields_desc["billed_to"] = (
+        "The company/entity name this invoice is addressed TO (the 'Bill To' or 'Invoice To' on the document). "
+        "Extract exactly as written. (string or null)"
+    )
+    fields_desc["billing_type"] = (
+        "Determine billing type: 'direct' if the invoice is billed directly to the project SPV, "
+        "'pass_through' if billed to a subsidiary that will pass costs through. "
+        "Use null if unsure. (string or null)"
+    )
+    fields_desc["vendor_on_record"] = (
+        "The Vendor on Record (VoR) — the entity responsible for this cost. "
+        "If the invoice is billed to a subsidiary, the VoR is that subsidiary name. "
+        "If billed directly to the SPV, the VoR is 'Self'. "
+        "Extract the VoR entity name exactly. (string or null)"
+    )
+
     # Add cost category classification fields
     if cost_categories:
         cat_names = [c["name"] for c in cost_categories]
