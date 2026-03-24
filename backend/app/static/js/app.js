@@ -83,6 +83,24 @@ function app() {
     paymentForm: { invoice_id: null, amount: '', payment_date: '', method: '', reference: '', notes: '' },
     invoicePayments: [],
 
+    // ── Draws & Claims ──────────────────────────────────────────
+    financeView: 'draws',    // 'draws' | 'provincial' | 'federal'
+    draws: [],
+    claims: [],
+    showDrawModal: false,
+    drawForm: { draw_number: '', fx_rate: 1.0, submission_date: '', status: 'draft', notes: '' },
+    drawFormError: '',
+    editingDrawId: null,
+    showClaimModal: false,
+    claimForm: { claim_number: '', claim_type: 'provincial', fx_rate: 1.0, submission_date: '', status: 'draft', notes: '' },
+    claimFormError: '',
+    editingClaimId: null,
+    showAssignInvoicesModal: false,
+    assignTarget: null,       // { type: 'draw'|'claim', id, number }
+    assignableInvoices: [],
+    assignedInvoiceIds: [],
+    fxRateLoading: false,
+
     // ── Init ──────────────────────────────────────────────────────
     async init() {
       const saved = localStorage.getItem('invoice_token');
@@ -622,6 +640,8 @@ function app() {
       try {
         this.projectDash = await this.get('/api/project/dashboard');
         this.costCategories = this.projectDash?.categories || [];
+        this.draws = this.projectDash?.draws || [];
+        this.claims = [...(this.projectDash?.provincial_claims || []), ...(this.projectDash?.federal_claims || [])];
       } catch (e) { console.error(e); }
     },
 
@@ -764,6 +784,135 @@ function app() {
       if (pct > 0.2) return 'text-green-600';
       if (pct > 0) return 'text-amber-500';
       return 'text-red-600';
+    },
+
+    // ── Draws ──────────────────────────────────────────────────────
+    async loadDraws() {
+      try { this.draws = await this.get('/api/project/draws'); } catch (e) {}
+    },
+
+    openDrawModal(draw = null) {
+      if (draw) {
+        this.editingDrawId = draw.id;
+        this.drawForm = { draw_number: draw.draw_number, fx_rate: draw.fx_rate, submission_date: draw.submission_date || '', status: draw.status, notes: draw.notes || '' };
+      } else {
+        this.editingDrawId = null;
+        const next = this.draws.length ? Math.max(...this.draws.map(d => d.draw_number)) + 1 : 1;
+        this.drawForm = { draw_number: next, fx_rate: 1.0, submission_date: '', status: 'draft', notes: '' };
+      }
+      this.drawFormError = '';
+      this.showDrawModal = true;
+    },
+
+    async fetchFxRate(target) {
+      this.fxRateLoading = true;
+      try {
+        const date = (target === 'draw' ? this.drawForm.submission_date : this.claimForm.submission_date) || '';
+        const r = await this.get('/api/project/fx-rate' + (date ? '?date=' + date : ''));
+        if (target === 'draw') this.drawForm.fx_rate = r.rate;
+        else this.claimForm.fx_rate = r.rate;
+      } catch (e) { alert('Could not fetch rate'); }
+      this.fxRateLoading = false;
+    },
+
+    async saveDraw() {
+      try {
+        if (this.editingDrawId) {
+          await this.put(`/api/project/draws/${this.editingDrawId}`, { fx_rate: this.drawForm.fx_rate, submission_date: this.drawForm.submission_date || null, status: this.drawForm.status, notes: this.drawForm.notes || null });
+        } else {
+          await this.post('/api/project/draws', this.drawForm);
+        }
+        this.showDrawModal = false;
+        await Promise.all([this.loadDraws(), this.loadProjectDashboard()]);
+      } catch (e) { this.drawFormError = e.message; }
+    },
+
+    async deleteDraw(drawId) {
+      if (!confirm('Delete this draw and unlink all its invoices?')) return;
+      try {
+        await this.del(`/api/project/draws/${drawId}`);
+        await Promise.all([this.loadDraws(), this.loadProjectDashboard()]);
+      } catch (e) { alert(e.message); }
+    },
+
+    // ── Claims ─────────────────────────────────────────────────────
+    async loadClaims() {
+      try { this.claims = await this.get('/api/project/claims'); } catch (e) {}
+    },
+
+    openClaimModal(claim = null, claimType = 'provincial') {
+      if (claim) {
+        this.editingClaimId = claim.id;
+        this.claimForm = { claim_number: claim.claim_number, claim_type: claim.claim_type, fx_rate: claim.fx_rate, submission_date: claim.submission_date || '', status: claim.status, notes: claim.notes || '' };
+      } else {
+        this.editingClaimId = null;
+        const existing = this.claims.filter(c => c.claim_type === claimType);
+        const next = existing.length ? Math.max(...existing.map(c => c.claim_number)) + 1 : 1;
+        this.claimForm = { claim_number: next, claim_type: claimType, fx_rate: 1.0, submission_date: '', status: 'draft', notes: '' };
+      }
+      this.claimFormError = '';
+      this.showClaimModal = true;
+    },
+
+    async saveClaim() {
+      try {
+        if (this.editingClaimId) {
+          await this.put(`/api/project/claims/${this.editingClaimId}`, { fx_rate: this.claimForm.fx_rate, submission_date: this.claimForm.submission_date || null, status: this.claimForm.status, notes: this.claimForm.notes || null });
+        } else {
+          await this.post('/api/project/claims', this.claimForm);
+        }
+        this.showClaimModal = false;
+        await Promise.all([this.loadClaims(), this.loadProjectDashboard()]);
+      } catch (e) { this.claimFormError = e.message; }
+    },
+
+    async deleteClaim(claimId) {
+      if (!confirm('Delete this claim and unlink all its invoices?')) return;
+      try {
+        await this.del(`/api/project/claims/${claimId}`);
+        await Promise.all([this.loadClaims(), this.loadProjectDashboard()]);
+      } catch (e) { alert(e.message); }
+    },
+
+    async copyDrawToClaim(claimId, drawId) {
+      try {
+        await this.put(`/api/project/claims/${claimId}/copy-from-draw/${drawId}`, {});
+        await Promise.all([this.loadClaims(), this.loadProjectDashboard()]);
+        alert('Invoices copied from draw to claim');
+      } catch (e) { alert(e.message); }
+    },
+
+    // ── Assign Invoices Modal ──────────────────────────────────────
+    async openAssignInvoices(type, id, number) {
+      this.assignTarget = { type, id, number };
+      // Load all processed invoices
+      const allInvs = (await this.get('/api/invoices?limit=1000')).items || [];
+      this.assignableInvoices = allInvs.filter(i => i.status === 'processed');
+      // Load currently assigned
+      const endpoint = type === 'draw' ? `/api/project/draws/${id}/invoices` : `/api/project/claims/${id}/invoices`;
+      const assigned = await this.get(endpoint);
+      this.assignedInvoiceIds = assigned.map(i => i.id);
+      this.showAssignInvoicesModal = true;
+    },
+
+    toggleAssignInvoice(invId) {
+      const idx = this.assignedInvoiceIds.indexOf(invId);
+      if (idx >= 0) this.assignedInvoiceIds.splice(idx, 1);
+      else this.assignedInvoiceIds.push(invId);
+    },
+
+    async saveAssignedInvoices() {
+      const t = this.assignTarget;
+      const endpoint = t.type === 'draw' ? `/api/project/draws/${t.id}/invoices` : `/api/project/claims/${t.id}/invoices`;
+      try {
+        await this.put(endpoint, this.assignedInvoiceIds);
+        this.showAssignInvoicesModal = false;
+        await Promise.all([this.loadDraws(), this.loadClaims(), this.loadProjectDashboard(), this.loadInvoices()]);
+      } catch (e) { alert(e.message); }
+    },
+
+    statusColor(status) {
+      return { draft: 'bg-gray-100 text-gray-700', submitted: 'bg-blue-100 text-blue-700', approved: 'bg-green-100 text-green-700', funded: 'bg-emerald-100 text-emerald-800', received: 'bg-emerald-100 text-emerald-800' }[status] || 'bg-gray-100 text-gray-600';
     },
 
     // ── Settings ──────────────────────────────────────────────────

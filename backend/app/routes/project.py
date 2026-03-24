@@ -14,6 +14,7 @@ from ..database import get_db
 from ..models import (
     User, Project, SubDivision, CostCategory, CostSubCategory,
     SubDivisionBudget, Invoice, InvoiceAllocation, Payment,
+    Draw, Claim,
 )
 from ..schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut,
@@ -21,6 +22,8 @@ from ..schemas import (
     CostSubCategoryCreate, CostSubCategoryOut,
     SubDivisionBudgetSet, AllocationCreate, AllocationOut,
     PaymentCreate, PaymentOut,
+    DrawCreate, DrawUpdate, DrawOut,
+    ClaimCreate, ClaimUpdate, ClaimOut,
 )
 from ..dependencies import get_current_user
 
@@ -369,6 +372,253 @@ def delete_payment(payment_id: int, db: Session = Depends(get_db), current_user:
     return {"message": "Payment deleted"}
 
 
+# ─── Draws ───────────────────────────────────────────────────────────────────
+
+def _draw_out(draw, db):
+    invs = db.query(Invoice).filter(Invoice.draw_id == draw.id).all()
+    total_orig = sum(i.total_due or 0 for i in invs)
+    return DrawOut(
+        id=draw.id, draw_number=draw.draw_number, fx_rate=draw.fx_rate,
+        submission_date=draw.submission_date, status=draw.status,
+        notes=draw.notes, created_at=draw.created_at,
+        invoice_count=len(invs), total_original=round(total_orig, 2),
+        total_cad=round(total_orig * draw.fx_rate, 2),
+    )
+
+@router.get("/draws")
+def list_draws(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        return []
+    draws = db.query(Draw).filter(Draw.project_id == proj.id).order_by(Draw.draw_number).all()
+    return [_draw_out(d, db) for d in draws]
+
+@router.post("/draws")
+def create_draw(body: DrawCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Create a project first")
+    existing = db.query(Draw).filter(Draw.project_id == proj.id, Draw.draw_number == body.draw_number).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Draw {body.draw_number} already exists")
+    draw = Draw(project_id=proj.id, **body.model_dump())
+    db.add(draw)
+    db.commit()
+    db.refresh(draw)
+    return _draw_out(draw, db)
+
+@router.put("/draws/{draw_id}")
+def update_draw(draw_id: int, body: DrawUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404)
+    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    if not draw:
+        raise HTTPException(status_code=404, detail="Draw not found")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        if field in {"fx_rate", "submission_date", "status", "notes"}:
+            setattr(draw, field, value)
+    db.commit()
+    db.refresh(draw)
+    return _draw_out(draw, db)
+
+@router.delete("/draws/{draw_id}")
+def delete_draw(draw_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404)
+    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    if not draw:
+        raise HTTPException(status_code=404)
+    # Unlink invoices
+    db.query(Invoice).filter(Invoice.draw_id == draw_id).update({"draw_id": None})
+    db.delete(draw)
+    db.commit()
+    return {"message": "Draw deleted"}
+
+@router.put("/draws/{draw_id}/invoices")
+def assign_invoices_to_draw(draw_id: int, invoice_ids: List[int], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404)
+    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    if not draw:
+        raise HTTPException(status_code=404, detail="Draw not found")
+    # Unlink all currently linked
+    db.query(Invoice).filter(Invoice.draw_id == draw_id).update({"draw_id": None})
+    # Link new set
+    for iid in invoice_ids:
+        inv = db.query(Invoice).filter(Invoice.id == iid, Invoice.user_id == current_user.id).first()
+        if inv:
+            inv.draw_id = draw_id
+    db.commit()
+    return _draw_out(draw, db)
+
+@router.get("/draws/{draw_id}/invoices")
+def get_draw_invoices(draw_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        return []
+    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    if not draw:
+        raise HTTPException(status_code=404)
+    invs = db.query(Invoice).filter(Invoice.draw_id == draw_id, Invoice.user_id == current_user.id).all()
+    return [{
+        "id": i.id, "invoice_number": i.invoice_number, "vendor_name": i.vendor_name,
+        "currency": i.currency or "CAD", "total_due": i.total_due or 0,
+        "cad_amount": round((i.total_due or 0) * draw.fx_rate, 2) if (i.currency or "CAD").upper() != "CAD" else (i.total_due or 0),
+        "original_filename": i.original_filename, "invoice_date": i.invoice_date,
+        "billed_to": i.billed_to, "billing_type": i.billing_type, "vendor_on_record": i.vendor_on_record,
+    } for i in invs]
+
+
+# ─── Claims ──────────────────────────────────────────────────────────────────
+
+def _claim_out(claim, db):
+    invs = db.query(Invoice).filter(Invoice.claim_id == claim.id).all()
+    total_orig = sum(i.total_due or 0 for i in invs)
+    return ClaimOut(
+        id=claim.id, claim_number=claim.claim_number, claim_type=claim.claim_type,
+        fx_rate=claim.fx_rate, submission_date=claim.submission_date,
+        status=claim.status, notes=claim.notes, created_at=claim.created_at,
+        invoice_count=len(invs), total_original=round(total_orig, 2),
+        total_cad=round(total_orig * claim.fx_rate, 2),
+    )
+
+@router.get("/claims")
+def list_claims(claim_type: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        return []
+    q = db.query(Claim).filter(Claim.project_id == proj.id)
+    if claim_type:
+        q = q.filter(Claim.claim_type == claim_type)
+    return [_claim_out(c, db) for c in q.order_by(Claim.claim_number).all()]
+
+@router.post("/claims")
+def create_claim(body: ClaimCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Create a project first")
+    if body.claim_type not in ("provincial", "federal"):
+        raise HTTPException(status_code=400, detail="claim_type must be 'provincial' or 'federal'")
+    existing = db.query(Claim).filter(Claim.project_id == proj.id, Claim.claim_number == body.claim_number, Claim.claim_type == body.claim_type).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"{body.claim_type.title()} Claim {body.claim_number} already exists")
+    claim = Claim(project_id=proj.id, **body.model_dump())
+    db.add(claim)
+    db.commit()
+    db.refresh(claim)
+    return _claim_out(claim, db)
+
+@router.put("/claims/{claim_id}")
+def update_claim(claim_id: int, body: ClaimUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404)
+    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        if field in {"fx_rate", "submission_date", "status", "notes"}:
+            setattr(claim, field, value)
+    db.commit()
+    db.refresh(claim)
+    return _claim_out(claim, db)
+
+@router.delete("/claims/{claim_id}")
+def delete_claim(claim_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404)
+    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    if not claim:
+        raise HTTPException(status_code=404)
+    db.query(Invoice).filter(Invoice.claim_id == claim_id).update({"claim_id": None})
+    db.delete(claim)
+    db.commit()
+    return {"message": "Claim deleted"}
+
+@router.put("/claims/{claim_id}/invoices")
+def assign_invoices_to_claim(claim_id: int, invoice_ids: List[int], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404)
+    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    db.query(Invoice).filter(Invoice.claim_id == claim_id).update({"claim_id": None})
+    for iid in invoice_ids:
+        inv = db.query(Invoice).filter(Invoice.id == iid, Invoice.user_id == current_user.id).first()
+        if inv:
+            inv.claim_id = claim_id
+    db.commit()
+    return _claim_out(claim, db)
+
+@router.put("/claims/{claim_id}/copy-from-draw/{draw_id}")
+def copy_draw_to_claim(claim_id: int, draw_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Copy all invoices from a draw to a claim (for the 99% overlap case)."""
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404)
+    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    if not draw or not claim:
+        raise HTTPException(status_code=404)
+    draw_invs = db.query(Invoice).filter(Invoice.draw_id == draw_id, Invoice.user_id == current_user.id).all()
+    for inv in draw_invs:
+        inv.claim_id = claim_id
+    db.commit()
+    return _claim_out(claim, db)
+
+@router.get("/claims/{claim_id}/invoices")
+def get_claim_invoices(claim_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        return []
+    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    if not claim:
+        raise HTTPException(status_code=404)
+    invs = db.query(Invoice).filter(Invoice.claim_id == claim_id, Invoice.user_id == current_user.id).all()
+    return [{
+        "id": i.id, "invoice_number": i.invoice_number, "vendor_name": i.vendor_name,
+        "currency": i.currency or "CAD", "total_due": i.total_due or 0,
+        "cad_amount": round((i.total_due or 0) * claim.fx_rate, 2) if (i.currency or "CAD").upper() != "CAD" else (i.total_due or 0),
+        "original_filename": i.original_filename, "invoice_date": i.invoice_date,
+        "billed_to": i.billed_to, "billing_type": i.billing_type, "vendor_on_record": i.vendor_on_record,
+    } for i in invs]
+
+
+# ─── FX Rate (Bank of Canada) ───────────────────────────────────────────────
+
+@router.get("/fx-rate")
+def get_fx_rate(date: Optional[str] = None):
+    """Fetch USD→CAD rate from Bank of Canada for a given date. Falls back to 1.0 on error."""
+    import urllib.request, json as _json
+    target_date = date or datetime.utcnow().strftime("%Y-%m-%d")
+    try:
+        url = f"https://www.bankofcanada.ca/valet/observations/FXUSDCAD/json?start_date={target_date}&end_date={target_date}"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = _json.loads(resp.read())
+        obs = data.get("observations", [])
+        if obs:
+            return {"date": target_date, "rate": float(obs[-1]["FXUSDCAD"]["v"]), "source": "bank_of_canada"}
+        # If no data for that date (weekend/holiday), try last 5 days
+        from datetime import timedelta
+        d = datetime.strptime(target_date, "%Y-%m-%d")
+        start = (d - timedelta(days=5)).strftime("%Y-%m-%d")
+        url2 = f"https://www.bankofcanada.ca/valet/observations/FXUSDCAD/json?start_date={start}&end_date={target_date}"
+        with urllib.request.urlopen(url2, timeout=5) as resp:
+            data = _json.loads(resp.read())
+        obs = data.get("observations", [])
+        if obs:
+            last = obs[-1]
+            return {"date": last["d"], "rate": float(last["FXUSDCAD"]["v"]), "source": "bank_of_canada"}
+    except Exception:
+        pass
+    return {"date": target_date, "rate": 1.0, "source": "fallback"}
+
+
 # ─── Dashboard ────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard")
@@ -488,6 +738,18 @@ def project_dashboard(db: Session = Depends(get_db), current_user: User = Depend
         else:
             aging["current"] += amt
 
+    # Draws summary
+    draws = db.query(Draw).filter(Draw.project_id == proj.id).order_by(Draw.draw_number).all()
+    draws_summary = [_draw_out(d, db).model_dump() for d in draws]
+
+    # Claims summary
+    prov_claims = db.query(Claim).filter(Claim.project_id == proj.id, Claim.claim_type == "provincial").order_by(Claim.claim_number).all()
+    fed_claims = db.query(Claim).filter(Claim.project_id == proj.id, Claim.claim_type == "federal").order_by(Claim.claim_number).all()
+
+    # Unassigned to draws/claims
+    no_draw = db.query(Invoice).filter(Invoice.user_id == current_user.id, Invoice.status == "processed", Invoice.draw_id.is_(None)).count()
+    no_claim = db.query(Invoice).filter(Invoice.user_id == current_user.id, Invoice.status == "processed", Invoice.claim_id.is_(None)).count()
+
     return {
         "project": ProjectOut.model_validate(proj).model_dump(),
         "total_budget": total_budget,
@@ -497,6 +759,11 @@ def project_dashboard(db: Session = Depends(get_db), current_user: User = Depend
         "categories": cat_summary,
         "unallocated_invoices": unallocated,
         "aging": {k: round(v, 2) for k, v in aging.items()},
+        "draws": draws_summary,
+        "provincial_claims": [_claim_out(c, db).model_dump() for c in prov_claims],
+        "federal_claims": [_claim_out(c, db).model_dump() for c in fed_claims],
+        "invoices_without_draw": no_draw,
+        "invoices_without_claim": no_claim,
     }
 
 

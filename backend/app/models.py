@@ -58,7 +58,13 @@ class Invoice(Base):
     payment_status = Column(String, default="unpaid")  # unpaid | partially_paid | paid
     amount_paid = Column(Float, default=0.0)
 
+    # Draw / Claim linking
+    draw_id = Column(Integer, ForeignKey("draws.id"), nullable=True)
+    claim_id = Column(Integer, ForeignKey("claims.id"), nullable=True)        # provincial or federal
+
     user = relationship("User", back_populates="invoices")
+    draw = relationship("Draw", foreign_keys=[draw_id], back_populates="invoices")
+    claim = relationship("Claim", foreign_keys=[claim_id], back_populates="invoices")
     allocations = relationship("InvoiceAllocation", back_populates="invoice", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
 
@@ -231,6 +237,41 @@ class Payment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     invoice = relationship("Invoice", back_populates="payments")
+
+
+class Draw(Base):
+    """A draw submission to lenders — groups invoices with a single FX rate."""
+    __tablename__ = "draws"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    draw_number = Column(Integer, nullable=False)
+    fx_rate = Column(Float, default=1.0)          # USD→CAD rate for this draw
+    submission_date = Column(String, nullable=True)
+    status = Column(String, default="draft")      # draft | submitted | approved | funded
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project")
+    invoices = relationship("Invoice", foreign_keys="Invoice.draw_id", back_populates="draw")
+
+
+class Claim(Base):
+    """A claim submission to government (provincial or federal)."""
+    __tablename__ = "claims"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    claim_number = Column(Integer, nullable=False)
+    claim_type = Column(String, nullable=False)   # provincial | federal
+    fx_rate = Column(Float, default=1.0)          # USD→CAD rate for this claim
+    submission_date = Column(String, nullable=True)
+    status = Column(String, default="draft")      # draft | submitted | approved | received
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project")
+    invoices = relationship("Invoice", foreign_keys="Invoice.claim_id", back_populates="claim")
 
 
 class GeminiApiKey(Base):

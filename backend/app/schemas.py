@@ -128,6 +128,8 @@ class InvoiceOut(BaseModel):
     vendor_on_record: Optional[str] = None
     payment_status: Optional[str] = "unpaid"
     amount_paid: Optional[float] = 0.0
+    draw_id: Optional[int] = None
+    claim_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -273,5 +275,64 @@ class PaymentOut(BaseModel):
     reference: Optional[str]
     notes: Optional[str]
     created_at: datetime
+    class Config:
+        from_attributes = True
+
+
+# ─── Draws & Claims ──────────────────────────────────────────────────────────
+
+class DrawCreate(BaseModel):
+    draw_number: int
+    fx_rate: float = 1.0
+    submission_date: Optional[str] = None
+    status: str = "draft"
+    notes: Optional[str] = None
+
+class DrawUpdate(BaseModel):
+    fx_rate: Optional[float] = None
+    submission_date: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+class DrawOut(BaseModel):
+    id: int
+    draw_number: int
+    fx_rate: float
+    submission_date: Optional[str]
+    status: str
+    notes: Optional[str]
+    created_at: datetime
+    invoice_count: int = 0
+    total_original: float = 0.0
+    total_cad: float = 0.0
+    class Config:
+        from_attributes = True
+
+class ClaimCreate(BaseModel):
+    claim_number: int
+    claim_type: str = "provincial"   # provincial | federal
+    fx_rate: float = 1.0
+    submission_date: Optional[str] = None
+    status: str = "draft"
+    notes: Optional[str] = None
+
+class ClaimUpdate(BaseModel):
+    fx_rate: Optional[float] = None
+    submission_date: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+class ClaimOut(BaseModel):
+    id: int
+    claim_number: int
+    claim_type: str
+    fx_rate: float
+    submission_date: Optional[str]
+    status: str
+    notes: Optional[str]
+    created_at: datetime
+    invoice_count: int = 0
+    total_original: float = 0.0
+    total_cad: float = 0.0
     class Config:
         from_attributes = True

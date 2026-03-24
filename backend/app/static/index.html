@@ -701,6 +701,115 @@
               </div>
             </template>
 
+            <!-- Draws / Claims View Toggle -->
+            <div class="bg-white rounded-xl border p-4 mb-6">
+              <div class="flex items-center gap-2 mb-4">
+                <button @click="financeView='draws'" class="px-4 py-2 text-sm rounded-lg font-medium transition-colors" :class="financeView==='draws' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                  <i class="fa-solid fa-building-columns mr-1"></i> Draws (Lender)
+                </button>
+                <button @click="financeView='provincial'" class="px-4 py-2 text-sm rounded-lg font-medium transition-colors" :class="financeView==='provincial' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                  <i class="fa-solid fa-landmark mr-1"></i> Provincial Claims
+                </button>
+                <button @click="financeView='federal'" class="px-4 py-2 text-sm rounded-lg font-medium transition-colors" :class="financeView==='federal' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                  <i class="fa-solid fa-flag mr-1"></i> Federal Claims
+                </button>
+                <div class="flex-1"></div>
+                <span x-show="financeView==='draws'" class="text-xs text-gray-400" x-text="(projectDash?.invoices_without_draw || 0) + ' invoices unassigned'"></span>
+                <span x-show="financeView!=='draws'" class="text-xs text-gray-400" x-text="(projectDash?.invoices_without_claim || 0) + ' invoices unassigned'"></span>
+              </div>
+
+              <!-- DRAWS TABLE -->
+              <div x-show="financeView==='draws'">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-sm font-semibold text-gray-700">Draws</h3>
+                  <button @click="openDrawModal()" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><i class="fa-solid fa-plus mr-1"></i> New Draw</button>
+                </div>
+                <table class="w-full text-sm" x-show="draws.length > 0">
+                  <thead class="bg-gray-50 border-b">
+                    <tr>
+                      <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Draw #</th>
+                      <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">FX Rate</th>
+                      <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Invoices</th>
+                      <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Total (Orig)</th>
+                      <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Total (CAD)</th>
+                      <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">Status</th>
+                      <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Submitted</th>
+                      <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y">
+                    <template x-for="d in draws" :key="'draw-' + d.id">
+                      <tr class="hover:bg-gray-50">
+                        <td class="px-3 py-2 font-bold text-gray-800" x-text="'Draw ' + d.draw_number"></td>
+                        <td class="px-3 py-2 text-right text-gray-600" x-text="d.fx_rate.toFixed(4)"></td>
+                        <td class="px-3 py-2 text-right" x-text="d.invoice_count"></td>
+                        <td class="px-3 py-2 text-right text-gray-600" x-text="'$' + d.total_original.toLocaleString('en-CA', {minimumFractionDigits:2})"></td>
+                        <td class="px-3 py-2 text-right font-semibold text-blue-600" x-text="'$' + d.total_cad.toLocaleString('en-CA', {minimumFractionDigits:2})"></td>
+                        <td class="px-3 py-2 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="statusColor(d.status)" x-text="d.status"></span></td>
+                        <td class="px-3 py-2 text-gray-500" x-text="d.submission_date || '—'"></td>
+                        <td class="px-3 py-2 text-center space-x-1">
+                          <button @click="openAssignInvoices('draw', d.id, d.draw_number)" class="text-xs px-2 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100" title="Assign invoices"><i class="fa-solid fa-link"></i></button>
+                          <button @click="openDrawModal(d)" class="text-xs px-2 py-1 rounded bg-gray-50 text-gray-600 hover:bg-gray-100" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                          <button @click="deleteDraw(d.id)" class="text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+                <p x-show="draws.length === 0" class="text-center text-gray-400 py-6 text-sm">No draws yet. Create your first draw to start grouping invoices for lender submission.</p>
+              </div>
+
+              <!-- CLAIMS TABLE (Provincial or Federal) -->
+              <div x-show="financeView==='provincial' || financeView==='federal'">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-sm font-semibold text-gray-700" x-text="financeView === 'provincial' ? 'Provincial Claims' : 'Federal Claims'"></h3>
+                  <button @click="openClaimModal(null, financeView)" class="text-xs px-3 py-1.5 text-white rounded-lg hover:opacity-90" :class="financeView==='provincial' ? 'bg-purple-600' : 'bg-indigo-600'"><i class="fa-solid fa-plus mr-1"></i> New Claim</button>
+                </div>
+                <table class="w-full text-sm" x-show="claims.filter(c => c.claim_type === financeView).length > 0">
+                  <thead class="bg-gray-50 border-b">
+                    <tr>
+                      <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Claim #</th>
+                      <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">FX Rate</th>
+                      <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Invoices</th>
+                      <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Total (Orig)</th>
+                      <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Total (CAD)</th>
+                      <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">Status</th>
+                      <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Submitted</th>
+                      <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y">
+                    <template x-for="c in claims.filter(cl => cl.claim_type === financeView)" :key="'claim-' + c.id">
+                      <tr class="hover:bg-gray-50">
+                        <td class="px-3 py-2 font-bold text-gray-800" x-text="'Claim ' + c.claim_number"></td>
+                        <td class="px-3 py-2 text-right text-gray-600" x-text="c.fx_rate.toFixed(4)"></td>
+                        <td class="px-3 py-2 text-right" x-text="c.invoice_count"></td>
+                        <td class="px-3 py-2 text-right text-gray-600" x-text="'$' + c.total_original.toLocaleString('en-CA', {minimumFractionDigits:2})"></td>
+                        <td class="px-3 py-2 text-right font-semibold" :class="financeView==='provincial' ? 'text-purple-600' : 'text-indigo-600'" x-text="'$' + c.total_cad.toLocaleString('en-CA', {minimumFractionDigits:2})"></td>
+                        <td class="px-3 py-2 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="statusColor(c.status)" x-text="c.status"></span></td>
+                        <td class="px-3 py-2 text-gray-500" x-text="c.submission_date || '—'"></td>
+                        <td class="px-3 py-2 text-center space-x-1">
+                          <button @click="openAssignInvoices('claim', c.id, c.claim_number)" class="text-xs px-2 py-1 rounded bg-purple-50 text-purple-600 hover:bg-purple-100" title="Assign invoices"><i class="fa-solid fa-link"></i></button>
+                          <button @click="openClaimModal(c)" class="text-xs px-2 py-1 rounded bg-gray-50 text-gray-600 hover:bg-gray-100" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                          <button @click="deleteClaim(c.id)" class="text-xs px-2 py-1 rounded bg-red-50 text-red-600 hover:bg-red-100" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+                <p x-show="claims.filter(c => c.claim_type === financeView).length === 0" class="text-center text-gray-400 py-6 text-sm" x-text="'No ' + financeView + ' claims yet.'"></p>
+                <!-- Copy from Draw button -->
+                <div class="mt-3 flex items-center gap-2" x-show="draws.length > 0 && claims.filter(c => c.claim_type === financeView).length > 0">
+                  <span class="text-xs text-gray-400">Quick copy:</span>
+                  <template x-for="d in draws" :key="'cpd-' + d.id">
+                    <template x-for="c in claims.filter(cl => cl.claim_type === financeView)" :key="'cpc-' + c.id">
+                      <button @click="copyDrawToClaim(c.id, d.id)" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200" x-text="'Draw ' + d.draw_number + ' -> Claim ' + c.claim_number"></button>
+                    </template>
+                  </template>
+                </div>
+              </div>
+            </div>
+
             <!-- Invoices with allocation + payment actions -->
             <div class="bg-white rounded-xl border overflow-hidden">
               <div class="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
@@ -712,7 +821,9 @@
                     <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Invoice #</th>
                     <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Vendor</th>
                     <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Date</th>
+                    <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Currency</th>
                     <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Amount</th>
+                    <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">Draw</th>
                     <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">Payment</th>
                     <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">Actions</th>
                   </tr>
@@ -723,7 +834,12 @@
                       <td class="px-3 py-2 text-gray-800 font-medium" x-text="inv.invoice_number || '—'"></td>
                       <td class="px-3 py-2 text-gray-600" x-text="inv.vendor_name || '—'"></td>
                       <td class="px-3 py-2 text-gray-500" x-text="inv.invoice_date || '—'"></td>
+                      <td class="px-3 py-2 text-gray-500 text-xs" x-text="inv.currency || 'CAD'"></td>
                       <td class="px-3 py-2 text-right font-medium" x-text="inv.total_due ? '$' + inv.total_due.toLocaleString('en-CA', {minimumFractionDigits:2}) : '—'"></td>
+                      <td class="px-3 py-2 text-center">
+                        <span x-show="inv.draw_id" class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium" x-text="'D' + (draws.find(d => d.id === inv.draw_id)?.draw_number || '?')"></span>
+                        <span x-show="!inv.draw_id" class="text-xs text-gray-300">—</span>
+                      </td>
                       <td class="px-3 py-2 text-center">
                         <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="paymentBadge(inv.payment_status)" x-text="(inv.payment_status || 'unpaid').replace('_', ' ')"></span>
                       </td>
@@ -865,6 +981,141 @@
           <div class="flex gap-2 mt-4">
             <button @click="submitPayment()" class="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">Record Payment</button>
             <button @click="showPaymentModal=false" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Draw Modal -->
+      <div x-show="showDrawModal" x-cloak class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" @click.self="showDrawModal=false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" @click.stop>
+          <h3 class="text-lg font-bold text-gray-800 mb-4" x-text="editingDrawId ? 'Edit Draw' : 'New Draw'"></h3>
+          <div class="space-y-3">
+            <div>
+              <label class="text-xs text-gray-500">Draw Number</label>
+              <input type="number" x-model="drawForm.draw_number" class="w-full border rounded px-3 py-2 text-sm" :disabled="editingDrawId" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">FX Rate (USD to CAD)</label>
+              <div class="flex gap-2">
+                <input type="number" x-model="drawForm.fx_rate" step="0.0001" class="flex-1 border rounded px-3 py-2 text-sm" />
+                <button @click="fetchFxRate('draw')" class="px-3 py-2 text-xs bg-gray-100 rounded hover:bg-gray-200" :disabled="fxRateLoading">
+                  <span x-show="!fxRateLoading"><i class="fa-solid fa-download mr-1"></i>BoC Rate</span>
+                  <span x-show="fxRateLoading">Loading...</span>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">Submission Date</label>
+              <input type="date" x-model="drawForm.submission_date" class="w-full border rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">Status</label>
+              <select x-model="drawForm.status" class="w-full border rounded px-2 py-2 text-sm">
+                <option value="draft">Draft</option>
+                <option value="submitted">Submitted</option>
+                <option value="approved">Approved</option>
+                <option value="funded">Funded</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">Notes</label>
+              <input type="text" x-model="drawForm.notes" class="w-full border rounded px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <p x-show="drawFormError" class="text-red-500 text-xs mt-2" x-text="drawFormError"></p>
+          <div class="flex gap-2 mt-4">
+            <button @click="saveDraw()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700" x-text="editingDrawId ? 'Update' : 'Create Draw'"></button>
+            <button @click="showDrawModal=false" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Claim Modal -->
+      <div x-show="showClaimModal" x-cloak class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" @click.self="showClaimModal=false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" @click.stop>
+          <h3 class="text-lg font-bold text-gray-800 mb-4" x-text="editingClaimId ? 'Edit Claim' : 'New ' + claimForm.claim_type.charAt(0).toUpperCase() + claimForm.claim_type.slice(1) + ' Claim'"></h3>
+          <div class="space-y-3">
+            <div>
+              <label class="text-xs text-gray-500">Claim Number</label>
+              <input type="number" x-model="claimForm.claim_number" class="w-full border rounded px-3 py-2 text-sm" :disabled="editingClaimId" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">FX Rate (USD to CAD)</label>
+              <div class="flex gap-2">
+                <input type="number" x-model="claimForm.fx_rate" step="0.0001" class="flex-1 border rounded px-3 py-2 text-sm" />
+                <button @click="fetchFxRate('claim')" class="px-3 py-2 text-xs bg-gray-100 rounded hover:bg-gray-200" :disabled="fxRateLoading">
+                  <span x-show="!fxRateLoading"><i class="fa-solid fa-download mr-1"></i>BoC Rate</span>
+                  <span x-show="fxRateLoading">Loading...</span>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">Submission Date</label>
+              <input type="date" x-model="claimForm.submission_date" class="w-full border rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">Status</label>
+              <select x-model="claimForm.status" class="w-full border rounded px-2 py-2 text-sm">
+                <option value="draft">Draft</option>
+                <option value="submitted">Submitted</option>
+                <option value="approved">Approved</option>
+                <option value="received">Received</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500">Notes</label>
+              <input type="text" x-model="claimForm.notes" class="w-full border rounded px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <p x-show="claimFormError" class="text-red-500 text-xs mt-2" x-text="claimFormError"></p>
+          <div class="flex gap-2 mt-4">
+            <button @click="saveClaim()" class="px-4 py-2 text-sm text-white rounded-lg hover:opacity-90" :class="claimForm.claim_type==='provincial' ? 'bg-purple-600' : 'bg-indigo-600'" x-text="editingClaimId ? 'Update' : 'Create Claim'"></button>
+            <button @click="showClaimModal=false" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assign Invoices Modal -->
+      <div x-show="showAssignInvoicesModal" x-cloak class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" @click.self="showAssignInvoicesModal=false">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[80vh] flex flex-col" @click.stop>
+          <h3 class="text-lg font-bold text-gray-800 mb-1" x-text="'Assign Invoices to ' + (assignTarget?.type === 'draw' ? 'Draw ' : 'Claim ') + (assignTarget?.number || '')"></h3>
+          <p class="text-xs text-gray-400 mb-4">Check/uncheck invoices to include in this <span x-text="assignTarget?.type"></span>.</p>
+          <div class="flex-1 overflow-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b sticky top-0">
+                <tr>
+                  <th class="w-8 px-3 py-2"></th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Invoice #</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Vendor</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Date</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Currency</th>
+                  <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Amount</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Billed To</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">
+                <template x-for="inv in assignableInvoices" :key="'ai-' + inv.id">
+                  <tr class="hover:bg-gray-50 cursor-pointer" @click="toggleAssignInvoice(inv.id)">
+                    <td class="px-3 py-2 text-center">
+                      <input type="checkbox" :checked="assignedInvoiceIds.includes(inv.id)" class="rounded" @click.stop="toggleAssignInvoice(inv.id)" />
+                    </td>
+                    <td class="px-3 py-2 font-medium text-gray-800" x-text="inv.invoice_number || '—'"></td>
+                    <td class="px-3 py-2 text-gray-600" x-text="inv.vendor_name || '—'"></td>
+                    <td class="px-3 py-2 text-gray-500" x-text="inv.invoice_date || '—'"></td>
+                    <td class="px-3 py-2 text-xs text-gray-500" x-text="inv.currency || 'CAD'"></td>
+                    <td class="px-3 py-2 text-right" x-text="inv.total_due ? '$' + inv.total_due.toLocaleString('en-CA', {minimumFractionDigits:2}) : '—'"></td>
+                    <td class="px-3 py-2 text-xs text-gray-500" x-text="inv.billed_to || '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="flex items-center justify-between mt-4 pt-3 border-t">
+            <span class="text-xs text-gray-400" x-text="assignedInvoiceIds.length + ' invoices selected'"></span>
+            <div class="flex gap-2">
+              <button @click="saveAssignedInvoices()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+              <button @click="showAssignInvoicesModal=false" class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+            </div>
           </div>
         </div>
       </div>

@@ -26,6 +26,8 @@ def _run_migrations():
             "ALTER TABLE invoices ADD COLUMN billed_to VARCHAR",
             "ALTER TABLE invoices ADD COLUMN billing_type VARCHAR",
             "ALTER TABLE invoices ADD COLUMN vendor_on_record VARCHAR",
+            "ALTER TABLE invoices ADD COLUMN draw_id INTEGER REFERENCES draws(id)",
+            "ALTER TABLE invoices ADD COLUMN claim_id INTEGER REFERENCES claims(id)",
         ]:
             try:
                 conn.execute(text(stmt))
