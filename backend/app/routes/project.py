@@ -886,8 +886,17 @@ def list_payroll(db: Session = Depends(get_db), current_user: User = Depends(get
     return [PayrollEntryOut.model_validate(e) for e in entries]
 
 
+def _validate_payroll(body):
+    """Reject negative monetary values in payroll entries."""
+    for field in ("gross_pay", "cpp", "ei", "income_tax", "insurance", "holiday_pay", "other_deductions"):
+        val = getattr(body, field, None) if hasattr(body, field) else body.get(field) if isinstance(body, dict) else None
+        if val is not None and val < 0:
+            raise HTTPException(status_code=400, detail=f"{field} cannot be negative")
+
+
 @router.post("/payroll")
 def create_payroll(body: PayrollEntryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _validate_payroll(body)
     proj = db.query(Project).filter(Project.user_id == current_user.id).first()
     if not proj:
         raise HTTPException(status_code=404, detail="Create a project first")
@@ -904,6 +913,7 @@ def create_payroll(body: PayrollEntryCreate, db: Session = Depends(get_db), curr
 
 @router.put("/payroll/{entry_id}")
 def update_payroll(entry_id: int, body: PayrollEntryUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _validate_payroll(body)
     entry = db.query(PayrollEntry).filter(PayrollEntry.id == entry_id, PayrollEntry.user_id == current_user.id).first()
     if not entry:
         raise HTTPException(status_code=404)

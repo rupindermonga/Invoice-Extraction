@@ -40,6 +40,16 @@ def _record_failed_attempt(request: Request):
     _login_attempts[ip].append(time.time())
 
 
+def _check_register_rate(request: Request):
+    """Soft rate limit for registration — prevents mass account creation."""
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    _register_attempts[ip] = [t for t in _register_attempts[ip] if now - t < _WINDOW_SECONDS]
+    if len(_register_attempts[ip]) >= _REGISTER_MAX:
+        raise HTTPException(status_code=429, detail="Too many registration attempts. Please try again later.")
+    _register_attempts[ip].append(now)
+
+
 def create_token(user_id: int) -> str:
     expire = datetime.utcnow() + timedelta(minutes=EXPIRE_MINUTES)
     return jwt.encode({"sub": str(user_id), "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
@@ -47,6 +57,7 @@ def create_token(user_id: int) -> str:
 
 @router.post("/register", response_model=Token)
 def register(body: UserCreate, request: Request = None, db: Session = Depends(get_db)):
+    _check_register_rate(request)
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
     if db.query(User).filter(User.email == body.email).first():
