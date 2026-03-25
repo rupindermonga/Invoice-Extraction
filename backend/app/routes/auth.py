@@ -18,31 +18,26 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "10080"))
 
 # ── In-memory rate limiter (separate buckets per endpoint) ───────────────────
-_LOGIN_MAX = 10             # max failed login attempts per window per IP
+_LOGIN_MAX = int(os.getenv("LOGIN_RATE_LIMIT", "30"))  # max login attempts per window per IP
 _REGISTER_MAX = 20          # max register attempts per window per IP (higher for QA)
 _WINDOW_SECONDS = 300       # 5-minute window
 _login_attempts: dict = defaultdict(list)
 _register_attempts: dict = defaultdict(list)
 
 
-def _check_rate_limit(request: Request, bucket: str = "login"):
-    """Raise 429 if the client IP has exceeded the attempt limit for this bucket."""
+def _check_rate_limit(request: Request):
+    """Raise 429 if the client IP has too many FAILED login attempts."""
     ip = request.client.host if request.client else "unknown"
     now = time.time()
-
-    # Only rate-limit login (brute-force protection). Registration is not rate-limited
-    # to avoid blocking legitimate users behind shared NATs.
-    if bucket == "register":
-        return
-
-    store = _login_attempts
-    limit = _LOGIN_MAX
-
-    # Prune old entries
-    store[ip] = [t for t in store[ip] if now - t < _WINDOW_SECONDS]
-    if len(store[ip]) >= limit:
+    _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < _WINDOW_SECONDS]
+    if len(_login_attempts[ip]) >= _LOGIN_MAX:
         raise HTTPException(status_code=429, detail="Too many attempts. Please try again later.")
-    store[ip].append(now)
+
+
+def _record_failed_attempt(request: Request):
+    """Record a failed login attempt for rate limiting."""
+    ip = request.client.host if request.client else "unknown"
+    _login_attempts[ip].append(time.time())
 
 
 def create_token(user_id: int) -> str:
@@ -52,7 +47,6 @@ def create_token(user_id: int) -> str:
 
 @router.post("/register", response_model=Token)
 def register(body: UserCreate, request: Request = None, db: Session = Depends(get_db)):
-    _check_rate_limit(request, bucket="register")
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
     if db.query(User).filter(User.email == body.email).first():
@@ -80,10 +74,8 @@ def login(body: UserLogin, request: Request = None, db: Session = Depends(get_db
     _check_rate_limit(request)
     user = db.query(User).filter(User.username == body.username).first()
     if not user or not pwd_context.verify(body.password, user.hashed_password):
+        _record_failed_attempt(request)
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    # On successful login, clear this IP's failed attempts
-    ip = request.client.host if request and request.client else "unknown"
-    _login_attempts.pop(ip, None)
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")
 
