@@ -51,11 +51,28 @@ def list_invoices(
     vendor: Optional[str] = None,
     currency: Optional[str] = None,
     status: Optional[str] = None,
+    draw_id: Optional[str] = None,
+    claim_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(Invoice)
     query = _apply_filters(query, current_user.id, start_date, end_date, vendor, currency, status)
+    # Draw filter
+    if draw_id == "none":
+        query = query.filter(Invoice.draw_id.is_(None))
+    elif draw_id:
+        try: query = query.filter(Invoice.draw_id == int(draw_id))
+        except ValueError: pass
+    # Claim filter (matches either provincial or federal)
+    if claim_id == "none":
+        query = query.filter(Invoice.provincial_claim_id.is_(None), Invoice.federal_claim_id.is_(None))
+    elif claim_id:
+        try:
+            cid = int(claim_id)
+            from sqlalchemy import or_
+            query = query.filter(or_(Invoice.provincial_claim_id == cid, Invoice.federal_claim_id == cid))
+        except ValueError: pass
     total = query.count()
     items = query.order_by(Invoice.processed_at.desc()).offset((page - 1) * limit).limit(limit).all()
     return InvoiceListResponse(

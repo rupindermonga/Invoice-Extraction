@@ -15,7 +15,7 @@ function app() {
     // ── Invoices ──────────────────────────────────────────────────
     invoices: [],
     stats: {},
-    filters: { start_date: '', end_date: '', vendor: '', currency: '', status: '' },
+    filters: { start_date: '', end_date: '', vendor: '', currency: '', status: '', draw_id: '', claim_id: '' },
     exportDates: { start: '', end: '' },
     pagination: { page: 1, limit: 50, total: 0, pages: 0 },
     viewMode: 'summary',   // 'summary' | 'lines'
@@ -182,6 +182,8 @@ function app() {
       if (this.filters.vendor)     params.set('vendor',     this.filters.vendor);
       if (this.filters.currency)   params.set('currency',   this.filters.currency);
       if (this.filters.status)     params.set('status',     this.filters.status);
+      if (this.filters.draw_id)    params.set('draw_id',    this.filters.draw_id);
+      if (this.filters.claim_id)   params.set('claim_id',   this.filters.claim_id);
 
       try {
         const data = await this.get(`/api/invoices?${params}`);
@@ -195,7 +197,7 @@ function app() {
     },
 
     clearFilters() {
-      this.filters = { start_date: '', end_date: '', vendor: '', currency: '', status: '' };
+      this.filters = { start_date: '', end_date: '', vendor: '', currency: '', status: '', draw_id: '', claim_id: '' };
       this.pagination.page = 1;
       this.loadInvoices();
     },
@@ -990,6 +992,24 @@ function app() {
       if (!confirm('Delete this payroll entry?')) return;
       await this.del(`/api/project/payroll/${id}`);
       await Promise.all([this.loadPayroll(), this.loadProjectDashboard()]);
+    },
+
+    // ── Bulk Approve ────────────────────────────────────────────
+    async bulkApproveDraw(drawId) {
+      if (!confirm('Approve ALL invoices in this draw? You can adjust individual ones after.')) return;
+      try {
+        const res = await this.post(`/api/project/draws/${drawId}/approve-all`, {});
+        alert(`${res.count} invoices approved`);
+        await Promise.all([this.loadDraws(), this.loadProjectDashboard(), this.loadInvoices()]);
+      } catch(e) { alert(e.message); }
+    },
+    async bulkApproveClaim(claimId) {
+      if (!confirm('Approve ALL invoices in this claim? You can adjust individual ones after.')) return;
+      try {
+        const res = await this.post(`/api/project/claims/${claimId}/approve-all`, {});
+        alert(`${res.count} invoices approved`);
+        await Promise.all([this.loadClaims(), this.loadProjectDashboard(), this.loadInvoices()]);
+      } catch(e) { alert(e.message); }
     },
 
     // ── Invoice Cost Update ─────────────────────────────────────

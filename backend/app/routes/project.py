@@ -473,6 +473,55 @@ def get_draw_invoices(draw_id: int, db: Session = Depends(get_db), current_user:
     } for i in invs]
 
 
+# ─── Bulk Approve ────────────────────────────────────────────────────────────
+
+@router.post("/draws/{draw_id}/approve-all")
+def bulk_approve_draw(draw_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Approve all invoices in a draw: set lender_approved_amt = lender_submitted_amt, status = approved."""
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404)
+    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    if not draw:
+        raise HTTPException(status_code=404, detail="Draw not found")
+    invs = db.query(Invoice).filter(Invoice.draw_id == draw_id, Invoice.user_id == current_user.id).all()
+    count = 0
+    for inv in invs:
+        # Auto-calc submitted if not set
+        st = inv.subtotal or inv.total_due or 0
+        if inv.lender_submitted_amt is None:
+            inv.lender_margin_amt = round(st * (inv.lender_margin_pct or 0) / 100, 2)
+            inv.lender_submitted_amt = round(st + (inv.lender_margin_amt or 0) + (_calc_lender_tax(inv) if hasattr(inv, 'billing_type') else 0), 2)
+        inv.lender_approved_amt = inv.lender_submitted_amt
+        inv.lender_status = "approved"
+        count += 1
+    db.commit()
+    return {"message": f"Approved {count} invoices", "count": count}
+
+
+@router.post("/claims/{claim_id}/approve-all")
+def bulk_approve_claim(claim_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Approve all invoices in a claim: set govt_approved_amt = govt_submitted_amt, status = approved."""
+    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404)
+    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+    invs = db.query(Invoice).filter(_claim_fk(claim) == claim_id, Invoice.user_id == current_user.id).all()
+    count = 0
+    for inv in invs:
+        st = inv.subtotal or inv.total_due or 0
+        if inv.govt_submitted_amt is None:
+            inv.govt_margin_amt = round(st * (inv.govt_margin_pct or 0) / 100, 2)
+            inv.govt_submitted_amt = round(st + (inv.govt_margin_amt or 0), 2)
+        inv.govt_approved_amt = inv.govt_submitted_amt
+        inv.govt_status = "approved"
+        count += 1
+    db.commit()
+    return {"message": f"Approved {count} invoices", "count": count}
+
+
 # ─── Claims ──────────────────────────────────────────────────────────────────
 
 def _claim_fk(claim):
