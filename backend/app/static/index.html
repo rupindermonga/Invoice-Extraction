@@ -492,13 +492,14 @@
         <div class="bg-white rounded-xl border overflow-hidden mt-6">
           <div class="px-5 py-3 bg-amber-50 border-b flex items-center justify-between">
             <h3 class="text-sm font-semibold text-amber-700"><i class="fa-solid fa-table-list mr-1"></i> Line Item Columns</h3>
-            <span class="text-xs text-gray-400">Controls the "Line Items" view and export</span>
+            <span class="text-xs text-gray-400">Controls line item extraction, view, and export</span>
           </div>
           <table class="w-full text-sm">
             <thead class="bg-gray-50 border-b">
               <tr>
                 <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Field</th>
                 <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">Label</th>
+                <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase" title="Gemini extracts this field">Active</th>
                 <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase" title="Show in Line Items table">View</th>
                 <th class="text-center px-5 py-3 text-xs font-semibold text-gray-500 uppercase" title="Include in Line Items export">Export</th>
               </tr>
@@ -508,6 +509,11 @@
                 <tr class="hover:bg-gray-50">
                   <td class="px-5 py-3 font-mono text-xs text-blue-700" x-text="lc.key"></td>
                   <td class="px-5 py-3 text-gray-800 font-medium" x-text="lc.label"></td>
+                  <td class="px-5 py-3 text-center">
+                    <button @click="toggleLineItemCol(lc, 'active')" :class="lc.active !== false ? 'bg-green-500' : 'bg-gray-300'" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors">
+                      <span :class="lc.active !== false ? 'translate-x-4' : 'translate-x-1'" class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"></span>
+                    </button>
+                  </td>
                   <td class="px-5 py-3 text-center">
                     <button @click="toggleLineItemCol(lc, 'visible')" :class="lc.visible ? 'bg-purple-500' : 'bg-gray-300'" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors">
                       <span :class="lc.visible ? 'translate-x-4' : 'translate-x-1'" class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"></span>

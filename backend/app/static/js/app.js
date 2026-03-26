@@ -315,19 +315,19 @@ function app() {
     // Line-items flat view: each line item becomes its own row
     // ── Line Item Column Config ──────────────────────────────────
     lineItemColumns: JSON.parse(localStorage.getItem('lineItemColumns') || 'null') || [
-      { key: 'line_no', label: 'Line #', visible: true, exportable: true },
-      { key: 'sku', label: 'SKU', visible: true, exportable: true },
-      { key: 'description', label: 'Description', visible: true, exportable: true },
-      { key: 'qty', label: 'Qty', visible: true, exportable: true },
-      { key: 'unit', label: 'Unit', visible: true, exportable: true },
-      { key: 'unit_price', label: 'Unit Price', visible: true, exportable: true },
-      { key: 'discount_amount', label: 'Discount', visible: false, exportable: true },
-      { key: 'tax_rate', label: 'Tax %', visible: true, exportable: true },
-      { key: 'line_total', label: 'Line Total', visible: true, exportable: true },
-      { key: 'manufacturer', label: 'Manufacturer', visible: false, exportable: true },
-      { key: 'sub_division', label: 'Sub-Division', visible: true, exportable: true },
+      { key: 'line_no', label: 'Line #', active: true, visible: true, exportable: true },
+      { key: 'sku', label: 'SKU', active: true, visible: true, exportable: true },
+      { key: 'description', label: 'Description', active: true, visible: true, exportable: true },
+      { key: 'qty', label: 'Qty', active: true, visible: true, exportable: true },
+      { key: 'unit', label: 'Unit', active: true, visible: true, exportable: true },
+      { key: 'unit_price', label: 'Unit Price', active: true, visible: true, exportable: true },
+      { key: 'discount_amount', label: 'Discount', active: true, visible: false, exportable: true },
+      { key: 'tax_rate', label: 'Tax %', active: true, visible: true, exportable: true },
+      { key: 'line_total', label: 'Line Total', active: true, visible: true, exportable: true },
+      { key: 'manufacturer', label: 'Manufacturer', active: false, visible: false, exportable: true },
+      { key: 'sub_division', label: 'Sub-Division', active: true, visible: true, exportable: true },
     ],
-    get visibleLineItemCols() { return this.lineItemColumns.filter(c => c.visible); },
+    get visibleLineItemCols() { return this.lineItemColumns.filter(c => c.active !== false && c.visible); },
     toggleLineItemCol(col, field) {
       col[field] = !col[field];
       localStorage.setItem('lineItemColumns', JSON.stringify(this.lineItemColumns));
