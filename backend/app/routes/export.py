@@ -90,6 +90,7 @@ def export_excel(
     end_date: Optional[str] = None,
     vendor: Optional[str] = None,
     currency: Optional[str] = None,
+    mode: Optional[str] = "summary",
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
@@ -134,9 +135,11 @@ def export_excel(
 
     # ── Line items sheet ──────────────────────────────────────────────────────
     ws_lines = wb.create_sheet("Line Items")
-    line_headers = ["Invoice ID", "Invoice #", "Vendor", "Currency",
-                    "Line #", "SKU", "Description", "Quantity", "Unit",
-                    "Unit Price", "Discount", "Tax Rate", "Line Total"]
+    # Include invoice-level columns + line item fields
+    inv_line_cols = [c for c in summary_cols if c.field_key not in ("line_items",)]
+    line_headers = [c.field_label for c in inv_line_cols] + [
+        "Line #", "SKU", "Description", "Quantity", "Unit",
+        "Unit Price", "Discount", "Tax Rate", "Line Total"]
     for col_idx, h in enumerate(line_headers, start=1):
         cell = ws_lines.cell(row=1, column=col_idx, value=h)
         cell.font = header_font
@@ -151,11 +154,10 @@ def export_excel(
             for item in line_items:
                 if not isinstance(item, dict):
                     continue
-                row_data = [
-                    invoice.id,
-                    invoice.invoice_number,
-                    invoice.vendor_name,
-                    invoice.currency,
+                # Invoice-level columns first
+                row_data = [_get_cell_value(invoice, c.field_key) for c in inv_line_cols]
+                # Then line item fields
+                row_data += [
                     item.get("line_no"),
                     item.get("sku"),
                     item.get("description"),
@@ -173,12 +175,16 @@ def export_excel(
     for col_idx in range(1, len(line_headers) + 1):
         ws_lines.column_dimensions[get_column_letter(col_idx)].width = 22
 
+    # If line items mode, make that the first sheet
+    if mode == "lineitems":
+        wb.move_sheet(ws_lines, offset=-1)
+
     # Stream response
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
 
-    filename = f"invoices_{start_date or 'all'}_{end_date or 'all'}.xlsx"
+    filename = f"invoices_{mode}_{start_date or 'all'}_{end_date or 'all'}.xlsx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -192,6 +198,7 @@ def export_json(
     end_date: Optional[str] = None,
     vendor: Optional[str] = None,
     currency: Optional[str] = None,
+    mode: Optional[str] = "summary",
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
@@ -214,11 +221,24 @@ def export_json(
         }
         data = inv.extracted_data or {}
         for col in columns:
+            if col.field_key == "line_items":
+                continue
             val = data.get(col.field_key)
             if val is None:
                 val = getattr(inv, col.field_key, None)
             row[col.field_key] = val
-        result.append(row)
+
+        if mode == "lineitems":
+            line_items = (data.get("line_items") or [])
+            for item in (line_items if isinstance(line_items, list) else []):
+                if not isinstance(item, dict):
+                    continue
+                line_row = {**row, **item}
+                result.append(line_row)
+            if not line_items:
+                result.append(row)
+        else:
+            result.append(row)
 
     buf = io.BytesIO(json.dumps(result, indent=2, default=str).encode("utf-8"))
     buf.seek(0)

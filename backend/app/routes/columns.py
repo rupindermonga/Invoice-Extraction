@@ -152,3 +152,21 @@ def toggle_view(
     db.commit()
     db.refresh(col)
     return {"id": col.id, "is_viewable": col.is_viewable}
+
+
+@router.put("/reorder")
+def reorder_columns(
+    order: list,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Batch update display_order. Expects [{id: 1, display_order: 0}, ...]"""
+    for item in order:
+        col = db.query(ColumnConfig).filter(
+            ColumnConfig.id == item["id"],
+            ColumnConfig.user_id == current_user.id
+        ).first()
+        if col:
+            col.display_order = item["display_order"]
+    db.commit()
+    return {"message": "Reordered"}

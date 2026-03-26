@@ -226,6 +226,13 @@
             <label class="block text-xs font-medium text-gray-600 mb-1">To</label>
             <input type="date" x-model="exportDates.end" class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Mode</label>
+            <select x-model="exportMode" class="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="summary">Summary (1 row/invoice)</option>
+              <option value="lineitems">Line Items (all rows)</option>
+            </select>
+          </div>
           <button @click="exportData('excel')" class="flex items-center gap-2 bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 transition">
             <i class="fa-solid fa-file-excel"></i> Excel (.xlsx)
           </button>
@@ -477,7 +484,9 @@
                     <span x-show="col.is_system" class="text-blue-400 text-xs"><i class="fa-solid fa-lock"></i></span>
                     <span x-show="!col.is_system" class="text-gray-300 text-xs">—</span>
                   </td>
-                  <td class="px-5 py-3 text-right flex items-center justify-end gap-2">
+                  <td class="px-5 py-3 text-right flex items-center justify-end gap-1">
+                    <button @click="moveColumn(col, 'up')" class="text-gray-300 hover:text-gray-600 transition" title="Move up"><i class="fa-solid fa-arrow-up text-xs"></i></button>
+                    <button @click="moveColumn(col, 'down')" class="text-gray-300 hover:text-gray-600 transition" title="Move down"><i class="fa-solid fa-arrow-down text-xs"></i></button>
                     <button @click="openEditColumn(col)" class="text-gray-400 hover:text-blue-600 transition" title="Edit">
                       <i class="fa-solid fa-pen text-xs"></i>
                     </button>

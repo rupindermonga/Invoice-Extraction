@@ -17,6 +17,7 @@ function app() {
     stats: {},
     filters: { start_date: '', end_date: '', vendor: '', currency: '', status: '', draw_id: '', claim_id: '' },
     exportDates: { start: '', end: '' },
+    exportMode: 'summary',
     pagination: { page: 1, limit: 50, total: 0, pages: 0 },
     viewMode: 'summary',   // 'summary' | 'lines'
 
@@ -356,6 +357,21 @@ function app() {
         col.is_viewable = res.is_viewable;
       } catch (e) { alert('Could not toggle view flag: ' + e.message); }
     },
+    async moveColumn(col, direction) {
+      const idx = this.allColumns.indexOf(col);
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= this.allColumns.length) return;
+      // Swap display_order values
+      const tmp = this.allColumns[swapIdx].display_order;
+      this.allColumns[swapIdx].display_order = col.display_order;
+      col.display_order = tmp;
+      // Swap positions in array
+      [this.allColumns[idx], this.allColumns[swapIdx]] = [this.allColumns[swapIdx], this.allColumns[idx]];
+      // Save to backend
+      const order = this.allColumns.map((c, i) => ({ id: c.id, display_order: i }));
+      try { await this.put('/api/columns/reorder', order); } catch(e) { console.warn(e); }
+      this.activeColumns = this.allColumns.filter(c => c.is_active);
+    },
 
     openEditColumn(col) {
       this.editingColumn = col;
@@ -530,6 +546,7 @@ function app() {
       if (this.exportDates.end)   params.set('end_date',   this.exportDates.end);
       if (this.filters.vendor)    params.set('vendor',     this.filters.vendor);
       if (this.filters.currency)  params.set('currency',   this.filters.currency);
+      if (this.exportMode)        params.set('mode',       this.exportMode);
 
       try {
         const res = await fetch(`/api/export/${format}?${params}`, { headers: this._headers() });
