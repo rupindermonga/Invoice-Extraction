@@ -32,6 +32,20 @@ print("=" * 70)
 print("FULL DYNAMIC SECURITY & QA AUDIT v2")
 print("=" * 70)
 
+# ── WAIT FOR RATE LIMITER TO CLEAR ───────────────────────────────────────
+print("\n-- PRE-CHECK: waiting for rate limiter to clear --")
+for attempt in range(24):  # max 2 min wait (24 * 5s)
+    r = requests.post(f"{BASE}/api/auth/login", json={"username": "probe_limiter_check", "password": "x"})
+    if r.status_code == 401:
+        print(f"  Rate limiter clear (attempt {attempt + 1})")
+        break
+    if r.status_code == 429:
+        if attempt == 0:
+            print(f"  Rate limiter active, waiting up to 2 min for it to clear...")
+        time.sleep(5)
+else:
+    print("  WARNING: Rate limiter did not clear after 2 min. Tests may fail.")
+
 # ── AUTH ─────────────────────────────────────────────────────────────────
 print("\n-- AUTH & INPUT VALIDATION --")
 r = requests.post(f"{BASE}/api/auth/login", json={"username": "admin", "password": "admin123"})
