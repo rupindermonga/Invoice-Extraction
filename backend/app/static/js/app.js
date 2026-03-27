@@ -123,7 +123,7 @@ function app() {
         this.token = saved;
         this.user = JSON.parse(savedUser);
         this.view = 'dashboard';
-        await Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll()]);
+        await Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()]);
         if (this.user?.is_admin) await this.loadApiKeys();
       }
     },
@@ -162,7 +162,7 @@ function app() {
       localStorage.setItem('invoice_token', this.token);
       localStorage.setItem('invoice_user', JSON.stringify(this.user));
       this.view = 'dashboard';
-      Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll()])
+      Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()])
         .then(() => { if (this.user?.is_admin) this.loadApiKeys(); });
     },
 
@@ -1091,6 +1091,62 @@ function app() {
     async saveSettings() {
       this.settingsSaved = true;
       setTimeout(() => this.settingsSaved = false, 5000);
+    },
+
+    // ── User Management (admin) ─────────────────────────────────
+    adminUsers: [],
+    showCreateUserModal: false,
+    createUserForm: { username: '', email: '', password: '', is_admin: false },
+    createUserError: '',
+    changePwForm: { current_password: '', new_password: '' },
+    changePwMsg: '',
+    changePwError: false,
+
+    async loadUsers() {
+      if (!this.user?.is_admin) return;
+      try { this.adminUsers = await this.get('/api/admin/users'); } catch(e) { this.adminUsers = []; }
+    },
+    async createUser() {
+      this.createUserError = '';
+      try {
+        await this.post('/api/admin/users', this.createUserForm);
+        this.showCreateUserModal = false;
+        this.createUserForm = { username: '', email: '', password: '', is_admin: false };
+        await this.loadUsers();
+      } catch(e) { this.createUserError = e.message; }
+    },
+    async toggleUserActive(u) {
+      try {
+        const res = await this.put(`/api/admin/users/${u.id}/toggle-active`, {});
+        u.is_active = res.is_active;
+      } catch(e) { alert(e.message); }
+    },
+    async resetUserPassword(u) {
+      const pw = prompt(`Enter new password for ${u.username} (min 8 chars):`);
+      if (!pw) return;
+      try {
+        await this.put(`/api/admin/users/${u.id}/reset-password`, { password: pw });
+        alert(`Password reset for ${u.username}`);
+      } catch(e) { alert(e.message); }
+    },
+    async deleteUser(u) {
+      if (!confirm(`Delete user "${u.username}"? This cannot be undone.`)) return;
+      try {
+        await this.del(`/api/admin/users/${u.id}`);
+        await this.loadUsers();
+      } catch(e) { alert(e.message); }
+    },
+    async changePassword() {
+      this.changePwMsg = '';
+      this.changePwError = false;
+      try {
+        await this.put('/api/auth/change-password', this.changePwForm);
+        this.changePwMsg = 'Password changed successfully';
+        this.changePwForm = { current_password: '', new_password: '' };
+      } catch(e) {
+        this.changePwMsg = e.message;
+        this.changePwError = true;
+      }
     },
 
 

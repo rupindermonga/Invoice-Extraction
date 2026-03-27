@@ -55,29 +55,10 @@ def create_token(user_id: int) -> str:
     return jwt.encode({"sub": str(user_id), "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 
-@router.post("/register", response_model=Token)
+@router.post("/register")
 def register(body: UserCreate, request: Request = None, db: Session = Depends(get_db)):
-    _check_register_rate(request)
-    if db.query(User).filter(User.username == body.username).first():
-        raise HTTPException(status_code=400, detail="Username already taken")
-    if db.query(User).filter(User.email == body.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    user = User(
-        username=body.username,
-        email=body.email,
-        hashed_password=pwd_context.hash(body.password),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    # Seed default columns for new user
-    from ..seed_columns import seed_default_columns
-    seed_default_columns(db, user.id)
-
-    token = create_token(user.id)
-    return Token(access_token=token, token_type="bearer", user=UserOut.model_validate(user))
+    """Public registration is disabled. Use Admin → User Management to create accounts."""
+    raise HTTPException(status_code=403, detail="Public registration is disabled. Contact your admin for an account.")
 
 
 @router.post("/login", response_model=Token)
@@ -107,3 +88,23 @@ def login(body: UserLogin, request: Request = None, db: Session = Depends(get_db
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.put("/change-password")
+def change_password(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Change own password. Requires current_password and new_password."""
+    current_pw = body.get("current_password", "")
+    new_pw = body.get("new_password", "")
+    if not current_pw or not new_pw:
+        raise HTTPException(status_code=400, detail="current_password and new_password required")
+    if len(new_pw) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    if not pwd_context.verify(current_pw, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    current_user.hashed_password = pwd_context.hash(new_pw)
+    db.commit()
+    return {"message": "Password changed successfully"}

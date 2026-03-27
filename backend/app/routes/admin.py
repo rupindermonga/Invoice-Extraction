@@ -1,12 +1,15 @@
-"""Admin-only routes: manage the pool of Gemini API keys."""
+"""Admin-only routes: manage Gemini API keys and user accounts."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from passlib.context import CryptContext
 from typing import List
 
 from ..database import get_db
 from ..models import GeminiApiKey, User
-from ..schemas import ApiKeyCreate, ApiKeyUpdate, ApiKeyOut
+from ..schemas import ApiKeyCreate, ApiKeyUpdate, ApiKeyOut, UserOut
 from ..dependencies import get_current_user
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -112,3 +115,85 @@ def toggle_api_key(
     key.is_active = not key.is_active
     db.commit()
     return {"id": key.id, "is_active": key.is_active}
+
+
+# ─── User Management ────────────────────────────────────────────────────────
+
+@router.get("/users")
+def list_users(db: Session = Depends(get_db), admin: User = Depends(_require_admin)):
+    users = db.query(User).order_by(User.created_at.desc()).all()
+    return [{"id": u.id, "username": u.username, "email": u.email, "is_active": u.is_active, "is_admin": u.is_admin, "created_at": u.created_at.isoformat() if u.created_at else None} for u in users]
+
+
+@router.post("/users")
+def create_user(body: dict, db: Session = Depends(get_db), admin: User = Depends(_require_admin)):
+    username = (body.get("username") or "").strip()
+    email = (body.get("email") or "").strip()
+    password = body.get("password", "")
+    if len(username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=400, detail="Username already taken")
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    user = User(
+        username=username,
+        email=email,
+        hashed_password=pwd_context.hash(password),
+        is_admin=body.get("is_admin", False),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    # Seed default columns and project for new user
+    from ..seed_columns import seed_default_columns
+    seed_default_columns(db, user.id)
+    from ..seed_project import seed_project_finance
+    seed_project_finance(db, user.id)
+
+    return {"id": user.id, "username": user.username, "email": user.email, "is_active": user.is_active, "is_admin": user.is_admin}
+
+
+@router.put("/users/{user_id}/toggle-active")
+def toggle_user_active(user_id: int, db: Session = Depends(get_db), admin: User = Depends(_require_admin)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
+    user.is_active = not user.is_active
+    db.commit()
+    return {"id": user.id, "is_active": user.is_active}
+
+
+@router.put("/users/{user_id}/reset-password")
+def reset_password(user_id: int, body: dict, db: Session = Depends(get_db), admin: User = Depends(_require_admin)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    new_pw = body.get("password", "")
+    if len(new_pw) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    user.hashed_password = pwd_context.hash(new_pw)
+    db.commit()
+    return {"message": f"Password reset for {user.username}"}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db), admin: User = Depends(_require_admin)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    if user.is_admin:
+        raise HTTPException(status_code=400, detail="Cannot delete another admin")
+    db.delete(user)
+    db.commit()
+    return {"message": f"User {user.username} deleted"}
