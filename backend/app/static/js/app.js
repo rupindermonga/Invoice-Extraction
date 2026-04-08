@@ -1253,8 +1253,11 @@ function app() {
           // Merge deep results into existing
           this.finderResults.found += result.found;
           this.finderResults.found_list = [...this.finderResults.found_list, ...result.found_list];
+          this.finderResults.duplicates = (this.finderResults.duplicates || 0) + (result.duplicates || 0);
+          this.finderResults.duplicate_list = [...(this.finderResults.duplicate_list || []), ...(result.duplicate_list || [])];
           this.finderResults.missing = result.missing;
           this.finderResults.missing_list = result.missing_list;
+          this.finderResults.searched = (this.finderResults.searched || 0) + (result.searched || 0);
           this.finderResults.cancelled = result.cancelled;
         } else {
           this.finderResults = result;

@@ -150,6 +150,7 @@ def find_invoices(
     current_user: User = Depends(get_current_user),
 ):
     """Search source folder for invoices. mode=fast (filename only) or mode=deep (reads PDFs too)."""
+    import json as _json
     _cancel_search[current_user.id] = False
     source = body.source_folder.strip()
     if not os.path.isdir(source):
@@ -163,9 +164,11 @@ def find_invoices(
     deep = body.mode == "deep"
     found = []
     missing = []
+    duplicates = []
     cancelled = False
+    total = len(body.invoices)
 
-    for item in body.invoices:
+    for idx, item in enumerate(body.invoices):
         # Check cancel flag
         if _cancel_search.get(current_user.id):
             cancelled = True
@@ -210,14 +213,19 @@ def find_invoices(
             dest_dir = os.path.join(output, vendor)
             os.makedirs(dest_dir, exist_ok=True)
             dest_file = os.path.join(dest_dir, os.path.basename(match))
-            if not os.path.exists(dest_file):
+            already_exists = os.path.exists(dest_file)
+            if not already_exists:
                 shutil.copy2(match, dest_file)
-            found.append({
+            entry_data = {
                 "vendor": vendor,
                 "invoice_number": inv_num,
                 "source_path": match,
                 "dest_path": dest_file,
-            })
+            }
+            if already_exists:
+                duplicates.append(entry_data)
+            else:
+                found.append(entry_data)
         else:
             missing.append({
                 "vendor": vendor,
@@ -229,9 +237,13 @@ def find_invoices(
 
     return {
         "cancelled": cancelled,
+        "total": total,
+        "searched": idx + 1 if not cancelled else idx,
         "found": len(found),
+        "duplicates": len(duplicates),
         "missing": len(missing),
         "found_list": found,
+        "duplicate_list": duplicates,
         "missing_list": missing,
         "output_folder": output,
     }
