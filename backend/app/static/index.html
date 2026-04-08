@@ -645,6 +645,68 @@
           </div>
 
         </div><!-- /grid -->
+
+        <!-- ═══ VENDOR → CATEGORY MAPPING ═══ -->
+        <div class="bg-white rounded-xl border overflow-hidden mt-6">
+          <div class="px-4 py-3 bg-amber-50 border-b flex items-center justify-between">
+            <div>
+              <h3 class="font-semibold text-amber-800"><i class="fa-solid fa-tags mr-1"></i> Vendor → Category Mapping</h3>
+              <p class="text-xs text-gray-500 mt-1">Assign a category and sub-category to each vendor. Click "Re-classify All" to apply to all existing invoices.</p>
+            </div>
+            <div class="flex gap-2">
+              <button @click="loadVendorSummary()" class="text-xs px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200"><i class="fa-solid fa-sync mr-1"></i> Refresh</button>
+              <button @click="reclassifyAll()" :disabled="reclassifying" class="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50">
+                <span x-show="!reclassifying"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Re-classify All</span>
+                <span x-show="reclassifying"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Applying...</span>
+              </button>
+            </div>
+          </div>
+          <div x-show="reclassifyResult" class="px-4 py-2 bg-green-50 border-b text-sm text-green-700">
+            <i class="fa-solid fa-check mr-1"></i> Updated <span class="font-bold" x-text="reclassifyResult?.updated"></span> invoices, <span x-text="reclassifyResult?.skipped"></span> unchanged.
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" x-show="vendorSummary.length > 0">
+              <thead class="bg-gray-50 border-b sticky top-0">
+                <tr>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Vendor</th>
+                  <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">Invoices</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Current Category</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Assign Category</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Assign Sub-Category</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">
+                <template x-for="(v, i) in vendorSummary" :key="'vs-' + i">
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 font-medium text-gray-800" x-text="v.vendor_name"></td>
+                    <td class="px-3 py-2 text-center text-gray-500" x-text="v.invoice_count"></td>
+                    <td class="px-3 py-2 text-xs text-gray-400">
+                      <span x-text="v.current_category || '—'"></span>
+                      <span x-show="v.current_sub_category" class="text-gray-300"> / <span x-text="v.current_sub_category"></span></span>
+                    </td>
+                    <td class="px-3 py-2">
+                      <select x-model="v.assign_category" @change="v.assign_sub_category = ''" class="text-xs border rounded px-2 py-1 w-full">
+                        <option value="">— Select —</option>
+                        <template x-for="cat in categoryTree" :key="'vc-' + cat.id">
+                          <option :value="cat.name" x-text="cat.name"></option>
+                        </template>
+                      </select>
+                    </td>
+                    <td class="px-3 py-2">
+                      <select x-model="v.assign_sub_category" class="text-xs border rounded px-2 py-1 w-full">
+                        <option value="">— None —</option>
+                        <template x-for="sc in (categoryTree.find(c => c.name === v.assign_category)?.children || [])" :key="'vsc-' + sc.id">
+                          <option :value="sc.name" x-text="sc.name"></option>
+                        </template>
+                      </select>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <p x-show="vendorSummary.length === 0" class="text-center text-gray-400 py-6 text-sm">No processed invoices yet. Upload invoices first.</p>
+        </div>
       </div><!-- /categories -->
 
 

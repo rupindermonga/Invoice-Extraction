@@ -99,6 +99,11 @@ function app() {
     uploadProvClaimId: localStorage.getItem('lastProvClaimId') || '',
     uploadFedClaimId: localStorage.getItem('lastFedClaimId') || '',
 
+    // ── Vendor Mapping ────────────────────────────────────────
+    vendorSummary: [],
+    reclassifying: false,
+    reclassifyResult: null,
+
     // ── File Tools ─────────────────────────────────────────────
     finderInvoices: [],
     finderSourceFolder: localStorage.getItem('finderSourceFolder') || '',
@@ -656,6 +661,40 @@ function app() {
           this.selectedSubCategory = (this.selectedCategory.children || []).find(c => c.id === this.selectedSubCategory.id) || null;
         }
       } catch (e) { console.error(e); }
+      this.loadVendorSummary();
+    },
+
+    async loadVendorSummary() {
+      try {
+        const data = await this.get('/api/categories/vendor-summary');
+        this.vendorSummary = data.map(v => ({
+          ...v,
+          assign_category: v.current_category || '',
+          assign_sub_category: v.current_sub_category || '',
+        }));
+      } catch (e) { console.error(e); }
+    },
+
+    async reclassifyAll() {
+      this.reclassifying = true;
+      this.reclassifyResult = null;
+      const mappings = this.vendorSummary
+        .filter(v => v.assign_category)
+        .map(v => ({
+          vendor_name: v.vendor_name,
+          category: v.assign_category || null,
+          sub_category: v.assign_sub_category || null,
+        }));
+      if (!mappings.length) {
+        alert('No category assignments to apply. Select categories for at least one vendor.');
+        this.reclassifying = false;
+        return;
+      }
+      try {
+        this.reclassifyResult = await this.post('/api/categories/reclassify', mappings);
+        this.loadVendorSummary();
+      } catch (e) { alert('Re-classify failed: ' + (e.message || e)); console.error(e); }
+      this.reclassifying = false;
     },
 
     get subCategories() {

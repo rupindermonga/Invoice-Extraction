@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func, distinct
 from typing import List, Optional
 from pydantic import BaseModel
 
 from ..database import get_db
-from ..models import CategoryConfig, User
+from ..models import CategoryConfig, Invoice, User
 from ..dependencies import get_current_user
 
 router = APIRouter(prefix="/api/categories", tags=["categories"])
@@ -194,3 +195,96 @@ def delete_category(
     db.delete(item)
     db.commit()
     return {"message": f"Deleted '{item.name}' and all its children"}
+
+
+# ─── Vendor → Category Mapping & Re-classify ────────────────────────────────
+
+@router.get("/vendor-summary")
+def get_vendor_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get unique vendors with invoice count and their current category assignment."""
+    vendors = (
+        db.query(
+            Invoice.vendor_name,
+            func.count(Invoice.id).label("invoice_count"),
+        )
+        .filter(Invoice.user_id == current_user.id, Invoice.status == "processed", Invoice.vendor_name.isnot(None))
+        .group_by(Invoice.vendor_name)
+        .order_by(func.count(Invoice.id).desc())
+        .all()
+    )
+
+    result = []
+    for v in vendors:
+        # Check current category from extracted_data of first invoice for this vendor
+        sample = db.query(Invoice).filter(
+            Invoice.user_id == current_user.id,
+            Invoice.vendor_name == v.vendor_name,
+            Invoice.status == "processed",
+        ).first()
+        current_cat = None
+        current_subcat = None
+        if sample and sample.extracted_data:
+            current_cat = sample.extracted_data.get("category")
+            current_subcat = sample.extracted_data.get("sub_category")
+
+        result.append({
+            "vendor_name": v.vendor_name,
+            "invoice_count": v.invoice_count,
+            "current_category": current_cat,
+            "current_sub_category": current_subcat,
+        })
+    return result
+
+
+class VendorCategoryMapping(BaseModel):
+    vendor_name: str
+    category: Optional[str] = None
+    sub_category: Optional[str] = None
+
+
+@router.post("/reclassify")
+def reclassify_invoices(
+    mappings: List[VendorCategoryMapping],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Apply vendor → category/sub_category mappings to all matching invoices."""
+    updated = 0
+    skipped = 0
+
+    for m in mappings:
+        if not m.vendor_name:
+            continue
+
+        invoices = (
+            db.query(Invoice)
+            .filter(
+                Invoice.user_id == current_user.id,
+                Invoice.vendor_name == m.vendor_name,
+                Invoice.status == "processed",
+            )
+            .all()
+        )
+
+        for inv in invoices:
+            data = inv.extracted_data or {}
+            changed = False
+
+            if m.category is not None and data.get("category") != m.category:
+                data["category"] = m.category
+                changed = True
+            if m.sub_category is not None and data.get("sub_category") != m.sub_category:
+                data["sub_category"] = m.sub_category
+                changed = True
+
+            if changed:
+                inv.extracted_data = {**data}  # force SQLAlchemy to detect change
+                updated += 1
+            else:
+                skipped += 1
+
+    db.commit()
+    return {"updated": updated, "skipped": skipped, "total": updated + skipped}
