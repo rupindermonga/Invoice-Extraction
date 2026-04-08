@@ -1453,7 +1453,9 @@
                 <i class="fa-solid fa-triangle-exclamation mr-1"></i> Search was cancelled. Partial results shown below.
               </div>
               <div class="text-xs text-gray-500 mb-2" x-show="finderResults?.total">
-                Searched <span class="font-bold" x-text="finderResults?.searched || 0"></span> of <span class="font-bold" x-text="finderResults?.total || 0"></span> invoices
+                <span x-show="finderSearching" class="inline-flex items-center gap-1"><i class="fa-solid fa-spinner fa-spin text-blue-500"></i></span>
+                Searched <span class="font-bold text-blue-600" x-text="finderResults?.searched || 0"></span> of <span class="font-bold" x-text="finderResults?.total || 0"></span> invoices
+                <span x-show="finderResults?.vendor && finderSearching" class="ml-2 text-gray-400">— <span x-text="finderResults?.vendor"></span> / <span class="font-mono" x-text="finderResults?.invoice_number"></span></span>
               </div>
               <div class="flex gap-3 flex-wrap">
                 <div class="bg-green-50 border border-green-200 rounded-lg px-4 py-2">

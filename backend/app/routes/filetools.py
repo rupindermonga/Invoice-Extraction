@@ -145,12 +145,13 @@ def cancel_search(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/find-invoices")
-def find_invoices(
+def find_invoices_stream(
     body: InvoiceFinderRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Search source folder for invoices. mode=fast (filename only) or mode=deep (reads PDFs too)."""
+    """Search with live SSE progress. Streams JSON events as each invoice is searched."""
     import json as _json
+
     _cancel_search[current_user.id] = False
     source = body.source_folder.strip()
     if not os.path.isdir(source):
@@ -162,91 +163,87 @@ def find_invoices(
     os.makedirs(output, exist_ok=True)
 
     deep = body.mode == "deep"
-    found = []
-    missing = []
-    duplicates = []
-    cancelled = False
     total = len(body.invoices)
 
-    for idx, item in enumerate(body.invoices):
-        # Check cancel flag
-        if _cancel_search.get(current_user.id):
-            cancelled = True
-            break
+    def _generate():
+        found = []
+        missing = []
+        duplicates = []
+        cancelled = False
 
-        vendor = (item.get("vendor") or "Unknown").strip()
-        inv_num = (item.get("invoice_number") or "").strip()
-        if not inv_num:
-            missing.append({"vendor": vendor, "invoice_number": inv_num, "reason": "No invoice number"})
-            continue
+        for idx, item in enumerate(body.invoices):
+            if _cancel_search.get(current_user.id):
+                cancelled = True
+                break
 
-        # Find best matching vendor folder (fuzzy)
-        vendor_folder = _find_vendor_folder(source, vendor)
-        match = None
+            vendor = (item.get("vendor") or "Unknown").strip()
+            inv_num = (item.get("invoice_number") or "").strip()
+            if not inv_num:
+                missing.append({"vendor": vendor, "invoice_number": inv_num, "reason": "No invoice number"})
+                # Send progress
+                yield f"data: {_json.dumps({'type':'progress','searched':idx+1,'total':total,'found':len(found),'duplicates':len(duplicates),'missing':len(missing),'vendor':vendor,'invoice_number':inv_num,'status':'no_number'})}\n\n"
+                continue
 
-        # Fast pass: filename search
-        if vendor_folder:
-            match = _search_folder_filename_only(vendor_folder, inv_num)
-        if not match:
-            match = _search_folder_filename_only(source, inv_num)
-        if not match:
-            for entry in os.scandir(source):
-                if entry.is_dir() and entry.path != vendor_folder:
-                    match = _search_folder_filename_only(entry.path, inv_num)
-                    if match:
-                        break
+            vendor_folder = _find_vendor_folder(source, vendor)
+            match = None
 
-        # Deep pass: read PDF text (only if mode=deep and still not found)
-        if not match and deep:
+            # Fast pass: filename search
             if vendor_folder:
-                match = _search_folder_deep(vendor_folder, inv_num)
+                match = _search_folder_filename_only(vendor_folder, inv_num)
             if not match:
-                match = _search_folder_deep(source, inv_num)
+                match = _search_folder_filename_only(source, inv_num)
             if not match:
-                for entry in os.scandir(source):
-                    if entry.is_dir() and entry.path != vendor_folder:
-                        match = _search_folder_deep(entry.path, inv_num)
-                        if match:
-                            break
+                try:
+                    for entry in os.scandir(source):
+                        if entry.is_dir() and entry.path != vendor_folder:
+                            match = _search_folder_filename_only(entry.path, inv_num)
+                            if match:
+                                break
+                except Exception:
+                    pass
 
-        if match:
-            dest_dir = os.path.join(output, vendor)
-            os.makedirs(dest_dir, exist_ok=True)
-            dest_file = os.path.join(dest_dir, os.path.basename(match))
-            already_exists = os.path.exists(dest_file)
-            if not already_exists:
-                shutil.copy2(match, dest_file)
-            entry_data = {
-                "vendor": vendor,
-                "invoice_number": inv_num,
-                "source_path": match,
-                "dest_path": dest_file,
-            }
-            if already_exists:
-                duplicates.append(entry_data)
+            # Deep pass
+            if not match and deep:
+                if vendor_folder:
+                    match = _search_folder_deep(vendor_folder, inv_num)
+                if not match:
+                    match = _search_folder_deep(source, inv_num)
+                if not match:
+                    try:
+                        for entry in os.scandir(source):
+                            if entry.is_dir() and entry.path != vendor_folder:
+                                match = _search_folder_deep(entry.path, inv_num)
+                                if match:
+                                    break
+                    except Exception:
+                        pass
+
+            status = "missing"
+            if match:
+                dest_dir = os.path.join(output, vendor)
+                os.makedirs(dest_dir, exist_ok=True)
+                dest_file = os.path.join(dest_dir, os.path.basename(match))
+                already_exists = os.path.exists(dest_file)
+                if not already_exists:
+                    shutil.copy2(match, dest_file)
+                entry_data = {"vendor": vendor, "invoice_number": inv_num, "source_path": match, "dest_path": dest_file}
+                if already_exists:
+                    duplicates.append(entry_data)
+                    status = "duplicate"
+                else:
+                    found.append(entry_data)
+                    status = "found"
             else:
-                found.append(entry_data)
-        else:
-            missing.append({
-                "vendor": vendor,
-                "invoice_number": inv_num,
-                "reason": "Not found in source folder",
-            })
+                missing.append({"vendor": vendor, "invoice_number": inv_num, "reason": "Not found"})
 
-    _cancel_search.pop(current_user.id, None)
+            # Stream progress after each invoice
+            yield f"data: {_json.dumps({'type':'progress','searched':idx+1,'total':total,'found':len(found),'duplicates':len(duplicates),'missing':len(missing),'vendor':vendor,'invoice_number':inv_num,'status':status})}\n\n"
 
-    return {
-        "cancelled": cancelled,
-        "total": total,
-        "searched": idx + 1 if not cancelled else idx,
-        "found": len(found),
-        "duplicates": len(duplicates),
-        "missing": len(missing),
-        "found_list": found,
-        "duplicate_list": duplicates,
-        "missing_list": missing,
-        "output_folder": output,
-    }
+        # Final result
+        _cancel_search.pop(current_user.id, None)
+        yield f"data: {_json.dumps({'type':'done','cancelled':cancelled,'total':total,'searched':idx+1 if body.invoices else 0,'found':len(found),'duplicates':len(duplicates),'missing':len(missing),'found_list':found,'duplicate_list':duplicates,'missing_list':missing,'output_folder':output})}\n\n"
+
+    return StreamingResponse(_generate(), media_type="text/event-stream")
 
 
 @router.post("/upload-csv")

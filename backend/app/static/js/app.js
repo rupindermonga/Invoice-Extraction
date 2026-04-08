@@ -1236,31 +1236,75 @@ function app() {
 
     async runInvoiceFinder(mode = 'fast') {
       this.finderSearching = true;
-      if (mode === 'fast') this.finderResults = null;
+      const prevResults = mode === 'deep' ? { ...this.finderResults } : null;
+      if (mode === 'fast') this.finderResults = { total: 0, searched: 0, found: 0, duplicates: 0, missing: 0, found_list: [], duplicate_list: [], missing_list: [] };
       localStorage.setItem('finderSourceFolder', this.finderSourceFolder);
-      // For deep search, only send the missing invoices
-      const invoicesToSearch = mode === 'deep' && this.finderResults?.missing_list
-        ? this.finderResults.missing_list.map(m => ({ vendor: m.vendor, invoice_number: m.invoice_number }))
+
+      const invoicesToSearch = mode === 'deep' && prevResults?.missing_list
+        ? prevResults.missing_list.map(m => ({ vendor: m.vendor, invoice_number: m.invoice_number }))
         : this.finderInvoices;
+
       try {
-        const result = await this.post('/api/filetools/find-invoices', {
-          source_folder: this.finderSourceFolder,
-          output_folder: this.finderOutputFolder || null,
-          invoices: invoicesToSearch,
-          mode: mode,
+        const resp = await fetch('/api/filetools/find-invoices', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_folder: this.finderSourceFolder,
+            output_folder: this.finderOutputFolder || null,
+            invoices: invoicesToSearch,
+            mode: mode,
+          }),
         });
-        if (mode === 'deep' && this.finderResults) {
-          // Merge deep results into existing
-          this.finderResults.found += result.found;
-          this.finderResults.found_list = [...this.finderResults.found_list, ...result.found_list];
-          this.finderResults.duplicates = (this.finderResults.duplicates || 0) + (result.duplicates || 0);
-          this.finderResults.duplicate_list = [...(this.finderResults.duplicate_list || []), ...(result.duplicate_list || [])];
-          this.finderResults.missing = result.missing;
-          this.finderResults.missing_list = result.missing_list;
-          this.finderResults.searched = (this.finderResults.searched || 0) + (result.searched || 0);
-          this.finderResults.cancelled = result.cancelled;
-        } else {
-          this.finderResults = result;
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          // Parse SSE events from buffer
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const event = JSON.parse(line.slice(6));
+              if (event.type === 'progress') {
+                // Update live counters
+                if (mode === 'deep' && prevResults) {
+                  this.finderResults = {
+                    ...this.finderResults,
+                    searched: (prevResults.searched || 0) + event.searched,
+                    total: (prevResults.total || 0),
+                    found: (prevResults.found || 0) + event.found,
+                    duplicates: (prevResults.duplicates || 0) + event.duplicates,
+                    missing: event.missing,
+                  };
+                } else {
+                  this.finderResults = { ...this.finderResults, ...event };
+                }
+              } else if (event.type === 'done') {
+                if (mode === 'deep' && prevResults) {
+                  this.finderResults = {
+                    ...this.finderResults,
+                    cancelled: event.cancelled,
+                    found: (prevResults.found || 0) + event.found,
+                    duplicates: (prevResults.duplicates || 0) + event.duplicates,
+                    missing: event.missing,
+                    found_list: [...(prevResults.found_list || []), ...event.found_list],
+                    duplicate_list: [...(prevResults.duplicate_list || []), ...event.duplicate_list],
+                    missing_list: event.missing_list,
+                    output_folder: event.output_folder,
+                  };
+                } else {
+                  this.finderResults = event;
+                }
+              }
+            } catch (e) {}
+          }
         }
       } catch (e) { alert('Search failed: ' + (e.message || e)); console.error(e); }
       this.finderSearching = false;
