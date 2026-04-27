@@ -1,14 +1,20 @@
-/* Minimal custom styles on top of Tailwind */
+/* finel.ai brand layer on top of Tailwind */
 
 [x-cloak] { display: none !important; }
 
-body { -webkit-font-smoothing: antialiased; }
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
 
-/* Scrollbar */
+/* Tighten heading scales for the institutional feel finel.ai uses */
+h1, h2, h3, h4 { letter-spacing: -0.015em; font-variant-numeric: lining-nums; }
+
+/* Scrollbar — brand-tinted */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #f1f5f9; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-thumb { background: #99dfff; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #00acff; }
 
 /* Table sticky header */
 thead th { position: sticky; top: 0; z-index: 1; }
@@ -16,9 +22,9 @@ thead th { position: sticky; top: 0; z-index: 1; }
 /* Smooth transitions */
 .transition { transition: all 0.15s ease; }
 
-/* Upload drag zone pulse animation */
+/* Upload drag zone pulse animation — uses brand cyan */
 @keyframes pulse-border {
-  0%, 100% { border-color: #3b82f6; }
-  50% { border-color: #93c5fd; }
+  0%, 100% { border-color: #00acff; }
+  50% { border-color: #99dfff; }
 }
 .drag-active { animation: pulse-border 1s ease-in-out infinite; }
