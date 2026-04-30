@@ -3,7 +3,7 @@ const API = '';  // same origin
 function app() {
   return {
     // ── Auth ──────────────────────────────────────────────────────
-    view: 'login',
+    view: 'landing',
     authTab: 'login',
     authLoading: false,
     authError: '',
@@ -189,7 +189,7 @@ function app() {
       localStorage.removeItem('invoice_token');
       localStorage.removeItem('invoice_user');
       if (this.sseSource) this.sseSource.close();
-      this.view = 'login';
+      this.view = 'landing';
     },
 
 

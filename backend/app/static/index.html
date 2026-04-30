@@ -57,6 +57,291 @@
 <body class="bg-gray-50 font-sans" x-data="app()" x-init="init()">
 
   <!-- ══════════════════════════════════════════════════════════════
+       LANDING / MARKETING PAGE
+  ══════════════════════════════════════════════════════════════ -->
+  <div x-show="view === 'landing'" class="min-h-screen bg-white font-sans">
+
+    <!-- FinelAppNav — ported from finel-hub/brand/nav-example.tsx -->
+    <nav x-data="{ servicesOpen: false, aiOpen: false, mobileOpen: false }"
+         class="bg-white border-b border-gray-100 sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-20 items-center">
+
+          <!-- Logo + sub-label -->
+          <a href="https://finel.ai" class="flex-shrink-0 flex items-center">
+            <img src="/static/favicon.svg" alt="Finel AI" class="h-10 w-10 mr-2 rounded-lg" />
+            <div class="flex flex-col leading-none">
+              <span class="font-bold text-2xl tracking-tight text-slate-900">Finel AI</span>
+              <span class="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mt-0.5">Projects</span>
+            </div>
+          </a>
+
+          <!-- Desktop nav -->
+          <div class="hidden lg:flex space-x-1 items-center">
+            <a href="https://finel.ai/" class="px-4 py-2 rounded-lg text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all">Home</a>
+
+            <!-- Services dropdown -->
+            <div class="relative" @mouseenter="servicesOpen=true" @mouseleave="servicesOpen=false">
+              <button :class="servicesOpen ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'"
+                      class="px-4 py-2 rounded-lg text-base font-medium transition-all flex items-center gap-1">
+                Services
+                <svg class="w-4 h-4 transition-transform" :class="servicesOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              </button>
+              <div x-show="servicesOpen" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+                   class="absolute top-full left-1/2 -translate-x-1/2 pt-4 z-50 w-56">
+                <div class="bg-white rounded-xl shadow-xl border border-gray-100 p-3 space-y-0.5">
+                  <a href="https://finel.ai/tax"        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-800 hover:bg-gray-50 transition-colors">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Finel Tax
+                  </a>
+                  <a href="https://finel.ai/mortgage"   class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-800 hover:bg-gray-50 transition-colors">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9.75L12 3l9 6.75V21a.75.75 0 01-.75.75H15.75a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H3.75A.75.75 0 013 21V9.75z"/></svg>
+                    Finel Mortgage
+                  </a>
+                  <a href="https://finel.ai/wealth"     class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-800 hover:bg-gray-50 transition-colors">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/></svg>
+                    Finel Wealth
+                  </a>
+                  <a href="https://finel.ai/money"      class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-800 hover:bg-gray-50 transition-colors">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3"/></svg>
+                    Finel Money
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Tools pill -->
+            <div class="relative" @mouseenter="aiOpen=true" @mouseleave="aiOpen=false">
+              <a href="https://finel.ai/aitools"
+                 class="relative inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-semibold bg-slate-900 text-white hover:shadow-lg hover:shadow-blue-500/20 hover:scale-105 transition-all duration-300">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/></svg>
+                AI Tools
+                <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400"></span>
+                </span>
+              </a>
+              <div x-show="aiOpen" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+                   class="absolute top-full left-1/2 -translate-x-1/2 pt-4 z-50 w-72">
+                <div class="bg-white rounded-xl shadow-xl border border-gray-100 p-4">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Live Tools</p>
+                  <a href="https://mortgage.finel.ai/" target="_blank" rel="noopener" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-50 transition-colors group">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9.75L12 3l9 6.75V21a.75.75 0 01-.75.75H15.75a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H3.75A.75.75 0 013 21V9.75z"/></svg>
+                    </div>
+                    <div><span class="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors block">Finel AI Mortgage</span><span class="text-[11px] text-slate-400">Calculators &amp; AI Chat</span></div>
+                  </a>
+                  <a href="https://books.finel.ai/" target="_blank" rel="noopener" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-50 transition-colors group">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                    </div>
+                    <div><span class="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors block">Finel AI Bookkeeping</span><span class="text-[11px] text-slate-400">Receipts &amp; Tax Reports</span></div>
+                  </a>
+                  <a href="https://projects.finel.ai/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-50 transition-colors group">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    </div>
+                    <div><span class="text-sm font-bold text-blue-600 block">Finel AI Projects</span><span class="text-[11px] text-slate-400">Invoices &amp; Finance Tracking</span></div>
+                  </a>
+                  <div class="border-t border-gray-100 mt-2 pt-2">
+                    <a href="https://finel.ai/aitools" class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors">
+                      View All AI Tools
+                      <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <a href="https://finel.ai/about"     class="px-4 py-2 rounded-lg text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all">About Us</a>
+            <a href="https://finel.ai/resources" class="px-4 py-2 rounded-lg text-base font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all">Resources</a>
+          </div>
+
+          <!-- Desktop CTA -->
+          <div class="hidden lg:flex items-center gap-3">
+            <button @click="view = 'login'"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 rounded-md text-base font-medium transition-colors shadow-sm whitespace-nowrap">
+              Sign In
+            </button>
+            <a href="https://finel.ai/contact"
+               class="bg-slate-900 text-white px-5 py-2.5 rounded-md text-base font-medium hover:bg-slate-800 transition-colors shadow-sm whitespace-nowrap">
+              Book a Consultation
+            </a>
+          </div>
+
+          <!-- Mobile hamburger -->
+          <button class="lg:hidden text-gray-500 hover:text-gray-900" @click="mobileOpen = !mobileOpen" :aria-label="mobileOpen ? 'Close menu' : 'Open menu'">
+            <svg x-show="!mobileOpen" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            <svg x-show="mobileOpen"  class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Mobile menu -->
+      <div x-show="mobileOpen" x-transition class="lg:hidden bg-white border-b border-gray-100 px-4 pb-4 space-y-1">
+        <a href="https://finel.ai/"            class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">Home</a>
+        <a href="https://finel.ai/tax"         class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">Finel Tax</a>
+        <a href="https://mortgage.finel.ai/"   class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">Finel Mortgage</a>
+        <a href="https://books.finel.ai/"      class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">Finel Books</a>
+        <a href="https://finel.ai/wealth"      class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">Finel Wealth</a>
+        <a href="https://finel.ai/about"       class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">About Us</a>
+        <a href="https://finel.ai/resources"   class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">Resources</a>
+        <div class="pt-2 border-t border-gray-100 flex flex-col gap-2">
+          <button @click="mobileOpen=false; view='login'" class="w-full bg-blue-500 text-white px-5 py-3 rounded-md text-base font-medium text-center hover:bg-blue-600 transition-colors">Sign In</button>
+          <a href="https://finel.ai/contact" class="w-full bg-slate-900 text-white px-5 py-3 rounded-md text-base font-medium text-center hover:bg-slate-800 transition-colors">Book a Consultation</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="relative overflow-hidden bg-slate-900">
+      <div class="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950"></div>
+      <div class="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-blue-700/10 to-transparent pointer-events-none"></div>
+      <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-36">
+        <div class="max-w-3xl">
+          <div class="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-4 py-1.5 mb-8">
+            <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+            <span class="text-blue-300 text-sm font-medium">AI-Powered · Gemini 2.0</span>
+          </div>
+          <h1 class="font-serif text-5xl lg:text-6xl text-white leading-tight mb-6">
+            Project Finance,<br class="hidden sm:block" />
+            <span class="text-blue-400">Managed by AI</span>
+          </h1>
+          <p class="text-lg text-slate-300 leading-relaxed mb-10 max-w-2xl">
+            Upload construction invoices and let Gemini AI extract every field — vendor, amount, taxes, date. Track draws, submit to lenders, manage government claims. One dashboard for every dollar.
+          </p>
+          <div class="flex flex-wrap gap-4">
+            <button @click="view = 'login'"
+                    class="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-400 text-white px-8 py-3.5 rounded-md text-base font-semibold transition-colors shadow-lg shadow-blue-500/25">
+              Sign In to Your Account
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+            </button>
+            <a href="https://finel.ai/contact"
+               class="inline-flex items-center gap-2 border border-slate-500 hover:border-slate-300 text-slate-300 hover:text-white px-8 py-3.5 rounded-md text-base font-semibold transition-colors">
+              Book a Demo
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="py-24 bg-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16">
+          <h2 class="font-serif text-4xl text-slate-900 mb-4">Everything your project needs</h2>
+          <p class="text-slate-500 text-lg max-w-2xl mx-auto">From first invoice upload to final lender approval — Finel AI Projects handles the finance layer so you can focus on building.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+          <!-- Feature 1 -->
+          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
+              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-3">AI Invoice Extraction</h3>
+            <p class="text-slate-500 text-sm leading-relaxed">Upload PDFs or images. Gemini AI reads every field — vendor, invoice number, date, subtotal, HST/GST/PST, and total — in seconds. No manual data entry.</p>
+          </div>
+
+          <!-- Feature 2 -->
+          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
+              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Draw &amp; Budget Tracking</h3>
+            <p class="text-slate-500 text-sm leading-relaxed">Organize every invoice into draws. Track lender-submitted amounts, approved amounts, and lender margins. See your full cost structure across categories and subdivisions.</p>
+          </div>
+
+          <!-- Feature 3 -->
+          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
+              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Government Claim Management</h3>
+            <p class="text-slate-500 text-sm leading-relaxed">Manage provincial and federal claims separately. Set margins, track submitted vs approved amounts, and export claim-ready reports — all linked back to the original invoices.</p>
+          </div>
+
+          <!-- Feature 4 -->
+          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
+              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Categories &amp; Vendor Mapping</h3>
+            <p class="text-slate-500 text-sm leading-relaxed">Auto-classify invoices by vendor using your own category rules. Bulk re-classify in one click. Build a live cost breakdown that matches your accounting structure.</p>
+          </div>
+
+          <!-- Feature 5 -->
+          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
+              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Invoice Finder</h3>
+            <p class="text-slate-500 text-sm leading-relaxed">Point the tool at a folder of PDFs and it matches them against your database — finding missing invoices, duplicates, and already-processed files with live progress streaming.</p>
+          </div>
+
+          <!-- Feature 6 -->
+          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
+            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
+              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Export &amp; Reports</h3>
+            <p class="text-slate-500 text-sm leading-relaxed">Export filtered invoices to CSV in one click. Configure which columns appear in exports. Share clean, accountant-ready reports without manual spreadsheet work.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA strip -->
+    <section class="bg-slate-900 py-20">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 class="font-serif text-4xl text-white mb-4">Ready to take control of your project costs?</h2>
+        <p class="text-slate-400 text-lg mb-10">Sign in to your Finel AI Projects account or contact us to get set up.</p>
+        <div class="flex flex-wrap justify-center gap-4">
+          <button @click="view = 'login'"
+                  class="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-400 text-white px-10 py-4 rounded-md text-base font-semibold transition-colors shadow-lg shadow-blue-500/25">
+            Sign In to Your Account
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+          </button>
+          <a href="https://finel.ai/contact"
+             class="inline-flex items-center gap-2 border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white px-10 py-4 rounded-md text-base font-semibold transition-colors">
+            Contact Us
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-100 py-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-2 text-slate-600 text-sm">
+          <img src="/static/favicon.svg" alt="" class="h-5 w-5" />
+          <span>© 2026 <a href="https://finel.ai" class="hover:text-blue-500 transition-colors">Finel AI Financial Services</a>. All rights reserved.</span>
+        </div>
+        <div class="flex gap-6 text-sm text-slate-400">
+          <a href="https://finel.ai/about"     class="hover:text-slate-900 transition-colors">About</a>
+          <a href="https://finel.ai/resources" class="hover:text-slate-900 transition-colors">Resources</a>
+          <a href="https://finel.ai/contact"   class="hover:text-slate-900 transition-colors">Contact</a>
+        </div>
+      </div>
+    </footer>
+
+  </div><!-- /landing -->
+
+
+  <!-- ══════════════════════════════════════════════════════════════
        LOGIN / REGISTER PAGE
   ══════════════════════════════════════════════════════════════ -->
   <div x-show="view === 'login'" class="min-h-screen flex items-center justify-center bg-brand-gradient">
@@ -90,7 +375,7 @@
   <!-- ══════════════════════════════════════════════════════════════
        MAIN APP SHELL
   ══════════════════════════════════════════════════════════════ -->
-  <div x-show="view !== 'login'" class="flex flex-col h-screen overflow-hidden">
+  <div x-show="view !== 'login' && view !== 'landing'" class="flex flex-col h-screen overflow-hidden">
 
     <!-- FinelAppNav: canonical source finel-hub/brand/nav-example.tsx -->
     <nav class="bg-white border-b border-gray-100 flex-shrink-0 z-40"
