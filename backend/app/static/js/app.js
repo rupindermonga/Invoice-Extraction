@@ -14,6 +14,14 @@ function app() {
     demoLoading: false,
     demoError: '',
 
+    // ── Multi-project ──────────────────────────────────────────────
+    projects: [],
+    currentProject: null,
+    showNewProjectModal: false,
+    newProjectForm: { name: '', code: '', client: '', address: '', start_date: '', end_date: '', total_budget: 0, currency: 'CAD' },
+    newProjectError: '',
+    newProjectLoading: false,
+
     // ── Invoices ──────────────────────────────────────────────────
     invoices: [],
     stats: {},
@@ -142,6 +150,7 @@ function app() {
         this.token = saved;
         this.user = JSON.parse(savedUser);
         this.view = 'dashboard';
+        await this.loadProjects();
         await Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()]);
         if (this.user?.is_admin) await this.loadApiKeys();
       }
@@ -181,8 +190,10 @@ function app() {
       localStorage.setItem('invoice_token', this.token);
       localStorage.setItem('invoice_user', JSON.stringify(this.user));
       this.view = 'dashboard';
-      Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()])
-        .then(() => { if (this.user?.is_admin) this.loadApiKeys(); });
+      this.loadProjects().then(() => {
+        Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()])
+          .then(() => { if (this.user?.is_admin) this.loadApiKeys(); });
+      });
     },
 
     logout() {
@@ -192,6 +203,51 @@ function app() {
       localStorage.removeItem('invoice_user');
       if (this.sseSource) this.sseSource.close();
       this.view = 'landing';
+    },
+
+    async loadProjects() {
+      try {
+        this.projects = await this.get('/api/project/list');
+        const savedId = parseInt(localStorage.getItem('currentProjectId'));
+        if (savedId && this.projects.find(p => p.id === savedId)) {
+          this.currentProject = this.projects.find(p => p.id === savedId);
+        } else {
+          this.currentProject = this.projects[0] || null;
+        }
+      } catch (e) { console.error('loadProjects', e); }
+    },
+
+    switchProject(p) {
+      this.currentProject = p;
+      localStorage.setItem('currentProjectId', p.id);
+      // Reload all project-scoped data
+      Promise.all([
+        this.loadProjectDashboard(),
+        this.loadSubdivisions ? this.loadSubdivisions() : Promise.resolve(),
+        this.loadPayroll(),
+      ]);
+    },
+
+    get _pid() {
+      return this.currentProject ? `?project_id=${this.currentProject.id}` : '';
+    },
+
+    async createProject() {
+      if (!this.newProjectForm.name.trim()) {
+        this.newProjectError = 'Project name is required.'; return;
+      }
+      this.newProjectLoading = true; this.newProjectError = '';
+      try {
+        const proj = await this.post('/api/project', this.newProjectForm);
+        this.projects.push(proj);
+        this.currentProject = proj;
+        localStorage.setItem('currentProjectId', proj.id);
+        this.showNewProjectModal = false;
+        this.newProjectForm = { name: '', code: '', client: '', address: '', start_date: '', end_date: '', total_budget: 0, currency: 'CAD' };
+        await this.loadProjectDashboard();
+      } catch (e) {
+        this.newProjectError = e.message || 'Failed to create project';
+      } finally { this.newProjectLoading = false; }
     },
 
     async tryDemo() {
@@ -800,7 +856,7 @@ function app() {
     // ── Project Finance ──────────────────────────────────────────
     async loadProjectDashboard() {
       try {
-        this.projectDash = await this.get('/api/project/dashboard');
+        this.projectDash = await this.get(`/api/project/dashboard${this._pid}`);
         this.costCategories = this.projectDash?.categories || [];
         this.draws = this.projectDash?.draws || [];
         this.claims = [...(this.projectDash?.provincial_claims || []), ...(this.projectDash?.federal_claims || [])];
@@ -825,11 +881,11 @@ function app() {
     },
 
     async loadSubdivisions() {
-      try { this.subdivisions = await this.get('/api/project/subdivisions'); } catch (e) {}
+      try { this.subdivisions = await this.get(`/api/project/subdivisions${this._pid}`); } catch (e) {}
     },
 
     async loadCostCategories() {
-      try { this.costCategories = await this.get('/api/project/categories'); } catch (e) {}
+      try { this.costCategories = await this.get(\); } catch (e) {}
     },
 
     async updateProjectBudget(field, value) {
@@ -967,7 +1023,7 @@ function app() {
 
     // ── Draws ──────────────────────────────────────────────────────
     async loadDraws() {
-      try { this.draws = await this.get('/api/project/draws'); } catch (e) {}
+      try { this.draws = await this.get(\); } catch (e) {}
     },
 
     openDrawModal(draw = null) {
@@ -999,7 +1055,7 @@ function app() {
         if (this.editingDrawId) {
           await this.put(`/api/project/draws/${this.editingDrawId}`, { fx_rate: this.drawForm.fx_rate, submission_date: this.drawForm.submission_date || null, status: this.drawForm.status, notes: this.drawForm.notes || null });
         } else {
-          await this.post('/api/project/draws', this.drawForm);
+          await this.post(\, this.drawForm);
         }
         this.showDrawModal = false;
         await Promise.all([this.loadDraws(), this.loadProjectDashboard()]);
@@ -1016,7 +1072,7 @@ function app() {
 
     // ── Claims ─────────────────────────────────────────────────────
     async loadClaims() {
-      try { this.claims = await this.get('/api/project/claims'); } catch (e) {}
+      try { this.claims = await this.get(\); } catch (e) {}
     },
 
     openClaimModal(claim = null, claimType = 'provincial') {
@@ -1038,7 +1094,7 @@ function app() {
         if (this.editingClaimId) {
           await this.put(`/api/project/claims/${this.editingClaimId}`, { fx_rate: this.claimForm.fx_rate, submission_date: this.claimForm.submission_date || null, status: this.claimForm.status, notes: this.claimForm.notes || null });
         } else {
-          await this.post('/api/project/claims', this.claimForm);
+          await this.post(\, this.claimForm);
         }
         this.showClaimModal = false;
         await Promise.all([this.loadClaims(), this.loadProjectDashboard()]);
@@ -1096,7 +1152,7 @@ function app() {
 
     // ── Payroll ──────────────────────────────────────────────────
     async loadPayroll() {
-      try { this.payrollEntries = await this.get('/api/project/payroll'); } catch(e) { this.payrollEntries = []; }
+      try { this.payrollEntries = await this.get(`/api/project/payroll${this._pid}`); } catch(e) { this.payrollEntries = []; }
     },
     openPayrollModal(entry = null) {
       if (entry) {
@@ -1114,7 +1170,7 @@ function app() {
         if (this.editingPayrollId) {
           await this.put(`/api/project/payroll/${this.editingPayrollId}`, this.payrollForm);
         } else {
-          await this.post('/api/project/payroll', this.payrollForm);
+          await this.post(\, this.payrollForm);
         }
         this.showPayrollModal = false;
         await Promise.all([this.loadPayroll(), this.loadProjectDashboard()]);
@@ -1132,7 +1188,7 @@ function app() {
       if (!num) return;
       const rate = prompt('USD→CAD FX rate (default 1.0):', '1.0');
       try {
-        const res = await this.post('/api/project/draws', { draw_number: parseInt(num), fx_rate: parseFloat(rate) || 1.0 });
+        const res = await this.post(`/api/project/draws${this._pid}`, { draw_number: parseInt(num), fx_rate: parseFloat(rate) || 1.0 });
         await this.loadDraws();
         this.uploadDrawId = res.id;
       } catch(e) { alert(e.message); }
@@ -1142,7 +1198,7 @@ function app() {
       if (!num) return;
       const rate = prompt('USD→CAD FX rate (default 1.0):', '1.0');
       try {
-        const res = await this.post('/api/project/claims', { claim_number: parseInt(num), claim_type: type, fx_rate: parseFloat(rate) || 1.0 });
+        const res = await this.post(`/api/project/claims${this._pid}`, { claim_number: parseInt(num), claim_type: type, fx_rate: parseFloat(rate) || 1.0 });
         await this.loadClaims();
         if (type === 'provincial') this.uploadProvClaimId = res.id;
         else this.uploadFedClaimId = res.id;

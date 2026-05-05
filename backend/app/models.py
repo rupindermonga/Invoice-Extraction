@@ -86,6 +86,9 @@ class Invoice(Base):
     payment_status = Column(String, default="unpaid")  # unpaid | partially_paid | paid
     amount_paid = Column(Float, default=0.0)
 
+    # Project linking (direct — for filtering invoices by project without going through draws)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
+
     # Draw / Claim linking
     draw_id = Column(Integer, ForeignKey("draws.id"), nullable=True)
     provincial_claim_id = Column(Integer, ForeignKey("claims.id"), nullable=True)

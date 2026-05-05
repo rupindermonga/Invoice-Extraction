@@ -31,20 +31,43 @@ from ..dependencies import get_current_user
 router = APIRouter(prefix="/api/project", tags=["project"])
 
 
+# ─── Project resolver dependency ─────────────────────────────────────────────
+# Any endpoint that Depends on these automatically accepts ?project_id=N.
+# If project_id is omitted, the user's first project is used (backwards compat).
+
+def _get_proj(
+    project_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Optional[Project]:
+    q = db.query(Project).filter(Project.user_id == current_user.id)
+    if project_id:
+        q = q.filter(Project.id == project_id)
+    return q.order_by(Project.created_at).first()
+
+
+def _req_proj(proj: Optional[Project] = Depends(_get_proj)) -> Project:
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return proj
+
+
 # ─── Project CRUD ────────────────────────────────────────────────────────────
 
+@router.get("/list")
+def list_projects(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """List all projects for the current user."""
+    return db.query(Project).filter(Project.user_id == current_user.id).order_by(Project.created_at).all()
+
+
 @router.get("", response_model=Optional[ProjectOut])
-def get_project(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Get the user's project (single-project model)."""
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+def get_project(proj: Optional[Project] = Depends(_get_proj)):
     return proj
 
 
 @router.post("", response_model=ProjectOut)
 def create_project(body: ProjectCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    existing = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Project already exists. Use PUT to update.")
+    """Create a new project. Multiple projects per user are allowed."""
     proj = Project(user_id=current_user.id, **body.model_dump())
     db.add(proj)
     db.commit()
@@ -53,10 +76,7 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db), current_u
 
 
 @router.put("", response_model=ProjectOut)
-def update_project(body: ProjectUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404, detail="No project found")
+def update_project(body: ProjectUpdate, proj: Project = Depends(_req_proj), db: Session = Depends(get_db)):
     _ALLOWED = {"name", "code", "client", "address", "start_date", "end_date", "total_budget", "currency"}
     for field, value in body.model_dump(exclude_unset=True).items():
         if field in _ALLOWED:
@@ -66,19 +86,27 @@ def update_project(body: ProjectUpdate, db: Session = Depends(get_db), current_u
     return proj
 
 
+@router.delete("/{project_id}")
+def delete_project(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    proj = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    db.delete(proj)
+    db.commit()
+    return {"message": "Project deleted"}
+
+
 # ─── Sub-Divisions ───────────────────────────────────────────────────────────
 
 @router.get("/subdivisions", response_model=List[SubDivisionOut])
-def list_subdivisions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+def list_subdivisions(proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db)):
     if not proj:
         return []
     return db.query(SubDivision).filter(SubDivision.project_id == proj.id).order_by(SubDivision.display_order).all()
 
 
 @router.post("/subdivisions", response_model=SubDivisionOut)
-def create_subdivision(name: str, description: str = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+def create_subdivision(name: str, description: str = None, proj: Project = Depends(_req_proj), db: Session = Depends(get_db)):
     if not proj:
         raise HTTPException(status_code=404, detail="Create a project first")
     sd = SubDivision(project_id=proj.id, name=name, description=description)
@@ -91,8 +119,7 @@ def create_subdivision(name: str, description: str = None, db: Session = Depends
 # ─── Cost Categories ─────────────────────────────────────────────────────────
 
 @router.get("/categories", response_model=List[CostCategoryOut])
-def list_cost_categories(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+def list_cost_categories(proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db)):
     if not proj:
         return []
     return (
@@ -104,10 +131,7 @@ def list_cost_categories(db: Session = Depends(get_db), current_user: User = Dep
 
 
 @router.post("/categories", response_model=CostCategoryOut)
-def create_cost_category(body: CostCategoryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404, detail="Create a project first")
+def create_cost_category(body: CostCategoryCreate, proj: Project = Depends(_req_proj), db: Session = Depends(get_db)):
     if body.budget < 0:
         raise HTTPException(status_code=400, detail="Budget must be non-negative")
     existing = db.query(CostCategory).filter(CostCategory.project_id == proj.id, CostCategory.name == body.name).first()
@@ -121,10 +145,7 @@ def create_cost_category(body: CostCategoryCreate, db: Session = Depends(get_db)
 
 
 @router.put("/categories/{cat_id}", response_model=CostCategoryOut)
-def update_cost_category(cat_id: int, body: CostCategoryUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
+def update_cost_category(cat_id: int, body: CostCategoryUpdate, proj: Project = Depends(_req_proj), db: Session = Depends(get_db)):
     cat = db.query(CostCategory).filter(CostCategory.id == cat_id, CostCategory.project_id == proj.id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Cost category not found")
@@ -141,10 +162,7 @@ def update_cost_category(cat_id: int, body: CostCategoryUpdate, db: Session = De
 
 
 @router.delete("/categories/{cat_id}")
-def delete_cost_category(cat_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
+def delete_cost_category(cat_id: int, proj: Project = Depends(_req_proj), db: Session = Depends(get_db)):
     cat = db.query(CostCategory).filter(CostCategory.id == cat_id, CostCategory.project_id == proj.id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Cost category not found")
@@ -157,10 +175,8 @@ def delete_cost_category(cat_id: int, db: Session = Depends(get_db), current_use
 
 @router.post("/categories/{cat_id}/subcategories", response_model=CostSubCategoryOut)
 def create_cost_subcategory(cat_id: int, body: CostSubCategoryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    cat = db.query(CostCategory).filter(CostCategory.id == cat_id, CostCategory.project_id == proj.id).first()
+    cat = (db.query(CostCategory).join(Project, Project.id == CostCategory.project_id)
+            .filter(CostCategory.id == cat_id, Project.user_id == current_user.id).first())
     if not cat:
         raise HTTPException(status_code=404, detail="Cost category not found")
     sc = CostSubCategory(category_id=cat_id, name=body.name, description=body.description, budget=body.budget)
@@ -172,12 +188,10 @@ def create_cost_subcategory(cat_id: int, body: CostSubCategoryCreate, db: Sessio
 
 @router.delete("/subcategories/{sc_id}")
 def delete_cost_subcategory(sc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    sc = db.query(CostSubCategory).join(CostCategory).filter(
-        CostSubCategory.id == sc_id, CostCategory.project_id == proj.id
-    ).first()
+    sc = (db.query(CostSubCategory)
+          .join(CostCategory, CostCategory.id == CostSubCategory.category_id)
+          .join(Project, Project.id == CostCategory.project_id)
+          .filter(CostSubCategory.id == sc_id, Project.user_id == current_user.id).first())
     if not sc:
         raise HTTPException(status_code=404)
     db.delete(sc)
@@ -189,12 +203,11 @@ def delete_cost_subcategory(sc_id: int, db: Session = Depends(get_db), current_u
 
 @router.put("/categories/{cat_id}/subdivision-budgets")
 def set_subdivision_budgets(cat_id: int, budgets: List[SubDivisionBudgetSet], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    cat = db.query(CostCategory).filter(CostCategory.id == cat_id, CostCategory.project_id == proj.id).first()
+    cat = (db.query(CostCategory).join(Project, Project.id == CostCategory.project_id)
+            .filter(CostCategory.id == cat_id, Project.user_id == current_user.id).first())
     if not cat:
         raise HTTPException(status_code=404)
+    proj = db.query(Project).filter(Project.id == cat.project_id).first()
     # Upsert budgets — verify each subdivision belongs to this project
     for b in budgets:
         sd = db.query(SubDivision).filter(SubDivision.id == b.subdivision_id, SubDivision.project_id == proj.id).first()
@@ -216,11 +229,8 @@ def set_subdivision_budgets(cat_id: int, budgets: List[SubDivisionBudgetSet], db
 
 @router.get("/categories/{cat_id}/subdivision-budgets")
 def get_subdivision_budgets(cat_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        return []
-    # Verify category belongs to user's project
-    cat = db.query(CostCategory).filter(CostCategory.id == cat_id, CostCategory.project_id == proj.id).first()
+    cat = (db.query(CostCategory).join(Project, Project.id == CostCategory.project_id)
+            .filter(CostCategory.id == cat_id, Project.user_id == current_user.id).first())
     if not cat:
         raise HTTPException(status_code=404, detail="Cost category not found")
     rows = db.query(SubDivisionBudget).filter(SubDivisionBudget.category_id == cat_id).all()
@@ -255,9 +265,8 @@ def set_allocations(invoice_id: int, allocations: List[AllocationCreate], db: Se
     inv = db.query(Invoice).filter(Invoice.id == invoice_id, Invoice.user_id == current_user.id).first()
     if not inv:
         raise HTTPException(status_code=404)
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404, detail="Create a project first")
+    proj = (db.query(Project).filter(Project.user_id == current_user.id)
+            .order_by(Project.created_at).first())
 
     # Validate individual percentages
     for a in allocations:
@@ -387,18 +396,14 @@ def _draw_out(draw, db):
     )
 
 @router.get("/draws")
-def list_draws(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+def list_draws(proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db)):
     if not proj:
         return []
     draws = db.query(Draw).filter(Draw.project_id == proj.id).order_by(Draw.draw_number).all()
     return [_draw_out(d, db) for d in draws]
 
 @router.post("/draws")
-def create_draw(body: DrawCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404, detail="Create a project first")
+def create_draw(body: DrawCreate, proj: Project = Depends(_req_proj), db: Session = Depends(get_db)):
     existing = db.query(Draw).filter(Draw.project_id == proj.id, Draw.draw_number == body.draw_number).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"Draw {body.draw_number} already exists")
@@ -410,10 +415,8 @@ def create_draw(body: DrawCreate, db: Session = Depends(get_db), current_user: U
 
 @router.put("/draws/{draw_id}")
 def update_draw(draw_id: int, body: DrawUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    draw = (db.query(Draw).join(Project, Project.id == Draw.project_id)
+            .filter(Draw.id == draw_id, Project.user_id == current_user.id).first())
     if not draw:
         raise HTTPException(status_code=404, detail="Draw not found")
     for field, value in body.model_dump(exclude_unset=True).items():
@@ -425,13 +428,10 @@ def update_draw(draw_id: int, body: DrawUpdate, db: Session = Depends(get_db), c
 
 @router.delete("/draws/{draw_id}")
 def delete_draw(draw_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    draw = (db.query(Draw).join(Project, Project.id == Draw.project_id)
+            .filter(Draw.id == draw_id, Project.user_id == current_user.id).first())
     if not draw:
         raise HTTPException(status_code=404)
-    # Unlink invoices
     db.query(Invoice).filter(Invoice.draw_id == draw_id).update({"draw_id": None})
     db.delete(draw)
     db.commit()
@@ -439,10 +439,8 @@ def delete_draw(draw_id: int, db: Session = Depends(get_db), current_user: User 
 
 @router.put("/draws/{draw_id}/invoices")
 def assign_invoices_to_draw(draw_id: int, invoice_ids: List[int], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    draw = (db.query(Draw).join(Project, Project.id == Draw.project_id)
+            .filter(Draw.id == draw_id, Project.user_id == current_user.id).first())
     if not draw:
         raise HTTPException(status_code=404, detail="Draw not found")
     # Unlink all currently linked
@@ -457,10 +455,8 @@ def assign_invoices_to_draw(draw_id: int, invoice_ids: List[int], db: Session = 
 
 @router.get("/draws/{draw_id}/invoices")
 def get_draw_invoices(draw_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        return []
-    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    draw = (db.query(Draw).join(Project, Project.id == Draw.project_id)
+            .filter(Draw.id == draw_id, Project.user_id == current_user.id).first())
     if not draw:
         raise HTTPException(status_code=404)
     invs = db.query(Invoice).filter(Invoice.draw_id == draw_id, Invoice.user_id == current_user.id).all()
@@ -478,10 +474,8 @@ def get_draw_invoices(draw_id: int, db: Session = Depends(get_db), current_user:
 @router.post("/draws/{draw_id}/approve-all")
 def bulk_approve_draw(draw_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Approve all invoices in a draw: set lender_approved_amt = lender_submitted_amt, status = approved."""
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
+    draw = (db.query(Draw).join(Project, Project.id == Draw.project_id)
+            .filter(Draw.id == draw_id, Project.user_id == current_user.id).first())
     if not draw:
         raise HTTPException(status_code=404, detail="Draw not found")
     invs = db.query(Invoice).filter(Invoice.draw_id == draw_id, Invoice.user_id == current_user.id).all()
@@ -502,10 +496,8 @@ def bulk_approve_draw(draw_id: int, db: Session = Depends(get_db), current_user:
 @router.post("/claims/{claim_id}/approve-all")
 def bulk_approve_claim(claim_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Approve all invoices in a claim: set govt_approved_amt = govt_submitted_amt, status = approved."""
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    claim = (db.query(Claim).join(Project, Project.id == Claim.project_id)
+             .filter(Claim.id == claim_id, Project.user_id == current_user.id).first())
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     invs = db.query(Invoice).filter(_claim_fk(claim) == claim_id, Invoice.user_id == current_user.id).all()
@@ -544,8 +536,7 @@ def _claim_out(claim, db):
     )
 
 @router.get("/claims")
-def list_claims(claim_type: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+def list_claims(claim_type: Optional[str] = None, proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db)):
     if not proj:
         return []
     q = db.query(Claim).filter(Claim.project_id == proj.id)
@@ -554,10 +545,7 @@ def list_claims(claim_type: Optional[str] = None, db: Session = Depends(get_db),
     return [_claim_out(c, db) for c in q.order_by(Claim.claim_number).all()]
 
 @router.post("/claims")
-def create_claim(body: ClaimCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404, detail="Create a project first")
+def create_claim(body: ClaimCreate, proj: Project = Depends(_req_proj), db: Session = Depends(get_db)):
     if body.claim_type not in ("provincial", "federal"):
         raise HTTPException(status_code=400, detail="claim_type must be 'provincial' or 'federal'")
     existing = db.query(Claim).filter(Claim.project_id == proj.id, Claim.claim_number == body.claim_number, Claim.claim_type == body.claim_type).first()
@@ -571,10 +559,8 @@ def create_claim(body: ClaimCreate, db: Session = Depends(get_db), current_user:
 
 @router.put("/claims/{claim_id}")
 def update_claim(claim_id: int, body: ClaimUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    claim = (db.query(Claim).join(Project, Project.id == Claim.project_id)
+             .filter(Claim.id == claim_id, Project.user_id == current_user.id).first())
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     for field, value in body.model_dump(exclude_unset=True).items():
@@ -586,10 +572,8 @@ def update_claim(claim_id: int, body: ClaimUpdate, db: Session = Depends(get_db)
 
 @router.delete("/claims/{claim_id}")
 def delete_claim(claim_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    claim = (db.query(Claim).join(Project, Project.id == Claim.project_id)
+             .filter(Claim.id == claim_id, Project.user_id == current_user.id).first())
     if not claim:
         raise HTTPException(status_code=404)
     fk_name = _claim_fk_name(claim)
@@ -600,10 +584,8 @@ def delete_claim(claim_id: int, db: Session = Depends(get_db), current_user: Use
 
 @router.put("/claims/{claim_id}/invoices")
 def assign_invoices_to_claim(claim_id: int, invoice_ids: List[int], db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    claim = (db.query(Claim).join(Project, Project.id == Claim.project_id)
+             .filter(Claim.id == claim_id, Project.user_id == current_user.id).first())
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     fk_name = _claim_fk_name(claim)
@@ -618,11 +600,10 @@ def assign_invoices_to_claim(claim_id: int, invoice_ids: List[int], db: Session 
 @router.put("/claims/{claim_id}/copy-from-draw/{draw_id}")
 def copy_draw_to_claim(claim_id: int, draw_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Copy all invoices from a draw to a claim (for the 99% overlap case)."""
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404)
-    draw = db.query(Draw).filter(Draw.id == draw_id, Draw.project_id == proj.id).first()
-    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    draw = (db.query(Draw).join(Project, Project.id == Draw.project_id)
+            .filter(Draw.id == draw_id, Project.user_id == current_user.id).first())
+    claim = (db.query(Claim).join(Project, Project.id == Claim.project_id)
+             .filter(Claim.id == claim_id, Project.user_id == current_user.id).first())
     if not draw or not claim:
         raise HTTPException(status_code=404)
     fk_name = _claim_fk_name(claim)
@@ -634,10 +615,8 @@ def copy_draw_to_claim(claim_id: int, draw_id: int, db: Session = Depends(get_db
 
 @router.get("/claims/{claim_id}/invoices")
 def get_claim_invoices(claim_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        return []
-    claim = db.query(Claim).filter(Claim.id == claim_id, Claim.project_id == proj.id).first()
+    claim = (db.query(Claim).join(Project, Project.id == Claim.project_id)
+             .filter(Claim.id == claim_id, Project.user_id == current_user.id).first())
     if not claim:
         raise HTTPException(status_code=404)
     invs = db.query(Invoice).filter(_claim_fk(claim) == claim_id, Invoice.user_id == current_user.id).all()
@@ -683,8 +662,7 @@ def get_fx_rate(date: Optional[str] = None):
 # ─── Dashboard ────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard")
-def project_dashboard(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+def project_dashboard(proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db)):
     if not proj:
         return {"project": None}
 
@@ -945,9 +923,11 @@ def _calc_payroll(entry: PayrollEntry):
 
 
 @router.get("/payroll")
-def list_payroll(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    entries = db.query(PayrollEntry).filter(PayrollEntry.user_id == current_user.id).order_by(PayrollEntry.pay_period_start.desc()).all()
-    return [PayrollEntryOut.model_validate(e) for e in entries]
+def list_payroll(proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    q = db.query(PayrollEntry).filter(PayrollEntry.user_id == current_user.id)
+    if proj:
+        q = q.filter(PayrollEntry.project_id == proj.id)
+    return [PayrollEntryOut.model_validate(e) for e in q.order_by(PayrollEntry.pay_period_start.desc()).all()]
 
 
 def _validate_payroll(body):
@@ -959,11 +939,8 @@ def _validate_payroll(body):
 
 
 @router.post("/payroll")
-def create_payroll(body: PayrollEntryCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_payroll(body: PayrollEntryCreate, proj: Project = Depends(_req_proj), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _validate_payroll(body)
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
-    if not proj:
-        raise HTTPException(status_code=404, detail="Create a project first")
     entry = PayrollEntry(user_id=current_user.id, project_id=proj.id, status="processed")
     for field, value in body.model_dump().items():
         if hasattr(entry, field):
@@ -1031,7 +1008,8 @@ def export_bookkeeping(
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or missing token")
 
-    proj = db.query(Project).filter(Project.user_id == current_user.id).first()
+    proj = (db.query(Project).filter(Project.user_id == current_user.id)
+            .order_by(Project.created_at).first())
     if not proj:
         raise HTTPException(status_code=404, detail="No project found")
 

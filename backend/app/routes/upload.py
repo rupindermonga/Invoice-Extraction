@@ -1,11 +1,11 @@
 import asyncio
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from pathlib import Path
 
 from ..database import get_db
-from ..models import Invoice, User
+from ..models import Invoice, User, Project
 from ..dependencies import get_current_user
 from ..services.extractor import save_upload_file, process_invoice_file
 from ..services.gemini import check_api_key
@@ -41,9 +41,16 @@ def _validate_magic(header: bytes) -> bool:
 async def upload_invoices(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
+    project_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Resolve project for tagging invoices (fallback to first project)
+    _proj = None
+    if project_id:
+        _proj = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
+    if not _proj:
+        _proj = db.query(Project).filter(Project.user_id == current_user.id).order_by(Project.created_at).first()
     if not check_api_key(db):
         raise HTTPException(
             status_code=400,
@@ -108,6 +115,7 @@ async def upload_invoices(
         # Create invoice record
         invoice = Invoice(
             user_id=current_user.id,
+            project_id=_proj.id if _proj else None,
             source="upload",
             source_file=saved_path,
             original_filename=upload.filename,
