@@ -342,6 +342,89 @@ function app() {
     assignedInvoiceIds: [],
     fxRateLoading: false,
 
+    // ── AI Intelligence ───────────────────────────────────────────
+    aiInsights: null,
+    aiLoading: false,
+    aiError: '',
+    aiActiveTab: 'compliance',    // compliance | overruns | draws | cashflow | subs | lender | mapper
+    // Cash flow simulator sliders
+    cfDelayMonths: 0,
+    cfInflationPct: 0,
+    cfDrawDelay: 0,
+    cfScenario: null,
+    cfScenarioLoading: false,
+    // Draw readiness
+    drawReadiness: {},            // keyed by draw_id
+    drawReadinessLoading: false,
+    // AI mapper
+    aiSuggestion: null,
+    aiSuggestionLoading: false,
+    aiSuggestionInvoiceId: null,
+
+    async loadAiInsights() {
+      if (!this.currentProject) return;
+      this.aiLoading = true; this.aiError = '';
+      try {
+        this.aiInsights = await this.get(`/api/project/ai/insights${this._pid}`);
+      } catch(e) { this.aiError = e.message || 'AI insights unavailable'; }
+      finally { this.aiLoading = false; }
+    },
+
+    async loadDrawReadiness(drawId) {
+      this.drawReadinessLoading = true;
+      try {
+        this.drawReadiness[drawId] = await this.get(`/api/project/ai/draw-readiness/${drawId}`);
+      } catch(e) { this.drawReadiness[drawId] = { error: e.message }; }
+      finally { this.drawReadinessLoading = false; }
+    },
+
+    async loadCfScenario() {
+      if (!this.currentProject) return;
+      this.cfScenarioLoading = true;
+      try {
+        const params = `${this._pid}&delay_months=${this.cfDelayMonths}&cost_inflation_pct=${this.cfInflationPct}&draw_delay_days=${this.cfDrawDelay}`;
+        const sep = this._pid ? '&' : '?';
+        const url = `/api/project/ai/cashflow-scenarios${this._pid}${sep.replace('?','&')}delay_months=${this.cfDelayMonths}&cost_inflation_pct=${this.cfInflationPct}&draw_delay_days=${this.cfDrawDelay}`;
+        this.cfScenario = await this.get(`/api/project/ai/cashflow-scenarios?project_id=${this.currentProject.id}&delay_months=${this.cfDelayMonths}&cost_inflation_pct=${this.cfInflationPct}&draw_delay_days=${this.cfDrawDelay}`);
+      } catch(e) {}
+      finally { this.cfScenarioLoading = false; }
+    },
+
+    async aiSuggestAllocation(invoiceId) {
+      this.aiSuggestionLoading = true; this.aiSuggestion = null; this.aiSuggestionInvoiceId = invoiceId;
+      try {
+        const payload = { invoice_id: invoiceId, project_id: this.currentProject?.id || null };
+        this.aiSuggestion = await this.post('/api/project/ai/suggest-allocation', payload);
+      } catch(e) { this.aiSuggestion = { error: e.message || 'AI suggestion failed' }; }
+      finally { this.aiSuggestionLoading = false; }
+    },
+
+    async acceptAiSuggestion() {
+      if (!this.aiSuggestion || !this.aiSuggestion.category_id) return;
+      if (!this.selectedAllocInvoice) return;
+      // Pre-fill the alloc form with the suggestion
+      this.allocForm.category_id = String(this.aiSuggestion.category_id);
+      if (this.aiSuggestion.sub_category_id) this.allocForm.sub_category_id = String(this.aiSuggestion.sub_category_id);
+      this.allocForm.percentage = 100;
+      this.aiSuggestion = null;
+    },
+
+    aiSeverityColor(sev) {
+      const map = { critical: 'red', high: 'orange', warning: 'yellow', info: 'blue', low: 'green', medium: 'yellow' };
+      const c = map[sev] || 'slate';
+      return `bg-${c}-50 border-${c}-200 text-${c}-800`;
+    },
+
+    aiSeverityBadge(sev) {
+      const map = { critical: 'bg-red-100 text-red-700', high: 'bg-orange-100 text-orange-700', warning: 'bg-yellow-100 text-yellow-700', info: 'bg-blue-100 text-blue-700', low: 'bg-green-100 text-green-700', medium: 'bg-yellow-100 text-yellow-700' };
+      return map[sev] || 'bg-slate-100 text-slate-700';
+    },
+
+    riskBadge(level) {
+      const map = { critical: 'bg-red-100 text-red-700 border border-red-200', high: 'bg-orange-100 text-orange-700 border border-orange-200', medium: 'bg-yellow-100 text-yellow-700 border border-yellow-200', low: 'bg-green-100 text-green-700 border border-green-200' };
+      return map[level] || 'bg-slate-100 text-slate-600';
+    },
+
     // ── Init ──────────────────────────────────────────────────────
     async init() {
       const saved = localStorage.getItem('invoice_token');
@@ -420,12 +503,13 @@ function app() {
     switchProject(p) {
       this.currentProject = p;
       localStorage.setItem('currentProjectId', p.id);
-      // Reload all project-scoped data
+      this.aiInsights = null; this.cfScenario = null; this.drawReadiness = {};
       Promise.all([
         this.loadProjectDashboard(),
         this.loadSubdivisions ? this.loadSubdivisions() : Promise.resolve(),
         this.loadPayroll(),
       ]);
+      if (this.view === 'ai') this.loadAiInsights();
     },
 
     get _pid() {

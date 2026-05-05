@@ -155,12 +155,25 @@ def _run_migrations():
                 notes TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )""",
+            # AI suggestions log (optional — stores Gemini suggestions for audit)
+            """CREATE TABLE IF NOT EXISTS ai_suggestions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                project_id INTEGER REFERENCES projects(id),
+                invoice_id INTEGER REFERENCES invoices(id),
+                suggested_category_id INTEGER REFERENCES cost_categories(id),
+                suggested_sub_category_id INTEGER REFERENCES cost_sub_categories(id),
+                confidence REAL,
+                reasoning TEXT,
+                accepted INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
         ]:
             try:
                 conn.execute(text(stmt))
                 conn.commit()
             except Exception:
-                pass  # Column already exists
+                pass  # Column already exists or table exists
 
 
 def _retire_default_admin():

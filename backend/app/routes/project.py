@@ -2230,3 +2230,374 @@ def export_bookkeeping(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AI INTELLIGENCE ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── AI Feature 1: Invoice → Cost Code Mapper ────────────────────────────────
+
+@router.post("/ai/suggest-allocation")
+def ai_suggest_allocation(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Use Gemini to suggest the best cost category for an invoice based on vendor/description."""
+    invoice_id = body.get("invoice_id")
+    project_id = body.get("project_id")
+    if not invoice_id:
+        raise HTTPException(status_code=400, detail="invoice_id required")
+
+    inv = db.query(Invoice).filter(Invoice.id == invoice_id, Invoice.user_id == current_user.id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    proj = None
+    if project_id:
+        proj = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
+    if not proj:
+        proj = db.query(Project).filter(Project.user_id == current_user.id).order_by(Project.created_at).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="No project found")
+
+    categories = db.query(CostCategory).filter(CostCategory.project_id == proj.id).order_by(CostCategory.display_order).all()
+    if not categories:
+        raise HTTPException(status_code=400, detail="No cost categories defined for this project")
+
+    from ..services.ai_project import suggest_allocation
+    result = suggest_allocation(inv, categories, db)
+    return result
+
+
+# ─── AI Feature 1b: Bulk auto-suggest for unallocated invoices ────────────────
+
+@router.post("/ai/bulk-suggest-allocations")
+def ai_bulk_suggest(
+    body: dict,
+    proj: Project = Depends(_req_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Suggest allocations for all unallocated project invoices (up to 20 at a time)."""
+    categories = db.query(CostCategory).filter(CostCategory.project_id == proj.id).order_by(CostCategory.display_order).all()
+    if not categories:
+        raise HTTPException(status_code=400, detail="No cost categories defined for this project")
+
+    # Find unallocated processed invoices for this project
+    unallocated = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.project_id == proj.id,
+        Invoice.status == "processed",
+    ).all()
+    unallocated = [i for i in unallocated
+                   if db.query(InvoiceAllocation).filter(InvoiceAllocation.invoice_id == i.id).count() == 0][:20]
+
+    from ..services.ai_project import suggest_allocation
+    results = []
+    for inv in unallocated:
+        suggestion = suggest_allocation(inv, categories, db)
+        suggestion["invoice_id"] = inv.id
+        suggestion["vendor"] = inv.vendor_name
+        suggestion["amount"] = inv.total_due
+        results.append(suggestion)
+
+    return {"suggestions": results, "count": len(results)}
+
+
+# ─── AI Feature 2: Lien & Holdback Compliance Brain ──────────────────────────
+
+@router.get("/ai/compliance")
+def ai_compliance(
+    proj: Optional[Project] = Depends(_get_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Canadian construction compliance alerts: holdback timelines, lien windows, missing waivers."""
+    if not proj:
+        return {"alerts": [], "alert_count": 0}
+
+    invoices = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.project_id == proj.id,
+        Invoice.status == "processed",
+    ).all()
+    draws = db.query(Draw).filter(Draw.project_id == proj.id).all()
+    lien_waivers = db.query(LienWaiver).filter(LienWaiver.project_id == proj.id).all()
+
+    from ..services.ai_project import compliance_alerts
+    return compliance_alerts(proj, invoices, draws, lien_waivers)
+
+
+# ─── AI Feature 3: Cost Overrun Early Warning ─────────────────────────────────
+
+@router.get("/ai/overrun-alerts")
+def ai_overrun_alerts(
+    proj: Optional[Project] = Depends(_get_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Detect categories trending toward budget overrun based on spend velocity."""
+    if not proj:
+        return {"alerts": [], "alert_count": 0}
+
+    categories = db.query(CostCategory).filter(CostCategory.project_id == proj.id).order_by(CostCategory.display_order).all()
+
+    # Build allocations by category
+    allocations_by_cat: dict = {}
+    for cat in categories:
+        total = db.query(func.coalesce(func.sum(InvoiceAllocation.amount), 0.0)).filter(
+            InvoiceAllocation.category_id == cat.id
+        ).scalar() or 0.0
+        allocations_by_cat[cat.id] = float(total)
+
+    # Approved change orders by category
+    approved_cos = db.query(ChangeOrder).filter(
+        ChangeOrder.project_id == proj.id, ChangeOrder.status == "approved"
+    ).all()
+    co_by_cat: dict = {}
+    for co in approved_cos:
+        if co.category_id:
+            co_by_cat[co.category_id] = co_by_cat.get(co.category_id, 0.0) + co.amount
+
+    from ..services.ai_project import overrun_alerts
+    return overrun_alerts(proj, categories, allocations_by_cat, co_by_cat)
+
+
+# ─── AI Feature 4: Draw Intelligence Engine ───────────────────────────────────
+
+@router.get("/ai/draw-readiness/{draw_id}")
+def ai_draw_readiness(
+    draw_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a draw submission readiness checklist."""
+    draw = (db.query(Draw).join(Project, Project.id == Draw.project_id)
+            .filter(Draw.id == draw_id, Project.user_id == current_user.id).first())
+    if not draw:
+        raise HTTPException(status_code=404, detail="Draw not found")
+
+    invoices = db.query(Invoice).filter(Invoice.draw_id == draw_id, Invoice.user_id == current_user.id).all()
+    proj = db.query(Project).filter(Project.id == draw.project_id).first()
+    lien_waivers = db.query(LienWaiver).filter(LienWaiver.project_id == proj.id).all()
+    subcontractors = db.query(Subcontractor).filter(Subcontractor.project_id == proj.id).all()
+    documents = db.query(ProjectDocument).filter(ProjectDocument.project_id == proj.id).all()
+
+    from ..services.ai_project import draw_readiness
+    return draw_readiness(draw, invoices, lien_waivers, subcontractors, documents)
+
+
+# ─── AI Feature 5: Cash Flow Reality Simulator ────────────────────────────────
+
+@router.get("/ai/cashflow-scenarios")
+def ai_cashflow_scenarios(
+    delay_months: int = 0,
+    cost_inflation_pct: float = 0.0,
+    draw_delay_days: int = 0,
+    proj: Optional[Project] = Depends(_get_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Simulate cash flow under stress scenarios (delays, cost inflation, draw delays)."""
+    if not proj:
+        return {"base": [], "stressed": [], "summary": {}}
+
+    # Get base cash flow months (reuse existing cash_flow logic inline)
+    from collections import defaultdict
+    from datetime import datetime as _dt
+
+    spend: dict = defaultdict(float)
+    paid_map: dict = defaultdict(float)
+    receipts: dict = defaultdict(float)
+    projected: dict = defaultdict(float)
+
+    proj_draws_cf = db.query(Draw).filter(Draw.project_id == proj.id).all()
+    proj_draw_ids_cf = [d.id for d in proj_draws_cf]
+    from sqlalchemy import or_ as _or_cf
+    _cf_conds = [Invoice.project_id == proj.id]
+    if proj_draw_ids_cf:
+        _cf_conds.append(Invoice.draw_id.in_(proj_draw_ids_cf))
+    _cf_inv = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.status == "processed",
+        _or_cf(*_cf_conds),
+    ).all()
+    for inv in _cf_inv:
+        date_str = inv.invoice_date or (str(inv.processed_at)[:10] if inv.processed_at else None)
+        if date_str and len(date_str) >= 7:
+            spend[date_str[:7]] += inv.total_due or 0
+
+    _cf_inv_ids = {i.id for i in _cf_inv}
+    for pmt in db.query(Payment).join(Invoice, Invoice.id == Payment.invoice_id).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.id.in_(_cf_inv_ids) if _cf_inv_ids else Invoice.id == -1,
+    ).all():
+        if pmt.payment_date and len(pmt.payment_date) >= 7:
+            paid_map[pmt.payment_date[:7]] += pmt.amount or 0
+
+    for draw in proj_draws_cf:
+        if draw.submission_date and len(draw.submission_date) >= 7:
+            m = draw.submission_date[:7]
+            draw_total = db.query(func.coalesce(func.sum(Invoice.lender_approved_amt), 0.0)).filter(
+                Invoice.draw_id == draw.id, Invoice.user_id == current_user.id
+            ).scalar() or 0
+            receipts[m] += draw_total
+
+    today_m = _dt.utcnow().strftime("%Y-%m")
+    for cc in db.query(CommittedCost).filter(CommittedCost.project_id == proj.id, CommittedCost.status == "active").all():
+        if cc.expected_completion and len(cc.expected_completion) >= 7:
+            m = cc.expected_completion[:7]
+            if m >= today_m:
+                remaining = cc.contract_amount - (cc.invoiced_to_date or 0)
+                if remaining > 0:
+                    projected[m] += remaining
+
+    all_months = sorted(set(list(spend.keys()) + list(paid_map.keys()) + list(receipts.keys()) + list(projected.keys())))
+    cumulative = 0.0
+    base_months = []
+    for m in all_months:
+        s = round(spend.get(m, 0), 2)
+        p = round(paid_map.get(m, 0), 2)
+        r = round(receipts.get(m, 0), 2)
+        pr = round(projected.get(m, 0), 2)
+        net = round(r - s, 2)
+        cumulative = round(cumulative + net, 2)
+        base_months.append({"month": m, "invoiced": s, "paid": p, "draw_receipts": r,
+                             "projected_spend": pr, "net": net, "cumulative": cumulative})
+
+    # Clamp scenario params
+    delay_months = max(0, min(12, delay_months))
+    cost_inflation_pct = max(0.0, min(50.0, cost_inflation_pct))
+    draw_delay_days = max(0, min(180, draw_delay_days))
+
+    from ..services.ai_project import cashflow_scenarios
+    return cashflow_scenarios(base_months, proj, delay_months, cost_inflation_pct, draw_delay_days)
+
+
+# ─── AI Feature 6: Subcontractor Risk Scores ─────────────────────────────────
+
+@router.get("/ai/subcontractor-risks")
+def ai_subcontractor_risks(
+    proj: Optional[Project] = Depends(_get_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Score each subcontractor 0–100 based on compliance and payment history (lower = more risky)."""
+    if not proj:
+        return []
+
+    subcontractors = db.query(Subcontractor).filter(Subcontractor.project_id == proj.id).order_by(Subcontractor.name).all()
+    if not subcontractors:
+        return []
+
+    invoices = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.project_id == proj.id,
+        Invoice.status == "processed",
+    ).all()
+    change_orders = db.query(ChangeOrder).filter(ChangeOrder.project_id == proj.id).all()
+    lien_waivers = db.query(LienWaiver).filter(LienWaiver.project_id == proj.id).all()
+
+    from ..services.ai_project import subcontractor_risk_scores
+    return subcontractor_risk_scores(subcontractors, invoices, change_orders, lien_waivers)
+
+
+# ─── AI Feature 7: Lender Behavior Model ─────────────────────────────────────
+
+@router.get("/ai/lender-insights")
+def ai_lender_insights(
+    proj: Optional[Project] = Depends(_get_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Detect lender rejection patterns and provide submission optimization tips."""
+    if not proj:
+        return {"patterns": [], "tips": [], "pattern_count": 0, "tip_count": 0}
+
+    draws = db.query(Draw).filter(Draw.project_id == proj.id).order_by(Draw.draw_number).all()
+    invoices = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.project_id == proj.id,
+        Invoice.status == "processed",
+    ).all()
+    lien_waivers = db.query(LienWaiver).filter(LienWaiver.project_id == proj.id).all()
+    documents = db.query(ProjectDocument).filter(ProjectDocument.project_id == proj.id).all()
+
+    from ..services.ai_project import lender_insights
+    return lender_insights(draws, invoices, lien_waivers, documents)
+
+
+# ─── AI Insights — Consolidated endpoint (all 7 in one call) ─────────────────
+
+@router.get("/ai/insights")
+def ai_insights_all(
+    proj: Optional[Project] = Depends(_get_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Run all AI intelligence features for the project in a single call."""
+    if not proj:
+        return {"project": None}
+
+    from ..services.ai_project import (
+        compliance_alerts, overrun_alerts,
+        subcontractor_risk_scores, lender_insights,
+    )
+
+    categories = db.query(CostCategory).filter(CostCategory.project_id == proj.id).order_by(CostCategory.display_order).all()
+    draws = db.query(Draw).filter(Draw.project_id == proj.id).order_by(Draw.draw_number).all()
+    invoices = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.project_id == proj.id,
+        Invoice.status == "processed",
+    ).all()
+    lien_waivers = db.query(LienWaiver).filter(LienWaiver.project_id == proj.id).all()
+    subcontractors = db.query(Subcontractor).filter(Subcontractor.project_id == proj.id).all()
+    change_orders = db.query(ChangeOrder).filter(ChangeOrder.project_id == proj.id).all()
+    documents = db.query(ProjectDocument).filter(ProjectDocument.project_id == proj.id).all()
+
+    # Allocations by category
+    allocs_by_cat: dict = {}
+    for cat in categories:
+        total = db.query(func.coalesce(func.sum(InvoiceAllocation.amount), 0.0)).filter(
+            InvoiceAllocation.category_id == cat.id
+        ).scalar() or 0.0
+        allocs_by_cat[cat.id] = float(total)
+
+    # Approved COs by category
+    co_by_cat: dict = {}
+    for co in change_orders:
+        if co.status == "approved" and co.category_id:
+            co_by_cat[co.category_id] = co_by_cat.get(co.category_id, 0.0) + co.amount
+
+    # Unallocated invoice count
+    unallocated_count = sum(
+        1 for inv in invoices
+        if db.query(InvoiceAllocation).filter(InvoiceAllocation.invoice_id == inv.id).count() == 0
+    )
+
+    compliance = compliance_alerts(proj, invoices, draws, lien_waivers)
+    overruns = overrun_alerts(proj, categories, allocs_by_cat, co_by_cat)
+    sub_risks = subcontractor_risk_scores(subcontractors, invoices, change_orders, lien_waivers)
+    lender = lender_insights(draws, invoices, lien_waivers, documents)
+
+    # High-level badge counts for sidebar
+    total_alerts = (
+        compliance["alert_count"]
+        + overruns["alert_count"]
+        + lender["pattern_count"]
+        + sum(1 for s in sub_risks if s["risk_level"] in ("critical", "high"))
+    )
+
+    return {
+        "project_id": proj.id,
+        "project_name": proj.name,
+        "total_alerts": total_alerts,
+        "unallocated_invoices": unallocated_count,
+        "compliance": compliance,
+        "overruns": overruns,
+        "subcontractor_risks": sub_risks,
+        "lender_insights": lender,
+    }

@@ -599,6 +599,11 @@
         <button @click="view='agedpayables'; loadAgedPayables()" :class="view==='agedpayables' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
           <i class="fa-solid fa-clock-rotate-left w-4"></i> Aged Payables
         </button>
+        <button @click="view='ai'; loadAiInsights()" :class="view==='ai' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+          <i class="fa-solid fa-brain w-4"></i>
+          <span class="flex-1 text-left">AI Insights</span>
+          <span x-show="aiInsights && aiInsights.total_alerts > 0" x-text="aiInsights?.total_alerts" class="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"></span>
+        </button>
         <button @click="view='settings'" :class="view==='settings' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
           <i class="fa-solid fa-gear w-4"></i> Settings
         </button>
@@ -3318,6 +3323,435 @@
           </div>
         </template>
         <div x-show="!agedPayables" class="text-center text-gray-400 text-sm py-16"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading…</div>
+      </div>
+
+
+      <!-- ── AI INSIGHTS ───────────────────────────────────────────── -->
+      <div x-show="view==='ai'" class="p-6">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-brain mr-2 text-purple-600"></i>AI Insights</h2>
+            <p class="text-sm text-gray-500">Compliance alerts, overrun warnings, draw readiness, and lender intelligence for this project.</p>
+          </div>
+          <button @click="loadAiInsights()" :disabled="aiLoading" class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm disabled:opacity-50">
+            <i class="fa-solid" :class="aiLoading ? 'fa-spinner fa-spin' : 'fa-rotate-right'"></i>
+            <span x-text="aiLoading ? 'Analysing…' : 'Refresh'"></span>
+          </button>
+        </div>
+
+        <!-- Loading / Error -->
+        <div x-show="aiLoading && !aiInsights" class="text-center text-gray-400 text-sm py-16"><i class="fa-solid fa-brain fa-spin mr-2 text-purple-400"></i>Running AI analysis…</div>
+        <div x-show="aiError && !aiInsights" class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm mb-4" x-text="aiError"></div>
+        <div x-show="!aiLoading && !aiInsights && !aiError" class="text-center text-gray-400 text-sm py-16">
+          <i class="fa-solid fa-brain text-4xl text-purple-200 mb-3 block"></i>
+          <p>Click <strong>Refresh</strong> to run AI analysis on this project.</p>
+        </div>
+
+        <template x-if="aiInsights">
+          <div>
+            <!-- Summary badges -->
+            <div class="grid grid-cols-5 gap-3 mb-6">
+              <div class="bg-white rounded-xl border p-4 text-center">
+                <div class="text-2xl font-bold" :class="(aiInsights.compliance?.alert_count||0)>0?'text-amber-600':'text-green-600'" x-text="aiInsights.compliance?.alert_count||0"></div>
+                <div class="text-xs text-gray-500 mt-1">Compliance Alerts</div>
+              </div>
+              <div class="bg-white rounded-xl border p-4 text-center">
+                <div class="text-2xl font-bold" :class="(aiInsights.overruns?.alert_count||0)>0?'text-orange-600':'text-green-600'" x-text="aiInsights.overruns?.alert_count||0"></div>
+                <div class="text-xs text-gray-500 mt-1">Overrun Warnings</div>
+              </div>
+              <div class="bg-white rounded-xl border p-4 text-center">
+                <div class="text-2xl font-bold" :class="(aiInsights.lender_insights?.pattern_count||0)>0?'text-blue-600':'text-green-600'" x-text="aiInsights.lender_insights?.pattern_count||0"></div>
+                <div class="text-xs text-gray-500 mt-1">Lender Patterns</div>
+              </div>
+              <div class="bg-white rounded-xl border p-4 text-center">
+                <div class="text-2xl font-bold" :class="(aiInsights.subcontractor_risks||[]).filter(s=>['critical','high'].includes(s.risk_level)).length>0?'text-red-600':'text-green-600'" x-text="(aiInsights.subcontractor_risks||[]).filter(s=>['critical','high'].includes(s.risk_level)).length"></div>
+                <div class="text-xs text-gray-500 mt-1">High-Risk Subs</div>
+              </div>
+              <div class="bg-white rounded-xl border p-4 text-center">
+                <div class="text-2xl font-bold" :class="(aiInsights.unallocated_invoices||0)>0?'text-purple-600':'text-green-600'" x-text="aiInsights.unallocated_invoices||0"></div>
+                <div class="text-xs text-gray-500 mt-1">Unallocated Invoices</div>
+              </div>
+            </div>
+
+            <!-- Tab nav -->
+            <div class="flex gap-1 bg-gray-100 p-1 rounded-xl mb-5 overflow-x-auto">
+              <button @click="aiActiveTab='compliance'" :class="aiActiveTab==='compliance'?'bg-white shadow text-purple-700 font-semibold':'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs transition whitespace-nowrap">
+                <i class="fa-solid fa-shield-halved mr-1"></i>Compliance
+                <span x-show="(aiInsights.compliance?.alert_count||0)>0" class="ml-1 bg-amber-500 text-white rounded-full px-1.5 text-xs" x-text="aiInsights.compliance?.alert_count"></span>
+              </button>
+              <button @click="aiActiveTab='overruns'" :class="aiActiveTab==='overruns'?'bg-white shadow text-purple-700 font-semibold':'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs transition whitespace-nowrap">
+                <i class="fa-solid fa-triangle-exclamation mr-1"></i>Overruns
+                <span x-show="(aiInsights.overruns?.alert_count||0)>0" class="ml-1 bg-orange-500 text-white rounded-full px-1.5 text-xs" x-text="aiInsights.overruns?.alert_count"></span>
+              </button>
+              <button @click="aiActiveTab='draws'" :class="aiActiveTab==='draws'?'bg-white shadow text-purple-700 font-semibold':'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs transition whitespace-nowrap">
+                <i class="fa-solid fa-file-invoice-dollar mr-1"></i>Draw Readiness
+              </button>
+              <button @click="aiActiveTab='cashflow'; loadCfScenario()" :class="aiActiveTab==='cashflow'?'bg-white shadow text-purple-700 font-semibold':'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs transition whitespace-nowrap">
+                <i class="fa-solid fa-chart-area mr-1"></i>Cash Flow Simulator
+              </button>
+              <button @click="aiActiveTab='subs'" :class="aiActiveTab==='subs'?'bg-white shadow text-purple-700 font-semibold':'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs transition whitespace-nowrap">
+                <i class="fa-solid fa-hard-hat mr-1"></i>Sub Risks
+              </button>
+              <button @click="aiActiveTab='lender'" :class="aiActiveTab==='lender'?'bg-white shadow text-purple-700 font-semibold':'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs transition whitespace-nowrap">
+                <i class="fa-solid fa-building-columns mr-1"></i>Lender Intelligence
+              </button>
+              <button @click="aiActiveTab='mapper'" :class="aiActiveTab==='mapper'?'bg-white shadow text-purple-700 font-semibold':'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs transition whitespace-nowrap">
+                <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Cost Code Mapper
+              </button>
+            </div>
+
+            <!-- ── TAB: COMPLIANCE ── -->
+            <div x-show="aiActiveTab==='compliance'">
+              <!-- Province rules info strip -->
+              <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+                <i class="fa-solid fa-info-circle text-blue-500 mt-0.5"></i>
+                <div class="text-sm">
+                  <span class="font-semibold text-blue-800" x-text="aiInsights.compliance?.rules?.province_name + ' — ' + aiInsights.compliance?.rules?.act"></span>
+                  <span class="text-blue-600 ml-2" x-text="'Holdback: ' + (aiInsights.compliance?.rules?.holdback_pct||0) + '% · Release after: ' + (aiInsights.compliance?.rules?.release_days||0) + ' days · Lien period: ' + (aiInsights.compliance?.rules?.lien_period_days||0) + ' days'"></span>
+                </div>
+              </div>
+              <!-- Holdback summary strip -->
+              <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="bg-white border rounded-xl p-4 text-center">
+                  <div class="text-xs text-gray-400 mb-1">Holdback Held</div>
+                  <div class="text-lg font-bold text-amber-600" x-text="'$'+(aiInsights.compliance?.holdback_summary?.total_held||0).toLocaleString('en-CA',{minimumFractionDigits:2})"></div>
+                </div>
+                <div class="bg-white border rounded-xl p-4 text-center">
+                  <div class="text-xs text-gray-400 mb-1">Unreleased Invoices</div>
+                  <div class="text-lg font-bold text-gray-700" x-text="aiInsights.compliance?.holdback_summary?.unreleased_count||0"></div>
+                </div>
+                <div class="bg-white border rounded-xl p-4 text-center">
+                  <div class="text-xs text-gray-400 mb-1">Eligible for Release</div>
+                  <div class="text-lg font-bold text-green-600" x-text="aiInsights.compliance?.holdback_summary?.eligible_count||0"></div>
+                </div>
+              </div>
+              <div x-show="(aiInsights.compliance?.alerts||[]).length===0" class="text-center text-green-600 text-sm py-8 bg-green-50 border border-green-200 rounded-xl">
+                <i class="fa-solid fa-circle-check text-2xl mb-2 block"></i>No compliance issues detected.
+              </div>
+              <div class="space-y-3">
+                <template x-for="alert in (aiInsights.compliance?.alerts||[])" :key="alert.type+alert.title">
+                  <div class="rounded-xl border p-4" :class="alert.severity==='high'?'bg-red-50 border-red-200':alert.severity==='warning'?'bg-amber-50 border-amber-200':'bg-blue-50 border-blue-200'">
+                    <div class="flex items-start gap-3">
+                      <i class="fa-solid mt-0.5" :class="alert.severity==='high'?'fa-circle-exclamation text-red-500':alert.severity==='warning'?'fa-triangle-exclamation text-amber-500':'fa-info-circle text-blue-500'"></i>
+                      <div class="flex-1">
+                        <div class="font-semibold text-sm mb-1" :class="alert.severity==='high'?'text-red-800':alert.severity==='warning'?'text-amber-800':'text-blue-800'" x-text="alert.title"></div>
+                        <div class="text-sm text-gray-600 mb-2" x-text="alert.message"></div>
+                        <div x-show="alert.action" class="text-xs font-medium text-gray-500"><i class="fa-solid fa-arrow-right mr-1"></i><span x-text="alert.action"></span></div>
+                        <div x-show="(alert.items||[]).length>0" class="mt-2 space-y-1">
+                          <template x-for="item in (alert.items||[]).slice(0,3)" :key="JSON.stringify(item)">
+                            <div class="text-xs bg-white bg-opacity-60 rounded px-2 py-1 text-gray-600" x-text="item.vendor || item.name || JSON.stringify(item)"></div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- ── TAB: OVERRUNS ── -->
+            <div x-show="aiActiveTab==='overruns'">
+              <!-- Overall burn -->
+              <div class="bg-white border rounded-xl p-4 mb-4 flex items-center gap-6">
+                <div>
+                  <div class="text-xs text-gray-400">Overall Budget Burn</div>
+                  <div class="text-2xl font-bold" :class="(aiInsights.overruns?.overall_pct_spent||0)>=90?'text-red-600':(aiInsights.overruns?.overall_pct_spent||0)>=70?'text-amber-600':'text-gray-800'" x-text="(aiInsights.overruns?.overall_pct_spent||0)+'%'"></div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-400">Timeline Progress</div>
+                  <div class="text-2xl font-bold text-blue-600" x-text="aiInsights.overruns?.timeline_pct!=null?(aiInsights.overruns.timeline_pct+'%'):'N/A'"></div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-400">Total Budget</div>
+                  <div class="text-lg font-semibold text-gray-700" x-text="'$'+(aiInsights.overruns?.total_budget||0).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-400">Total Invoiced</div>
+                  <div class="text-lg font-semibold text-gray-700" x-text="'$'+(aiInsights.overruns?.total_invoiced||0).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                </div>
+              </div>
+              <div x-show="(aiInsights.overruns?.alerts||[]).length===0" class="text-center text-green-600 text-sm py-8 bg-green-50 border border-green-200 rounded-xl">
+                <i class="fa-solid fa-circle-check text-2xl mb-2 block"></i>All categories within budget.
+              </div>
+              <div class="space-y-3">
+                <template x-for="alert in (aiInsights.overruns?.alerts||[])" :key="alert.category_id">
+                  <div class="bg-white border rounded-xl p-4">
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <div class="font-semibold text-gray-800" x-text="alert.category_name"></div>
+                        <div class="text-xs mt-0.5" x-text="alert.message" :class="alert.severity==='critical'?'text-red-600':alert.severity==='high'?'text-orange-600':'text-amber-600'"></div>
+                      </div>
+                      <span class="text-xs px-2 py-1 rounded-full font-semibold" :class="alert.severity==='critical'?'bg-red-100 text-red-700':alert.severity==='high'?'bg-orange-100 text-orange-700':'bg-yellow-100 text-yellow-700'" x-text="alert.severity.toUpperCase()"></span>
+                    </div>
+                    <!-- Budget bar -->
+                    <div class="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
+                      <div class="h-full rounded-full transition-all" :class="alert.severity==='critical'?'bg-red-500':alert.severity==='high'?'bg-orange-500':'bg-amber-400'" :style="'width:'+Math.min(alert.pct_spent,100)+'%'"></div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2 text-xs text-gray-500">
+                      <div>Budget: <strong class="text-gray-700" x-text="'$'+alert.budget.toLocaleString('en-CA',{minimumFractionDigits:0})"></strong></div>
+                      <div>Invoiced: <strong :class="alert.severity==='critical'?'text-red-600':'text-gray-700'" x-text="'$'+alert.invoiced.toLocaleString('en-CA',{minimumFractionDigits:0})"></strong></div>
+                      <div>Remaining: <strong :class="alert.remaining<0?'text-red-600':'text-gray-700'" x-text="'$'+alert.remaining.toLocaleString('en-CA',{minimumFractionDigits:0})"></strong></div>
+                      <div x-show="alert.projected_final">Projected: <strong class="text-gray-700" x-text="alert.projected_final?'$'+alert.projected_final.toLocaleString('en-CA',{minimumFractionDigits:0}):'—'"></strong></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- ── TAB: DRAW READINESS ── -->
+            <div x-show="aiActiveTab==='draws'">
+              <div x-show="(projectDash?.draws||[]).length===0" class="text-center text-gray-400 text-sm py-8">No draws created yet.</div>
+              <div class="space-y-4">
+                <template x-for="draw in (projectDash?.draws||[])" :key="draw.id">
+                  <div class="bg-white border rounded-xl overflow-hidden">
+                    <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50" @click="loadDrawReadiness(draw.id)">
+                      <div class="flex items-center gap-3">
+                        <div class="font-semibold text-gray-800" x-text="'Draw '+draw.draw_number"></div>
+                        <span class="text-xs px-2 py-0.5 rounded-full font-medium" :class="draw.status==='funded'?'bg-green-100 text-green-700':draw.status==='approved'?'bg-blue-100 text-blue-700':draw.status==='submitted'?'bg-purple-100 text-purple-700':'bg-gray-100 text-gray-600'" x-text="draw.status"></span>
+                        <span class="text-xs text-gray-400" x-text="'$'+((draw.total_original||0)).toLocaleString('en-CA',{minimumFractionDigits:0})"></span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <template x-if="drawReadiness[draw.id]">
+                          <span class="text-xs font-bold px-2 py-1 rounded-full" :class="drawReadiness[draw.id].is_ready?'bg-green-100 text-green-700':'bg-red-100 text-red-700'" x-text="drawReadiness[draw.id].is_ready?'Ready':'Not Ready — '+drawReadiness[draw.id].blocking_count+' blocking'"></span>
+                        </template>
+                        <i class="fa-solid fa-chevron-down text-gray-400 text-xs" :class="drawReadiness[draw.id]?'rotate-180':''"></i>
+                      </div>
+                    </div>
+                    <template x-if="drawReadiness[draw.id] && !drawReadiness[draw.id].error">
+                      <div class="border-t p-4">
+                        <!-- Score bar -->
+                        <div class="flex items-center gap-3 mb-4">
+                          <div class="text-sm font-semibold text-gray-600">Readiness Score</div>
+                          <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all" :class="drawReadiness[draw.id].readiness_score>=80?'bg-green-500':drawReadiness[draw.id].readiness_score>=50?'bg-amber-400':'bg-red-500'" :style="'width:'+drawReadiness[draw.id].readiness_score+'%'"></div>
+                          </div>
+                          <div class="text-sm font-bold" :class="drawReadiness[draw.id].readiness_score>=80?'text-green-600':drawReadiness[draw.id].readiness_score>=50?'text-amber-600':'text-red-600'" x-text="drawReadiness[draw.id].readiness_score+'%'"></div>
+                        </div>
+                        <!-- Checklist -->
+                        <div class="space-y-2">
+                          <template x-for="item in (drawReadiness[draw.id].checklist||[])" :key="item.check">
+                            <div class="flex items-start gap-2 text-sm">
+                              <i class="fa-solid mt-0.5 text-sm" :class="item.status==='ready'?'fa-circle-check text-green-500':item.status==='blocking'?'fa-circle-xmark text-red-500':'fa-circle-exclamation text-amber-500'"></i>
+                              <div>
+                                <span class="font-medium" :class="item.status==='blocking'?'text-red-700':item.status==='warning'?'text-amber-700':'text-gray-700'" x-text="item.label"></span>
+                                <span class="text-gray-500 ml-1 text-xs" x-text="'— '+item.detail"></span>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- ── TAB: CASH FLOW SIMULATOR ── -->
+            <div x-show="aiActiveTab==='cashflow'">
+              <!-- Sliders -->
+              <div class="bg-white border rounded-xl p-5 mb-5">
+                <h3 class="font-semibold text-gray-700 mb-4 text-sm">Stress Test Parameters</h3>
+                <div class="grid grid-cols-3 gap-6">
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">Project Delay</label>
+                    <input type="range" min="0" max="6" step="1" x-model.number="cfDelayMonths" @change="loadCfScenario()" class="w-full accent-purple-600" />
+                    <div class="text-xs text-center mt-1 font-semibold text-purple-600" x-text="cfDelayMonths+' month'+(cfDelayMonths===1?'':'s')"></div>
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">Cost Inflation</label>
+                    <input type="range" min="0" max="30" step="1" x-model.number="cfInflationPct" @change="loadCfScenario()" class="w-full accent-purple-600" />
+                    <div class="text-xs text-center mt-1 font-semibold text-purple-600" x-text="cfInflationPct+'%'"></div>
+                  </div>
+                  <div>
+                    <label class="text-xs font-medium text-gray-500 mb-1 block">Draw Receipt Delay</label>
+                    <input type="range" min="0" max="90" step="15" x-model.number="cfDrawDelay" @change="loadCfScenario()" class="w-full accent-purple-600" />
+                    <div class="text-xs text-center mt-1 font-semibold text-purple-600" x-text="cfDrawDelay+' days'"></div>
+                  </div>
+                </div>
+              </div>
+              <div x-show="cfScenarioLoading" class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Computing scenarios…</div>
+              <template x-if="cfScenario && !cfScenarioLoading">
+                <div>
+                  <!-- Impact cards -->
+                  <div class="grid grid-cols-4 gap-3 mb-5">
+                    <div class="bg-white border rounded-xl p-4 text-center">
+                      <div class="text-xs text-gray-400 mb-1">Risk Level</div>
+                      <div class="text-sm font-bold uppercase" :class="cfScenario.summary.risk_level==='critical'?'text-red-600':cfScenario.summary.risk_level==='high'?'text-orange-600':cfScenario.summary.risk_level==='medium'?'text-amber-500':'text-green-600'" x-text="cfScenario.summary.risk_level"></div>
+                    </div>
+                    <div class="bg-white border rounded-xl p-4 text-center">
+                      <div class="text-xs text-gray-400 mb-1">Spend Increase</div>
+                      <div class="text-lg font-bold text-orange-600" x-text="'+$'+(cfScenario.summary.spend_increase||0).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                    </div>
+                    <div class="bg-white border rounded-xl p-4 text-center">
+                      <div class="text-xs text-gray-400 mb-1">Worst Cash Position</div>
+                      <div class="text-lg font-bold" :class="cfScenario.summary.worst_cash_position<0?'text-red-600':'text-green-600'" x-text="'$'+(cfScenario.summary.worst_cash_position||0).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                    </div>
+                    <div class="bg-white border rounded-xl p-4 text-center">
+                      <div class="text-xs text-gray-400 mb-1">Cash-Negative Months</div>
+                      <div class="text-lg font-bold" :class="(cfScenario.summary.cash_negative_months||[]).length>0?'text-red-600':'text-green-600'" x-text="(cfScenario.summary.cash_negative_months||[]).length"></div>
+                    </div>
+                  </div>
+                  <!-- Month table -->
+                  <div class="bg-white border rounded-xl overflow-hidden">
+                    <div class="grid text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-2.5 bg-gray-50 border-b" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr">
+                      <div>Month</div>
+                      <div class="text-right">Base Invoiced</div>
+                      <div class="text-right">Stressed Invoiced</div>
+                      <div class="text-right">Draw Receipts</div>
+                      <div class="text-right">Base Cumulative</div>
+                      <div class="text-right">Stressed Cumulative</div>
+                    </div>
+                    <template x-for="(bm, idx) in (cfScenario.base||[])" :key="bm.month">
+                      <div class="grid px-4 py-2 border-b text-xs items-center hover:bg-gray-50" :class="(cfScenario.stressed[idx]?.cumulative||0)<0?'bg-red-50':''" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr">
+                        <div class="font-medium text-gray-700" x-text="bm.month"></div>
+                        <div class="text-right text-gray-600" x-text="'$'+(bm.invoiced||0).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                        <div class="text-right" :class="(cfScenario.stressed[idx]?.invoiced||0)>(bm.invoiced||0)?'text-orange-600 font-semibold':'text-gray-600'" x-text="'$'+((cfScenario.stressed[idx]?.invoiced||0)).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                        <div class="text-right text-green-600" x-text="bm.draw_receipts>0?'$'+bm.draw_receipts.toLocaleString('en-CA',{minimumFractionDigits:0}):'—'"></div>
+                        <div class="text-right font-medium" :class="(bm.cumulative||0)<0?'text-red-600':'text-gray-700'" x-text="'$'+(bm.cumulative||0).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                        <div class="text-right font-semibold" :class="(cfScenario.stressed[idx]?.cumulative||0)<0?'text-red-600':'text-gray-700'" x-text="'$'+((cfScenario.stressed[idx]?.cumulative||0)).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                      </div>
+                    </template>
+                    <div x-show="(cfScenario.base||[]).length===0" class="text-center text-gray-400 text-sm py-6">No cash flow data. Add invoices and draws to see projections.</div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- ── TAB: SUBCONTRACTOR RISKS ── -->
+            <div x-show="aiActiveTab==='subs'">
+              <div x-show="(aiInsights.subcontractor_risks||[]).length===0" class="text-center text-gray-400 text-sm py-8">No subcontractors added yet.</div>
+              <div class="space-y-3">
+                <template x-for="sub in (aiInsights.subcontractor_risks||[])" :key="sub.subcontractor_id">
+                  <div class="bg-white border rounded-xl p-4" x-data="{open:false}">
+                    <div class="flex items-center justify-between cursor-pointer" @click="open=!open">
+                      <div class="flex items-center gap-3">
+                        <div>
+                          <div class="font-semibold text-gray-800" x-text="sub.name"></div>
+                          <div class="text-xs text-gray-400" x-text="(sub.trade||'No trade specified')+' · Status: '+(sub.status||'active')"></div>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <!-- Score bar -->
+                        <div class="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div class="h-full rounded-full" :class="sub.risk_score>=75?'bg-green-500':sub.risk_score>=60?'bg-yellow-400':sub.risk_score>=40?'bg-orange-500':'bg-red-500'" :style="'width:'+sub.risk_score+'%'"></div>
+                        </div>
+                        <span class="text-xs font-bold px-2 py-0.5 rounded-full" :class="riskBadge(sub.risk_level)" x-text="sub.risk_level.toUpperCase()"></span>
+                        <span class="text-sm font-bold" :class="sub.risk_score>=75?'text-green-600':sub.risk_score>=60?'text-yellow-600':sub.risk_score>=40?'text-orange-600':'text-red-600'" x-text="sub.risk_score+'/100'"></span>
+                        <i class="fa-solid fa-chevron-down text-gray-400 text-xs transition" :class="open?'rotate-180':''"></i>
+                      </div>
+                    </div>
+                    <div x-show="open" class="mt-3 pt-3 border-t">
+                      <div class="grid grid-cols-2 gap-4 text-xs">
+                        <div x-show="(sub.risk_factors||[]).length>0">
+                          <div class="font-semibold text-red-700 mb-1"><i class="fa-solid fa-circle-xmark mr-1"></i>Risk Factors</div>
+                          <template x-for="f in sub.risk_factors" :key="f.factor">
+                            <div class="flex items-center gap-2 text-gray-600 mb-1">
+                              <span class="text-red-500 font-semibold" x-text="f.impact"></span>
+                              <span x-text="f.factor"></span>
+                            </div>
+                          </template>
+                        </div>
+                        <div x-show="(sub.positive_factors||[]).length>0">
+                          <div class="font-semibold text-green-700 mb-1"><i class="fa-solid fa-circle-check mr-1"></i>Positive Factors</div>
+                          <template x-for="f in sub.positive_factors" :key="f.factor">
+                            <div class="text-gray-600 mb-1" x-text="f.factor"></div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- ── TAB: LENDER INTELLIGENCE ── -->
+            <div x-show="aiActiveTab==='lender'">
+              <div x-show="(aiInsights.lender_insights?.pattern_count||0)===0 && (aiInsights.lender_insights?.tip_count||0)===0" class="text-center text-gray-400 text-sm py-8">No lender data yet. Add draws and submit invoices to see patterns.</div>
+              <!-- Stats row -->
+              <div x-show="aiInsights.lender_insights?.total_submitted>0" class="grid grid-cols-3 gap-3 mb-4">
+                <div class="bg-white border rounded-xl p-4 text-center">
+                  <div class="text-xs text-gray-400 mb-1">Total Submitted</div>
+                  <div class="text-lg font-bold text-gray-700" x-text="'$'+(aiInsights.lender_insights?.total_submitted||0).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                </div>
+                <div class="bg-white border rounded-xl p-4 text-center">
+                  <div class="text-xs text-gray-400 mb-1">Total Approved</div>
+                  <div class="text-lg font-bold text-green-600" x-text="'$'+(aiInsights.lender_insights?.total_approved||0).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                </div>
+                <div class="bg-white border rounded-xl p-4 text-center">
+                  <div class="text-xs text-gray-400 mb-1">Total Rejected</div>
+                  <div class="text-lg font-bold text-red-600" x-text="'$'+(aiInsights.lender_insights?.total_rejected||0).toLocaleString('en-CA',{minimumFractionDigits:0})"></div>
+                </div>
+              </div>
+              <div class="space-y-3">
+                <!-- Patterns -->
+                <template x-for="p in (aiInsights.lender_insights?.patterns||[])" :key="p.pattern">
+                  <div class="rounded-xl border p-4" :class="p.severity==='high'?'bg-red-50 border-red-200':'bg-amber-50 border-amber-200'">
+                    <div class="font-semibold text-sm mb-1" :class="p.severity==='high'?'text-red-800':'text-amber-800'" x-text="p.title"></div>
+                    <div class="text-sm text-gray-600" x-text="p.detail"></div>
+                  </div>
+                </template>
+                <!-- Tips -->
+                <template x-for="t in (aiInsights.lender_insights?.tips||[])" :key="t.tip">
+                  <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                    <div class="font-semibold text-sm text-blue-800 mb-1" x-text="t.title"></div>
+                    <div class="text-sm text-gray-600" x-text="t.detail"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- ── TAB: AI COST CODE MAPPER ── -->
+            <div x-show="aiActiveTab==='mapper'">
+              <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-sm text-blue-700">
+                <i class="fa-solid fa-wand-magic-sparkles mr-2"></i>
+                AI reads each invoice's vendor name, description, and line items and suggests the best matching cost category. You can accept or override the suggestion.
+              </div>
+              <!-- Unallocated invoices list -->
+              <div x-show="(aiInsights.unallocated_invoices||0)===0" class="text-center text-green-600 text-sm py-8 bg-green-50 border border-green-200 rounded-xl">
+                <i class="fa-solid fa-circle-check text-2xl mb-2 block"></i>All invoices are allocated to cost categories.
+              </div>
+              <div x-show="(aiInsights.unallocated_invoices||0)>0">
+                <div class="flex items-center justify-between mb-3">
+                  <p class="text-sm text-gray-600"><strong x-text="aiInsights.unallocated_invoices"></strong> unallocated invoice(s) — click an invoice to get an AI suggestion, then accept it or assign manually.</p>
+                  <button @click="view='invoices'" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-arrow-right mr-1"></i>Go to Invoices</button>
+                </div>
+                <!-- Per-invoice AI suggestion panel -->
+                <div class="bg-white border rounded-xl overflow-hidden">
+                  <div class="px-4 py-3 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase">Unallocated Invoices</div>
+                  <template x-for="inv in financeInvoices.filter(i=>(i.allocations||[]).length===0)" :key="inv.id">
+                    <div class="flex items-center justify-between px-4 py-3 border-b hover:bg-gray-50">
+                      <div>
+                        <span class="font-medium text-gray-800 text-sm" x-text="inv.vendor_name||'Unknown vendor'"></span>
+                        <span class="text-xs text-gray-400 ml-2" x-text="'#'+(inv.invoice_number||inv.id)+' · $'+(inv.total_due||0).toLocaleString('en-CA',{minimumFractionDigits:2})"></span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <template x-if="aiSuggestionInvoiceId===inv.id && aiSuggestion && !aiSuggestion.error">
+                          <div class="flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-1.5 text-xs">
+                            <i class="fa-solid fa-wand-magic-sparkles text-purple-500"></i>
+                            <span class="text-purple-800 font-medium" x-text="aiSuggestion.category_name+(aiSuggestion.sub_category_name?' → '+aiSuggestion.sub_category_name:'')"></span>
+                            <span class="text-purple-500" x-text="'('+(Math.round((aiSuggestion.confidence||0)*100))+'%)'"></span>
+                            <button @click="selectedAllocInvoice=inv; allocations=[]; acceptAiSuggestion(); showAllocModal=true; loadAllocations && loadAllocations(inv.id)" class="bg-purple-600 text-white px-2 py-0.5 rounded font-semibold hover:bg-purple-700 transition">Accept</button>
+                          </div>
+                        </template>
+                        <template x-if="aiSuggestionInvoiceId===inv.id && aiSuggestion?.error">
+                          <span class="text-xs text-red-500" x-text="aiSuggestion.error"></span>
+                        </template>
+                        <button @click="aiSuggestAllocation(inv.id)" :disabled="aiSuggestionLoading && aiSuggestionInvoiceId===inv.id" class="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50">
+                          <i class="fa-solid" :class="aiSuggestionLoading&&aiSuggestionInvoiceId===inv.id?'fa-spinner fa-spin':'fa-wand-magic-sparkles'"></i>
+                          <span class="ml-1">Suggest</span>
+                        </button>
+                        <button @click="openAllocModal(inv)" class="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition">
+                          Assign Manually
+                        </button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </template>
       </div>
 
 
