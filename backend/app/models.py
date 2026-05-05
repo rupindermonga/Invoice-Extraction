@@ -369,6 +369,28 @@ class PayrollEntry(Base):
     project = relationship("Project")
 
 
+class CommittedCost(Base):
+    """An approved contract or PO — spend committed but not yet invoiced.
+    Closes the gap between budget and invoiced in the budget vs actual view."""
+    __tablename__ = "committed_costs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("cost_categories.id"), nullable=True)
+    vendor = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    contract_amount = Column(Float, nullable=False)    # total value of the contract
+    invoiced_to_date = Column(Float, default=0.0)      # how much has been invoiced so far (auto-computable but manually editable)
+    status = Column(String, default="active")          # active | complete | cancelled
+    contract_date = Column(String, nullable=True)
+    expected_completion = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project")
+    category = relationship("CostCategory")
+
+
 class ChangeOrder(Base):
     """A change order adjusts the approved budget for a cost category (positive = scope increase, negative = reduction)."""
     __tablename__ = "change_orders"

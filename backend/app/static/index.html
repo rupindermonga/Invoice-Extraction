@@ -1258,10 +1258,14 @@
                      :class="(projectDash.total_invoiced/projectDash.total_budget*100) > 100 ? 'bg-red-500' : (projectDash.total_invoiced/projectDash.total_budget*100) > 75 ? 'bg-amber-400' : 'bg-blue-500'">
                 </div>
               </div>
-              <div class="grid grid-cols-4 gap-4 text-center">
+              <div class="grid grid-cols-5 gap-4 text-center">
                 <div>
-                  <div class="text-xs text-gray-400 mb-0.5">Total Budget</div>
-                  <div class="text-base font-bold text-gray-800" x-text="'$'+(projectDash.total_budget||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
+                  <div class="text-xs text-gray-400 mb-0.5">Revised Budget</div>
+                  <div class="text-base font-bold text-gray-800" x-text="'$'+(projectDash.total_revised_budget||projectDash.total_budget||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-400 mb-0.5">Committed</div>
+                  <div class="text-base font-bold text-purple-600" x-text="'$'+(projectDash.total_committed||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
                 </div>
                 <div>
                   <div class="text-xs text-gray-400 mb-0.5">Invoiced</div>
@@ -1284,9 +1288,10 @@
                  x-data="{ expanded: {} }">
               <!-- Header -->
               <div class="grid gap-3 px-4 py-3 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wide"
-                   style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 120px">
+                   style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 120px">
                 <div>Category</div>
                 <div class="text-right">Budget <span class="normal-case font-normal text-gray-400">(revised)</span></div>
+                <div class="text-right">Committed</div>
                 <div class="text-right">Invoiced</div>
                 <div class="text-right">Paid</div>
                 <div class="text-right">Remaining</div>
@@ -1297,7 +1302,7 @@
                 <div>
                   <!-- Category row -->
                   <div class="grid gap-3 px-4 py-3 border-b hover:bg-gray-50 cursor-pointer items-center"
-                       style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 120px"
+                       style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 120px"
                        @click="expanded[cat.id] = !expanded[cat.id]"
                        :class="cat.pct_burn > 100 ? 'bg-red-50 hover:bg-red-50' : cat.pct_burn > 75 ? 'bg-amber-50 hover:bg-amber-50' : ''">
                     <div class="flex items-center gap-2">
@@ -1309,6 +1314,8 @@
                     <div class="text-right text-sm" :class="cat.co_adjustment ? 'text-amber-600 font-medium' : 'text-gray-600'"
                          :title="cat.co_adjustment ? 'Original: $' + (cat.budget||0).toLocaleString('en-CA') + ' + CO: $' + (cat.co_adjustment||0).toLocaleString('en-CA') : ''"
                          x-text="'$'+(cat.revised_budget||cat.budget||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
+                    <div class="text-right text-sm text-purple-600"
+                         x-text="(cat.committed||0)>0 ? '$'+(cat.committed).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0}) : '—'"></div>
                     <div class="text-right text-sm font-medium text-blue-600" x-text="'$'+(cat.invoiced||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
                     <div class="text-right text-sm text-green-600" x-text="'$'+(cat.paid||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
                     <div class="text-right text-sm font-medium"
@@ -1332,7 +1339,7 @@
                     <div>
                       <template x-for="sc in cat.sub_categories" :key="sc.id">
                         <div class="grid gap-3 px-4 py-2 bg-slate-50 border-b items-center text-xs"
-                             style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 120px">
+                             style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 120px">
                           <div class="flex items-center gap-2 pl-5 text-gray-600">
                             <i class="fa-solid fa-corner-down-right text-gray-300 text-[10px]"></i>
                             <span x-text="sc.name"></span>
@@ -1362,15 +1369,16 @@
 
               <!-- Totals row -->
               <div class="grid gap-3 px-4 py-3 bg-gray-100 items-center font-semibold"
-                   style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 120px">
+                   style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 120px">
                 <div class="text-sm text-gray-700">Total</div>
-                <div class="text-right text-sm text-gray-700" x-text="'$'+(projectDash.total_budget||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
+                <div class="text-right text-sm text-gray-700" x-text="'$'+(projectDash.total_revised_budget||projectDash.total_budget||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
+                <div class="text-right text-sm text-purple-700" x-text="(projectDash.total_committed||0)>0?'$'+(projectDash.total_committed||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0}):'—'"></div>
                 <div class="text-right text-sm text-blue-700" x-text="'$'+(projectDash.total_invoiced||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
                 <div class="text-right text-sm text-green-700" x-text="'$'+(projectDash.total_paid||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
                 <div class="text-right text-sm" :class="(projectDash.total_remaining||0)<0?'text-red-700':'text-green-700'"
                      x-text="'$'+(projectDash.total_remaining||0).toLocaleString('en-CA',{minimumFractionDigits:0,maximumFractionDigits:0})"></div>
                 <div class="text-center text-xs text-gray-500"
-                     x-text="projectDash.total_budget>0?(projectDash.total_invoiced/projectDash.total_budget*100).toFixed(1)+'%':'—'"></div>
+                     x-text="(projectDash.total_revised_budget||0)>0?(projectDash.total_invoiced/(projectDash.total_revised_budget)*100).toFixed(1)+'%':'—'"></div>
               </div>
             </div>
 
@@ -1380,6 +1388,53 @@
               <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded-full bg-amber-400"></span>75–100%</span>
               <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded-full bg-red-500"></span>Over budget</span>
               <span class="ml-auto">Click a category row to expand sub-categories</span>
+            </div>
+
+            <!-- Committed Costs panel -->
+            <div class="bg-white rounded-xl border p-5 mb-6">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-sm font-semibold text-gray-800">Committed Costs <span class="text-xs font-normal text-gray-400">(Contracts &amp; POs)</span></h3>
+                  <p class="text-xs text-gray-500 mt-0.5">Approved spending not yet fully invoiced.
+                    <span x-show="(projectDash.total_committed||0)>0" class="text-purple-600"
+                          x-text="' Total: $' + (projectDash.total_committed||0).toLocaleString('en-CA',{minimumFractionDigits:2})"></span>
+                  </p>
+                </div>
+                <button @click="ccForm={ vendor:'', description:'', contract_amount:0, status:'active', category_id:'', contract_date:'', expected_completion:'', notes:'' }; editingCcId=null; ccFormError=''; showCcModal=true"
+                        class="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition">
+                  <i class="fa-solid fa-plus"></i> Add Contract / PO
+                </button>
+              </div>
+              <div x-show="!(projectDash.committed_costs?.length)" class="text-center text-gray-400 text-sm py-4">No committed costs yet.</div>
+              <div x-show="projectDash.committed_costs?.length" class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead><tr class="border-b text-xs text-gray-400 uppercase tracking-wide">
+                    <th class="text-left pb-2 pr-3">Vendor</th><th class="text-left pb-2 pr-3">Category</th>
+                    <th class="text-right pb-2 pr-3">Contract</th><th class="text-right pb-2 pr-3">Invoiced</th>
+                    <th class="text-right pb-2 pr-3">To Invoice</th><th class="text-center pb-2 pr-3">Status</th><th class="pb-2"></th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="cc in (projectDash.committed_costs || [])" :key="cc.id">
+                      <tr class="border-b last:border-0 hover:bg-gray-50">
+                        <td class="py-2 pr-3 font-medium text-gray-800" x-text="cc.vendor"></td>
+                        <td class="py-2 pr-3 text-gray-500 text-xs" x-text="cc.category_name || '—'"></td>
+                        <td class="py-2 pr-3 text-right text-purple-600 font-semibold" x-text="'$'+cc.contract_amount.toLocaleString('en-CA',{minimumFractionDigits:2})"></td>
+                        <td class="py-2 pr-3 text-right text-blue-600" x-text="'$'+(cc.invoiced_to_date||0).toLocaleString('en-CA',{minimumFractionDigits:2})"></td>
+                        <td class="py-2 pr-3 text-right" :class="cc.remaining_to_invoice<0?'text-red-600':'text-gray-600'" x-text="'$'+cc.remaining_to_invoice.toLocaleString('en-CA',{minimumFractionDigits:2})"></td>
+                        <td class="py-2 pr-3 text-center">
+                          <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
+                                :class="cc.status==='complete'?'bg-green-100 text-green-700':cc.status==='cancelled'?'bg-red-100 text-red-700':'bg-purple-100 text-purple-700'"
+                                x-text="cc.status.charAt(0).toUpperCase()+cc.status.slice(1)"></span>
+                        </td>
+                        <td class="py-2 text-right">
+                          <button @click="editingCcId=cc.id; ccForm={vendor:cc.vendor, description:cc.description||'', contract_amount:cc.contract_amount, status:cc.status, category_id:cc.category_id||'', contract_date:cc.contract_date||'', expected_completion:cc.expected_completion||'', notes:cc.notes||''}; ccFormError=''; showCcModal=true" class="text-blue-500 hover:text-blue-700 mr-2 text-xs"><i class="fa-solid fa-pen"></i></button>
+                          <button @click="deleteCc(cc.id)" class="text-red-400 hover:text-red-600 text-xs"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <!-- Change Orders panel -->
@@ -2508,6 +2563,68 @@
     </main>
     </div><!-- /app-row (sidebar + main) -->
   </div><!-- /app-shell (FinelStrip + app-row) -->
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       COMMITTED COST MODAL
+  ══════════════════════════════════════════════════════════════ -->
+  <div x-show="showCcModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showCcModal=false">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-bold text-gray-800" x-text="editingCcId ? 'Edit Committed Cost' : 'New Contract / PO'"></h3>
+        <button @click="showCcModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-700 mb-1">Vendor / Contractor *</label>
+            <input x-model="ccForm.vendor" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Trade or supplier name" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Contract Amount *</label>
+            <input x-model.number="ccForm.contract_amount" type="number" step="100" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="0.00" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Status</label>
+            <select x-model="ccForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+              <option value="active">Active</option>
+              <option value="complete">Complete</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-700 mb-1">Cost Category</label>
+            <select x-model="ccForm.category_id" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+              <option value="">No specific category</option>
+              <template x-for="cat in costCategories" :key="cat.id">
+                <option :value="cat.id" x-text="cat.name"></option>
+              </template>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Contract Date</label>
+            <input x-model="ccForm.contract_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Expected Completion</label>
+            <input x-model="ccForm.expected_completion" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-700 mb-1">Description / Scope</label>
+            <input x-model="ccForm.description" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Brief scope description" />
+          </div>
+        </div>
+        <div x-show="ccFormError" class="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="ccFormError"></div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button @click="showCcModal=false" class="flex-1 border rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+        <button @click="saveCc()" :disabled="ccFormLoading" class="flex-1 bg-purple-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-purple-700 disabled:opacity-50 transition">
+          <span x-show="!ccFormLoading" x-text="editingCcId ? 'Save Changes' : 'Add Contract'"></span>
+          <span x-show="ccFormLoading"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving…</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
 
   <!-- ══════════════════════════════════════════════════════════════

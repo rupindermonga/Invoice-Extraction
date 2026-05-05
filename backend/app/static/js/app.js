@@ -124,6 +124,13 @@ function app() {
     bulkUploading: false,
     bulkResults: null,
 
+    // ── Committed Costs ───────────────────────────────────────────
+    showCcModal: false,
+    ccForm: { vendor: '', description: '', contract_amount: 0, status: 'active', category_id: '', contract_date: '', expected_completion: '', notes: '' },
+    ccFormError: '',
+    ccFormLoading: false,
+    editingCcId: null,
+
     // ── Change Orders ─────────────────────────────────────────────
     showCoModal: false,
     coForm: { co_number: '', description: '', amount: 0, status: 'pending', category_id: '', issued_by: '', date: '', notes: '' },
@@ -255,6 +262,32 @@ function app() {
       } catch (e) {
         this.newProjectError = e.message || 'Failed to create project';
       } finally { this.newProjectLoading = false; }
+    },
+
+    async saveCc() {
+      if (!this.ccForm.vendor.trim() || !this.ccForm.contract_amount) {
+        this.ccFormError = 'Vendor and contract amount are required.'; return;
+      }
+      this.ccFormLoading = true; this.ccFormError = '';
+      try {
+        const payload = { ...this.ccForm, contract_amount: parseFloat(this.ccForm.contract_amount) || 0, category_id: this.ccForm.category_id || null };
+        if (this.editingCcId) {
+          await this.put(`/api/project/committed-costs/${this.editingCcId}`, payload);
+        } else {
+          await this.post(`/api/project/committed-costs${this._pid}`, payload);
+        }
+        this.showCcModal = false;
+        this.editingCcId = null;
+        this.ccForm = { vendor: '', description: '', contract_amount: 0, status: 'active', category_id: '', contract_date: '', expected_completion: '', notes: '' };
+        await this.loadProjectDashboard();
+      } catch (e) { this.ccFormError = e.message || 'Save failed'; }
+      finally { this.ccFormLoading = false; }
+    },
+
+    async deleteCc(id) {
+      if (!confirm('Delete this committed cost?')) return;
+      await this.del(`/api/project/committed-costs/${id}`);
+      await this.loadProjectDashboard();
     },
 
     async saveChangeOrder() {

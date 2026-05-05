@@ -14,7 +14,7 @@ from ..database import get_db
 from ..models import (
     User, Project, SubDivision, CostCategory, CostSubCategory,
     SubDivisionBudget, Invoice, InvoiceAllocation, Payment,
-    Draw, Claim, PayrollEntry, ChangeOrder,
+    Draw, Claim, PayrollEntry, ChangeOrder, CommittedCost,
 )
 from ..schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut,
@@ -735,6 +735,82 @@ def delete_change_order(co_id: int, db: Session = Depends(get_db), current_user:
     return {"message": "Deleted"}
 
 
+# ─── Committed Costs (POs / Contracts) ───────────────────────────────────────
+
+def _cc_out(cc, db):
+    return {
+        "id": cc.id, "vendor": cc.vendor, "description": cc.description,
+        "contract_amount": cc.contract_amount, "invoiced_to_date": cc.invoiced_to_date or 0,
+        "remaining_to_invoice": round(cc.contract_amount - (cc.invoiced_to_date or 0), 2),
+        "status": cc.status, "contract_date": cc.contract_date,
+        "expected_completion": cc.expected_completion, "notes": cc.notes,
+        "category_id": cc.category_id,
+        "category_name": cc.category.name if cc.category else None,
+        "created_at": str(cc.created_at),
+    }
+
+
+@router.get("/committed-costs")
+def list_committed_costs(proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db)):
+    if not proj:
+        return []
+    return [_cc_out(cc, db) for cc in
+            db.query(CommittedCost).filter(CommittedCost.project_id == proj.id)
+            .order_by(CommittedCost.contract_date.desc(), CommittedCost.id.desc()).all()]
+
+
+@router.post("/committed-costs")
+def create_committed_cost(body: dict, proj: Project = Depends(_req_proj), db: Session = Depends(get_db)):
+    if not body.get("vendor"):
+        raise HTTPException(status_code=400, detail="vendor is required")
+    if body.get("contract_amount") is None:
+        raise HTTPException(status_code=400, detail="contract_amount is required")
+    cat_id = body.get("category_id")
+    if cat_id:
+        cat = db.query(CostCategory).filter(CostCategory.id == cat_id, CostCategory.project_id == proj.id).first()
+        if not cat:
+            raise HTTPException(status_code=404, detail="Cost category not found in this project")
+    cc = CommittedCost(
+        project_id=proj.id, category_id=cat_id,
+        vendor=body["vendor"], description=body.get("description"),
+        contract_amount=float(body["contract_amount"]),
+        invoiced_to_date=float(body.get("invoiced_to_date", 0)),
+        status=body.get("status", "active"),
+        contract_date=body.get("contract_date"),
+        expected_completion=body.get("expected_completion"),
+        notes=body.get("notes"),
+    )
+    db.add(cc)
+    db.commit()
+    db.refresh(cc)
+    return _cc_out(cc, db)
+
+
+@router.put("/committed-costs/{cc_id}")
+def update_committed_cost(cc_id: int, body: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    cc = (db.query(CommittedCost).join(Project, Project.id == CommittedCost.project_id)
+          .filter(CommittedCost.id == cc_id, Project.user_id == current_user.id).first())
+    if not cc:
+        raise HTTPException(status_code=404)
+    for field in ("vendor", "description", "contract_amount", "invoiced_to_date", "status", "contract_date", "expected_completion", "notes", "category_id"):
+        if field in body:
+            setattr(cc, field, body[field])
+    db.commit()
+    db.refresh(cc)
+    return _cc_out(cc, db)
+
+
+@router.delete("/committed-costs/{cc_id}")
+def delete_committed_cost(cc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    cc = (db.query(CommittedCost).join(Project, Project.id == CommittedCost.project_id)
+          .filter(CommittedCost.id == cc_id, Project.user_id == current_user.id).first())
+    if not cc:
+        raise HTTPException(status_code=404)
+    db.delete(cc)
+    db.commit()
+    return {"message": "Deleted"}
+
+
 # ─── Dashboard ────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard")
@@ -755,6 +831,15 @@ def project_dashboard(proj: Optional[Project] = Depends(_get_proj), db: Session 
         .order_by(SubDivision.display_order)
         .all()
     )
+
+    # Pre-load active committed costs keyed by category_id
+    active_ccs = db.query(CommittedCost).filter(
+        CommittedCost.project_id == proj.id, CommittedCost.status == "active"
+    ).all()
+    cc_by_cat: dict = {}
+    for cc in active_ccs:
+        if cc.category_id:
+            cc_by_cat[cc.category_id] = cc_by_cat.get(cc.category_id, 0.0) + cc.contract_amount
 
     # Pre-load all approved change orders for this project keyed by category_id
     approved_cos = db.query(ChangeOrder).filter(
@@ -807,6 +892,7 @@ def project_dashboard(proj: Optional[Project] = Depends(_get_proj), db: Session 
             })
 
         co_adj = co_by_cat.get(cat.id, 0.0)
+        committed = round(cc_by_cat.get(cat.id, 0.0), 2)
         revised_budget = cat.budget + co_adj
         pct_burn = round((alloc_sum / revised_budget * 100) if revised_budget else 0, 1)
         cat_data = {
@@ -815,6 +901,8 @@ def project_dashboard(proj: Optional[Project] = Depends(_get_proj), db: Session 
             "budget": cat.budget,
             "co_adjustment": round(co_adj, 2),
             "revised_budget": round(revised_budget, 2),
+            "committed": committed,                           # POs / contracts not yet invoiced
+            "exposed": round(committed - alloc_sum, 2),      # committed beyond what's already invoiced
             "invoiced": round(alloc_sum, 2),
             "paid": round(paid_sum, 2),
             "remaining": round(revised_budget - alloc_sum, 2),
@@ -855,6 +943,7 @@ def project_dashboard(proj: Optional[Project] = Depends(_get_proj), db: Session 
     total_budget = sum(c["budget"] for c in cat_summary)
     total_co_adjustment = sum(c["co_adjustment"] for c in cat_summary) + co_project_level
     total_revised_budget = total_budget + total_co_adjustment
+    total_committed = round(sum(cc.contract_amount for cc in active_ccs), 2)
     total_invoiced = sum(c["invoiced"] for c in cat_summary)
     total_paid = sum(c["paid"] for c in cat_summary)
 
@@ -927,11 +1016,16 @@ def project_dashboard(proj: Optional[Project] = Depends(_get_proj), db: Session 
     all_cos = db.query(ChangeOrder).filter(ChangeOrder.project_id == proj.id)\
         .order_by(ChangeOrder.date.desc(), ChangeOrder.id.desc()).all()
 
+    # All committed costs for the panel
+    all_ccs = db.query(CommittedCost).filter(CommittedCost.project_id == proj.id)\
+        .order_by(CommittedCost.contract_date.desc(), CommittedCost.id.desc()).all()
+
     return {
         "project": ProjectOut.model_validate(proj).model_dump(),
         "total_budget": total_budget,
         "total_co_adjustment": round(total_co_adjustment, 2),
         "total_revised_budget": round(total_revised_budget, 2),
+        "total_committed": total_committed,
         "total_invoiced": round(total_invoiced, 2),
         "total_paid": round(total_paid, 2),
         "total_remaining": round(total_revised_budget - total_invoiced, 2),
@@ -943,6 +1037,7 @@ def project_dashboard(proj: Optional[Project] = Depends(_get_proj), db: Session 
              "category_name": co.category.name if co.category else None}
             for co in all_cos
         ],
+        "committed_costs": [_cc_out(cc, db) for cc in all_ccs],
         "unallocated_invoices": unallocated,
         "aging": {k: round(v, 2) for k, v in aging.items()},
         "draws": draws_summary,

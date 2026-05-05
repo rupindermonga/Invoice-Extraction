@@ -56,6 +56,20 @@ def _run_migrations():
             "ALTER TABLE invoices ADD COLUMN is_payroll BOOLEAN DEFAULT 0",
             "ALTER TABLE users ADD COLUMN is_demo BOOLEAN DEFAULT 0",
             "ALTER TABLE invoices ADD COLUMN project_id INTEGER REFERENCES projects(id)",
+            """CREATE TABLE IF NOT EXISTS committed_costs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                category_id INTEGER REFERENCES cost_categories(id),
+                vendor TEXT NOT NULL,
+                description TEXT,
+                contract_amount REAL NOT NULL,
+                invoiced_to_date REAL DEFAULT 0,
+                status TEXT DEFAULT 'active',
+                contract_date TEXT,
+                expected_completion TEXT,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
             """CREATE TABLE IF NOT EXISTS change_orders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_id INTEGER NOT NULL REFERENCES projects(id),
