@@ -151,6 +151,31 @@ function app() {
       link.click();
     },
 
+    async downloadLenderPackage(drawId, drawNumber) {
+      const btn = event?.currentTarget;
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Building…'; }
+      try {
+        const res = await fetch(`/api/project/draws/${drawId}/lender-package-pdf`, {
+          headers: { Authorization: 'Bearer ' + this.token }
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: 'PDF generation failed' }));
+          throw new Error(err.detail || 'PDF generation failed');
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Draw_${drawNumber}_Lender_Package.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch(e) {
+        alert('Error generating package: ' + e.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-pdf mr-1"></i>Package'; }
+      }
+    },
+
     // ── Milestones ────────────────────────────────────────────────
     milestones: [],
     showMsModal: false,

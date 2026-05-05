@@ -2233,6 +2233,84 @@ def export_bookkeeping(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# LENDER PACKAGE AUTOPILOT — PDF Generator
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/draws/{draw_id}/lender-package-pdf")
+def generate_lender_package_pdf(
+    draw_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a complete, lender-ready draw package PDF.
+
+    Includes: cover page, AI cover letter, executive summary, invoice schedule,
+    holdback schedule, cost category breakdown, compliance checklist, and
+    certification page.
+    """
+    try:
+        from reportlab.lib import colors as _rl_colors  # noqa — verify installed
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="PDF generation requires reportlab. Run: pip install reportlab==4.2.5"
+        )
+
+    draw = (db.query(Draw).join(Project, Project.id == Draw.project_id)
+            .filter(Draw.id == draw_id, Project.user_id == current_user.id).first())
+    if not draw:
+        raise HTTPException(status_code=404, detail="Draw not found")
+
+    proj = db.query(Project).filter(Project.id == draw.project_id).first()
+    invoices = db.query(Invoice).filter(
+        Invoice.draw_id == draw_id,
+        Invoice.user_id == current_user.id,
+    ).all()
+
+    if not invoices:
+        raise HTTPException(status_code=400, detail="No invoices in this draw. Add invoices before generating a package.")
+
+    # Enrich invoices with their allocations for category breakdown
+    for inv in invoices:
+        inv._allocs = db.query(InvoiceAllocation).filter(InvoiceAllocation.invoice_id == inv.id).all()
+
+    categories = db.query(CostCategory).filter(CostCategory.project_id == proj.id).order_by(CostCategory.display_order).all()
+
+    # Build allocations_by_cat (total invoiced per category across ALL draws, not just this one)
+    allocations_by_cat: dict = {}
+    for cat in categories:
+        total = db.query(func.coalesce(func.sum(InvoiceAllocation.amount), 0.0)).filter(
+            InvoiceAllocation.category_id == cat.id
+        ).scalar() or 0.0
+        allocations_by_cat[cat.id] = float(total)
+
+    lien_waivers = db.query(LienWaiver).filter(LienWaiver.project_id == proj.id).all()
+    subcontractors = db.query(Subcontractor).filter(Subcontractor.project_id == proj.id).all()
+    documents = db.query(ProjectDocument).filter(ProjectDocument.project_id == proj.id).all()
+
+    from ..services.pdf_package import generate_lender_package_pdf as _gen_pdf
+    pdf_bytes = _gen_pdf(
+        project=proj,
+        draw=draw,
+        invoices=invoices,
+        categories=categories,
+        allocations_by_cat=allocations_by_cat,
+        lien_waivers=lien_waivers,
+        subcontractors=subcontractors,
+        documents=documents,
+        prepared_by=current_user.username,
+        db=db,
+    )
+
+    filename = f"Draw_{draw.draw_number}_{proj.name.replace(' ', '_')}_Package.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # AI INTELLIGENCE ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
