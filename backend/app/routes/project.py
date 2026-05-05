@@ -662,7 +662,7 @@ def get_fx_rate(date: Optional[str] = None):
 # ─── Dashboard ────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard")
-def project_dashboard(proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db)):
+def project_dashboard(proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not proj:
         return {"project": None}
 
