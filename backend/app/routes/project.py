@@ -906,6 +906,58 @@ def delete_document(doc_id: int, db: Session = Depends(get_db), current_user: Us
     return {"message": "Deleted"}
 
 
+# ─── Portfolio Rollup ────────────────────────────────────────────────────────
+
+@router.get("/portfolio")
+def portfolio_rollup(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """High-level summary across ALL projects for the current user."""
+    projects = db.query(Project).filter(Project.user_id == current_user.id).order_by(Project.created_at).all()
+    result = []
+    for proj in projects:
+        # Cost categories
+        cats = db.query(CostCategory).filter(CostCategory.project_id == proj.id).all()
+        total_budget = sum(c.budget for c in cats)
+        total_invoiced = 0.0
+        total_paid = 0.0
+        for cat in cats:
+            invoiced = db.query(func.coalesce(func.sum(InvoiceAllocation.amount), 0.0)).filter(InvoiceAllocation.category_id == cat.id).scalar() or 0
+            total_invoiced += invoiced
+            for a in db.query(InvoiceAllocation).filter(InvoiceAllocation.category_id == cat.id).all():
+                inv = db.query(Invoice).filter(Invoice.id == a.invoice_id).first()
+                if inv:
+                    total_paid += (inv.amount_paid or 0) * (a.percentage / 100)
+        # Draw status
+        draws = db.query(Draw).filter(Draw.project_id == proj.id).all()
+        # Invoice counts
+        invoice_count = db.query(Invoice).filter(Invoice.user_id == current_user.id, Invoice.status == "processed",
+                                                  Invoice.draw_id.in_(d.id for d in draws) if draws else Invoice.draw_id.is_(None)).count() if draws else 0
+        all_invs = db.query(Invoice).filter(Invoice.user_id == current_user.id, Invoice.status == "processed").count()
+        # Pending approvals
+        pending_approvals = db.query(Invoice).filter(Invoice.user_id == current_user.id, Invoice.approval_status == "pending", Invoice.status == "processed").count()
+        pct_burn = round((total_invoiced / total_budget * 100) if total_budget else 0, 1)
+        result.append({
+            "id": proj.id, "name": proj.name, "code": proj.code, "client": proj.client,
+            "total_budget": total_budget,
+            "total_invoiced": round(total_invoiced, 2),
+            "total_paid": round(total_paid, 2),
+            "total_remaining": round(total_budget - total_invoiced, 2),
+            "pct_burn": pct_burn,
+            "draw_count": len(draws),
+            "pending_approvals": pending_approvals,
+            "start_date": proj.start_date,
+            "end_date": proj.end_date,
+        })
+    return {
+        "projects": result,
+        "totals": {
+            "budget": round(sum(r["total_budget"] for r in result), 2),
+            "invoiced": round(sum(r["total_invoiced"] for r in result), 2),
+            "paid": round(sum(r["total_paid"] for r in result), 2),
+            "remaining": round(sum(r["total_remaining"] for r in result), 2),
+        },
+    }
+
+
 # ─── Subcontractor Directory ─────────────────────────────────────────────────
 
 def _sub_out(s, today_str: str):
@@ -1197,6 +1249,150 @@ def lender_package(token: str, db: Session = Depends(get_db)):
             "invoice_count": sum(d["invoice_count"] for d in draws_out),
         },
     }
+
+
+# ─── Aged Payables ───────────────────────────────────────────────────────────
+
+@router.get("/aged-payables")
+def aged_payables(
+    proj: Optional[Project] = Depends(_get_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Per-vendor aged payables: unpaid/partially-paid invoices grouped by ageing bucket."""
+    from datetime import datetime as _dt
+    from collections import defaultdict
+    today = _dt.utcnow().strftime("%Y-%m-%d")
+
+    unpaid = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.status == "processed",
+        Invoice.payment_status != "paid",
+    ).all()
+
+    # Group by vendor, bucket by days past due (using due_date or invoice_date)
+    vendor_map: dict = defaultdict(lambda: {"current": 0, "over_30": 0, "over_60": 0, "over_90": 0, "invoices": []})
+
+    for inv in unpaid:
+        vendor = inv.vendor_name or "Unknown"
+        due = inv.due_date or inv.invoice_date
+        outstanding = (inv.total_due or 0) - (inv.amount_paid or 0)
+        if outstanding <= 0:
+            continue
+        days = 0
+        if due:
+            try:
+                days = (_dt.strptime(today, "%Y-%m-%d") - _dt.strptime(due, "%Y-%m-%d")).days
+            except ValueError:
+                days = 0
+        bucket = "over_90" if days > 90 else "over_60" if days > 60 else "over_30" if days > 30 else "current"
+        vendor_map[vendor][bucket] += outstanding
+        vendor_map[vendor]["invoices"].append({
+            "id": inv.id, "invoice_number": inv.invoice_number, "date": inv.invoice_date,
+            "due_date": inv.due_date, "total": inv.total_due, "paid": inv.amount_paid,
+            "outstanding": round(outstanding, 2), "days_past_due": max(days, 0),
+            "bucket": bucket, "payment_status": inv.payment_status,
+        })
+
+    rows = []
+    for vendor, data in sorted(vendor_map.items()):
+        total = sum(data[b] for b in ("current","over_30","over_60","over_90"))
+        rows.append({
+            "vendor": vendor,
+            "current": round(data["current"], 2),
+            "over_30": round(data["over_30"], 2),
+            "over_60": round(data["over_60"], 2),
+            "over_90": round(data["over_90"], 2),
+            "total": round(total, 2),
+            "invoice_count": len(data["invoices"]),
+            "invoices": sorted(data["invoices"], key=lambda i: i["days_past_due"], reverse=True),
+        })
+    rows.sort(key=lambda r: r["total"], reverse=True)
+
+    totals = {
+        "current": round(sum(r["current"] for r in rows), 2),
+        "over_30": round(sum(r["over_30"] for r in rows), 2),
+        "over_60": round(sum(r["over_60"] for r in rows), 2),
+        "over_90": round(sum(r["over_90"] for r in rows), 2),
+        "total": round(sum(r["total"] for r in rows), 2),
+    }
+    return {"vendors": rows, "totals": totals, "as_of": today}
+
+
+# ─── Accounting Export ───────────────────────────────────────────────────────
+
+@router.get("/export/accounting-csv")
+def export_accounting_csv(
+    format: Optional[str] = "qbo",   # qbo | xero
+    proj: Optional[Project] = Depends(_get_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export invoices as CSV shaped for QuickBooks Online (qbo) or Xero import.
+    Columns follow the standard Accounts Payable / Bills import format."""
+    import csv, io as _io
+    from datetime import datetime as _dt
+
+    invoices = db.query(Invoice).filter(
+        Invoice.user_id == current_user.id,
+        Invoice.status == "processed",
+    ).order_by(Invoice.invoice_date.desc()).all()
+
+    buf = _io.StringIO()
+    today = _dt.utcnow().strftime("%Y-%m-%d")
+
+    if format == "xero":
+        # Xero Bills import format
+        w = csv.writer(buf)
+        w.writerow(["*ContactName","*InvoiceNumber","*InvoiceDate","*DueDate","*Description",
+                    "*Quantity","*UnitAmount","*AccountCode","*TaxType","Currency","TrackingName1"])
+        for inv in invoices:
+            w.writerow([
+                inv.vendor_name or "Unknown",
+                inv.invoice_number or "",
+                inv.invoice_date or today,
+                inv.due_date or inv.invoice_date or today,
+                f"Invoice from {inv.vendor_name or 'vendor'}",
+                1,
+                inv.subtotal or inv.total_due or 0,
+                "200",   # standard AP account
+                "INPUT2",  # HST on purchases
+                inv.currency or "CAD",
+                proj.name if proj else "",
+            ])
+    else:
+        # QuickBooks Online Bills import format
+        w = csv.writer(buf)
+        w.writerow(["Vendor","Bill No","Date","Due Date","Memo","Category",
+                    "Description","Amount","Tax Amount","Total","Currency","Reference"])
+        for inv in invoices:
+            # Find primary category from allocations
+            cat_name = ""
+            alloc = db.query(InvoiceAllocation).filter(InvoiceAllocation.invoice_id == inv.id).first()
+            if alloc and alloc.category:
+                cat_name = alloc.category.name
+            w.writerow([
+                inv.vendor_name or "",
+                inv.invoice_number or "",
+                inv.invoice_date or today,
+                inv.due_date or inv.invoice_date or today,
+                f"Project: {proj.name}" if proj else "",
+                cat_name,
+                f"Invoice {inv.invoice_number or inv.id}",
+                inv.subtotal or (inv.total_due or 0) - (inv.tax_total or 0),
+                inv.tax_total or 0,
+                inv.total_due or 0,
+                inv.currency or "CAD",
+                inv.vendor_on_record or "",
+            ])
+
+    csv_bytes = buf.getvalue().encode("utf-8-sig")  # BOM for Excel compatibility
+    filename = f"invoices_{format}_{today}.csv"
+    return StreamingResponse(
+        iter([csv_bytes]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ─── Cash Flow Projection ────────────────────────────────────────────────────

@@ -128,6 +128,26 @@ function app() {
     cashFlow: null,
     cashFlowLoading: false,
 
+    // ── Portfolio / Aged Payables ─────────────────────────────────
+    portfolio: null,
+    agedPayables: null,
+
+    async loadPortfolio() {
+      try { this.portfolio = await this.get('/api/project/portfolio'); } catch(e) {}
+    },
+
+    async loadAgedPayables() {
+      try { this.agedPayables = await this.get(`/api/project/aged-payables${this._pid}`); } catch(e) {}
+    },
+
+    downloadAccountingExport(format) {
+      const pid = this.currentProject ? '?project_id=' + this.currentProject.id + '&format=' + format : '?format=' + format;
+      const link = document.createElement('a');
+      link.href = '/api/project/export/accounting-csv' + pid;
+      link.download = `invoices_${format}.csv`;
+      link.click();
+    },
+
     // ── Milestones ────────────────────────────────────────────────
     milestones: [],
     showMsModal: false,
