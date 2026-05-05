@@ -1258,6 +1258,10 @@
             <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-scale-balanced mr-2 text-blue-600"></i>Budget vs Actual</h2>
             <p class="text-sm text-gray-500" x-text="projectDash?.project?.name || 'Loading…'"></p>
           </div>
+          <button @click="window.open('/report' + (_pid ? _pid.replace('?','?') : ''), '_blank')"
+                  class="flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+            <i class="fa-solid fa-print"></i> Print Status Report
+          </button>
         </div>
 
         <template x-if="!projectDash?.project">

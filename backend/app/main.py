@@ -227,10 +227,16 @@ async def lender_view(token: str):
     return FileResponse(os.path.join(static_dir, "lender.html"))
 
 
+@app.get("/report", include_in_schema=False)
+async def report_view():
+    """Serve the internal project status report page (auth required client-side)."""
+    return FileResponse(os.path.join(static_dir, "report.html"))
+
+
 @app.get("/", include_in_schema=False)
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa(full_path: str = ""):
-    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/"}
+    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/", "report"}
     if any(full_path.startswith(b) or full_path == b for b in _blocked):
         from fastapi import HTTPException
         raise HTTPException(status_code=404)

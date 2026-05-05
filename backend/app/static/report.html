@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finel AI · Project Status Report</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter','ui-sans-serif','system-ui','sans-serif'],
+            serif: ['"Playfair Display"','ui-serif','Georgia','serif'],
+          },
+          colors: {
+            blue: { 50:'#e5f7ff',600:'#00acff',700:'#008ecc',900:'#005366' },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { -webkit-font-smoothing: antialiased; }
+    @media print {
+      .no-print { display: none !important; }
+      body { font-size: 11px; }
+      .page-break { page-break-before: always; }
+    }
+  </style>
+</head>
+<body class="bg-white font-sans text-gray-800 p-8 max-w-5xl mx-auto">
+
+  <div id="loading" class="text-center py-20 text-gray-400">
+    <img src="/static/favicon.svg" class="w-10 h-10 mx-auto mb-3 rounded-lg animate-pulse" />
+    Loading report…
+  </div>
+
+  <div id="error" class="hidden text-center py-20 text-red-500">
+    <p id="err-msg">Failed to load report. Make sure you're logged in.</p>
+  </div>
+
+  <div id="report" class="hidden">
+    <!-- Actions bar -->
+    <div class="flex items-center justify-between mb-8 no-print">
+      <a href="javascript:history.back()" class="text-sm text-gray-400 hover:text-gray-700 flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Back
+      </a>
+      <button onclick="window.print()" class="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-800 transition">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        Save / Print PDF
+      </button>
+    </div>
+
+    <!-- Report header -->
+    <div class="flex items-start justify-between mb-8 pb-6 border-b-2 border-slate-900">
+      <div>
+        <img src="/static/favicon.svg" class="w-10 h-10 rounded-lg mb-3" />
+        <h1 id="r-proj-name" class="font-serif text-4xl text-slate-900 mb-1"></h1>
+        <p id="r-proj-code" class="text-sm text-gray-400"></p>
+      </div>
+      <div class="text-right text-sm text-gray-500">
+        <div class="font-bold text-gray-700 text-base" id="r-client"></div>
+        <div id="r-address"></div>
+        <div class="mt-2 text-xs text-gray-400">Project Status Report</div>
+        <div id="r-date" class="text-xs text-gray-400"></div>
+      </div>
+    </div>
+
+    <!-- Budget overview -->
+    <section class="mb-8">
+      <h2 class="font-serif text-2xl text-slate-900 mb-4">Budget Overview</h2>
+      <div class="grid grid-cols-4 gap-4 mb-4" id="r-summary"></div>
+      <!-- Overall burn bar -->
+      <div class="bg-gray-50 rounded-xl p-4 border">
+        <div class="flex justify-between text-sm font-medium mb-2">
+          <span class="text-gray-600">Overall Project Burn</span>
+          <span id="r-burn-pct" class="font-bold"></span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-3">
+          <div id="r-burn-bar" class="h-3 rounded-full transition-all bg-blue-600"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Category breakdown -->
+    <section class="mb-8">
+      <h2 class="font-serif text-2xl text-slate-900 mb-4">Cost Categories</h2>
+      <table class="w-full text-sm border">
+        <thead class="bg-slate-900 text-white">
+          <tr>
+            <th class="text-left px-4 py-3">Category</th>
+            <th class="text-right px-4 py-3">Budget</th>
+            <th class="text-right px-4 py-3">CO Adj.</th>
+            <th class="text-right px-4 py-3">Revised</th>
+            <th class="text-right px-4 py-3">Invoiced</th>
+            <th class="text-right px-4 py-3">Paid</th>
+            <th class="text-right px-4 py-3">Remaining</th>
+            <th class="text-right px-4 py-3">Burn %</th>
+          </tr>
+        </thead>
+        <tbody id="r-cats"></tbody>
+      </table>
+    </section>
+
+    <!-- Draws summary -->
+    <section class="mb-8">
+      <h2 class="font-serif text-2xl text-slate-900 mb-4">Draw Status</h2>
+      <table class="w-full text-sm border">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="text-left px-4 py-3">Draw</th>
+            <th class="text-left px-4 py-3">Submitted</th>
+            <th class="text-left px-4 py-3">Status</th>
+            <th class="text-right px-4 py-3">Invoiced</th>
+            <th class="text-right px-4 py-3">Lender Submitted</th>
+            <th class="text-right px-4 py-3">Lender Approved</th>
+          </tr>
+        </thead>
+        <tbody id="r-draws"></tbody>
+      </table>
+    </section>
+
+    <!-- Holdback + Approval summary -->
+    <div class="grid grid-cols-2 gap-6 mb-8">
+      <section>
+        <h2 class="font-serif text-xl text-slate-900 mb-3">Holdback</h2>
+        <div class="border rounded-xl p-4 text-sm space-y-2" id="r-holdback"></div>
+      </section>
+      <section>
+        <h2 class="font-serif text-xl text-slate-900 mb-3">Invoice Approvals</h2>
+        <div class="border rounded-xl p-4 text-sm space-y-2" id="r-approvals"></div>
+      </section>
+    </div>
+
+    <!-- AP Aging -->
+    <section class="mb-8">
+      <h2 class="font-serif text-2xl text-slate-900 mb-4">Accounts Payable Aging</h2>
+      <div class="grid grid-cols-4 gap-4" id="r-aging"></div>
+    </section>
+
+    <!-- Footer -->
+    <div class="border-t pt-4 text-xs text-gray-300 flex justify-between">
+      <span>Generated by Finel AI Project Finance · <a href="https://finel.ai" class="text-blue-300">finel.ai</a></span>
+      <span id="r-footer-date"></span>
+    </div>
+  </div>
+
+  <script>
+    const fmt = n => n != null ? '$' + Number(n).toLocaleString('en-CA', {minimumFractionDigits:0, maximumFractionDigits:0}) : '—';
+    const fmtD = n => n != null ? '$' + Number(n).toLocaleString('en-CA', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+
+    async function load() {
+      // Get token from localStorage (set by the SPA before opening this window)
+      const token = localStorage.getItem('invoice_token');
+      const projectId = new URLSearchParams(window.location.search).get('project_id') || '';
+      if (!token) { showError('Not logged in — open this report from inside the app.'); return; }
+      try {
+        const pid = projectId ? '?project_id=' + projectId : '';
+        const res = await fetch('/api/project/dashboard' + pid, { headers: { Authorization: 'Bearer ' + token } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const d = await res.json();
+        render(d);
+      } catch(e) { showError('Failed to load: ' + e.message); }
+    }
+
+    function showError(msg) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('error').classList.remove('hidden');
+      document.getElementById('err-msg').textContent = msg;
+    }
+
+    function render(d) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('report').classList.remove('hidden');
+      const p = d.project || {};
+      const today = new Date().toLocaleDateString('en-CA');
+      document.title = 'Status Report — ' + (p.name || 'Project');
+
+      document.getElementById('r-proj-name').textContent = p.name || '';
+      document.getElementById('r-proj-code').textContent = [p.code, p.start_date ? 'Started ' + p.start_date : ''].filter(Boolean).join(' · ');
+      document.getElementById('r-client').textContent = p.client || '';
+      document.getElementById('r-address').textContent = p.address || '';
+      document.getElementById('r-date').textContent = 'Report Date: ' + today;
+      document.getElementById('r-footer-date').textContent = today;
+
+      // Summary
+      const rb = d.total_revised_budget || d.total_budget || 0;
+      const cards = [
+        { label: 'Revised Budget', val: fmt(rb), color: 'text-gray-800' },
+        { label: 'Invoiced', val: fmt(d.total_invoiced), color: 'text-blue-600' },
+        { label: 'Paid', val: fmt(d.total_paid), color: 'text-green-600' },
+        { label: 'Remaining', val: fmt(d.total_remaining), color: d.total_remaining < 0 ? 'text-red-600' : 'text-green-600' },
+      ];
+      document.getElementById('r-summary').innerHTML = cards.map(c =>
+        `<div class="border rounded-xl p-4 text-center"><div class="text-xs text-gray-400 mb-1">${c.label}</div><div class="text-xl font-bold ${c.color}">${c.val}</div></div>`
+      ).join('');
+
+      const burnPct = rb > 0 ? (d.total_invoiced / rb * 100) : 0;
+      document.getElementById('r-burn-pct').textContent = burnPct.toFixed(1) + '%';
+      document.getElementById('r-burn-pct').className = 'font-bold ' + (burnPct > 100 ? 'text-red-600' : burnPct > 75 ? 'text-amber-600' : 'text-gray-800');
+      const bar = document.getElementById('r-burn-bar');
+      bar.style.width = Math.min(burnPct, 100) + '%';
+      bar.className = 'h-3 rounded-full ' + (burnPct > 100 ? 'bg-red-500' : burnPct > 75 ? 'bg-amber-400' : 'bg-blue-600');
+
+      // Categories
+      const cats = d.categories || [];
+      document.getElementById('r-cats').innerHTML = cats.map((c, i) => {
+        const bg = i % 2 === 0 ? '' : 'bg-gray-50';
+        const rc = c.co_adjustment ? 'text-amber-600 font-medium' : '';
+        return `<tr class="${bg} border-b">
+          <td class="px-4 py-2 font-medium">${c.name}</td>
+          <td class="px-4 py-2 text-right text-gray-600">${fmt(c.budget)}</td>
+          <td class="px-4 py-2 text-right ${c.co_adjustment > 0 ? 'text-amber-600' : c.co_adjustment < 0 ? 'text-green-600' : 'text-gray-300'}">${c.co_adjustment ? (c.co_adjustment > 0 ? '+' : '') + fmt(c.co_adjustment) : '—'}</td>
+          <td class="px-4 py-2 text-right ${rc}">${fmt(c.revised_budget || c.budget)}</td>
+          <td class="px-4 py-2 text-right text-blue-600">${fmt(c.invoiced)}</td>
+          <td class="px-4 py-2 text-right text-green-600">${fmt(c.paid)}</td>
+          <td class="px-4 py-2 text-right ${c.remaining < 0 ? 'text-red-600 font-semibold' : 'text-gray-700'}">${fmt(c.remaining)}</td>
+          <td class="px-4 py-2 text-right ${c.pct_burn > 100 ? 'text-red-600 font-bold' : c.pct_burn > 75 ? 'text-amber-600' : 'text-gray-500'}">${(c.pct_burn || 0).toFixed(1)}%</td>
+        </tr>`;
+      }).join('') + `<tr class="bg-slate-100 font-semibold border-t-2 border-slate-300">
+          <td class="px-4 py-3">Total</td>
+          <td class="px-4 py-3 text-right">${fmt(d.total_budget)}</td>
+          <td class="px-4 py-3 text-right">${d.total_co_adjustment ? (d.total_co_adjustment>0?'+':'')+fmt(d.total_co_adjustment) : '—'}</td>
+          <td class="px-4 py-3 text-right">${fmt(rb)}</td>
+          <td class="px-4 py-3 text-right text-blue-700">${fmt(d.total_invoiced)}</td>
+          <td class="px-4 py-3 text-right text-green-700">${fmt(d.total_paid)}</td>
+          <td class="px-4 py-3 text-right ${d.total_remaining < 0 ? 'text-red-600' : 'text-green-700'}">${fmt(d.total_remaining)}</td>
+          <td class="px-4 py-3 text-right">${rb > 0 ? (d.total_invoiced/rb*100).toFixed(1)+'%' : '—'}</td>
+        </tr>`;
+
+      // Draws
+      const draws = d.draws || [];
+      const drawColor = { approved:'bg-green-100 text-green-700', submitted:'bg-amber-100 text-amber-700', funded:'bg-blue-100 text-blue-700', draft:'bg-gray-100 text-gray-600' };
+      document.getElementById('r-draws').innerHTML = draws.length === 0 ? '<tr><td colspan="6" class="text-center py-4 text-gray-400">No draws yet</td></tr>' :
+        draws.map((draw, i) => {
+          const bg = i % 2 === 0 ? '' : 'bg-gray-50';
+          const sc = drawColor[draw.status] || 'bg-gray-100 text-gray-500';
+          return `<tr class="${bg} border-b">
+            <td class="px-4 py-2 font-medium">Draw ${draw.draw_number}</td>
+            <td class="px-4 py-2 text-gray-500">${draw.submission_date || '—'}</td>
+            <td class="px-4 py-2"><span class="px-2 py-0.5 rounded-full text-xs font-medium ${sc}">${(draw.status||'').charAt(0).toUpperCase()+(draw.status||'').slice(1)}</span></td>
+            <td class="px-4 py-2 text-right text-blue-600">${fmtD(draw.total_cad)}</td>
+            <td class="px-4 py-2 text-right text-amber-600">${fmtD(draw.lender_submitted_total)}</td>
+            <td class="px-4 py-2 text-right text-green-600 font-medium">${fmtD(draw.lender_approved_total)}</td>
+          </tr>`;
+        }).join('');
+
+      // Holdback
+      const h = d.holdback || {};
+      document.getElementById('r-holdback').innerHTML = `
+        <div class="flex justify-between"><span class="text-gray-500">Total Withheld</span><span class="font-semibold">${fmtD(h.total)}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Outstanding (Held)</span><span class="font-semibold text-amber-600">${fmtD(h.held)}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Released</span><span class="font-semibold text-green-600">${fmtD(h.released)}</span></div>
+        <div class="flex justify-between text-xs text-gray-400 pt-1"><span>${h.unreleased_count || 0} invoices with outstanding holdback</span></div>
+      `;
+
+      // Approvals
+      const ap = d.approval || {};
+      document.getElementById('r-approvals').innerHTML = `
+        <div class="flex justify-between"><span class="text-gray-500">Pending</span><span class="font-semibold text-amber-600">${ap.pending || 0}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Approved</span><span class="font-semibold text-green-600">${ap.approved || 0}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Rejected</span><span class="font-semibold text-red-500">${ap.rejected || 0}</span></div>
+      `;
+
+      // Aging
+      const ag = d.aging || {};
+      const agCards = [
+        { label: 'Current', val: fmtD(ag.current), color: 'text-green-600' },
+        { label: '30+ Days', val: fmtD(ag.over_30), color: 'text-amber-500' },
+        { label: '60+ Days', val: fmtD(ag.over_60), color: 'text-orange-500' },
+        { label: '90+ Days', val: fmtD(ag.over_90), color: 'text-red-600' },
+      ];
+      document.getElementById('r-aging').innerHTML = agCards.map(c =>
+        `<div class="border rounded-xl p-4 text-center"><div class="text-xs text-gray-400 mb-1">${c.label}</div><div class="text-lg font-bold ${c.color}">${c.val}</div></div>`
+      ).join('');
+    }
+
+    load();
+  </script>
+</body>
+</html>
