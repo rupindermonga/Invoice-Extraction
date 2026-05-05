@@ -3834,6 +3834,29 @@
       </div>
       <div class="space-y-4">
         <div class="grid grid-cols-2 gap-3">
+          <!-- Project type selector -->
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-700 mb-2">Project Type <span class="font-normal text-gray-400">— auto-seeds categories</span></label>
+            <div class="grid grid-cols-3 gap-2">
+              <template x-for="pt in [
+                {key:'residential_const', icon:'fa-house', label:'Residential', sub:'Houses / towns'},
+                {key:'real_estate_dev',   icon:'fa-city',  label:'Real Estate Dev', sub:'Land → sale'},
+                {key:'ici_construction',  icon:'fa-building-columns', label:'ICI / Commercial', sub:'Office / industrial'},
+                {key:'fiber_build',       icon:'fa-network-wired', label:'Fiber / Telecom', sub:'FTTH infrastructure'},
+                {key:'renovation',        icon:'fa-screwdriver-wrench', label:'Renovation', sub:'Retrofit / upgrade'},
+                {key:'custom',            icon:'fa-wand-magic-sparkles', label:'Custom', sub:'Blank — build your own'},
+              ]" :key="pt.key">
+                <button @click="newProjectForm.project_type = pt.key"
+                        class="flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-xs text-center transition"
+                        :class="newProjectForm.project_type===pt.key ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-gray-100 hover:border-gray-200 text-gray-600'">
+                  <i :class="'fa-solid '+pt.icon+' text-lg'" :style="newProjectForm.project_type===pt.key ? 'color:#008ecc' : 'color:#9ca3af'"></i>
+                  <span class="font-semibold" x-text="pt.label"></span>
+                  <span class="text-gray-400" x-text="pt.sub"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+
           <div class="col-span-2">
             <label class="block text-xs font-medium text-gray-700 mb-1">Project Name *</label>
             <input x-model="newProjectForm.name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Oakmere Phase 2" />

@@ -18,7 +18,7 @@ function app() {
     projects: [],
     currentProject: null,
     showNewProjectModal: false,
-    newProjectForm: { name: '', code: '', client: '', address: '', start_date: '', end_date: '', total_budget: 0, lender_budget: null, currency: 'CAD' },
+    newProjectForm: { name: '', code: '', client: '', address: '', start_date: '', end_date: '', total_budget: 0, lender_budget: null, currency: 'CAD', project_type: 'custom' },
     newProjectError: '',
     newProjectLoading: false,
 
@@ -436,15 +436,19 @@ function app() {
       if (!this.newProjectForm.name.trim()) {
         this.newProjectError = 'Project name is required.'; return;
       }
+      if (!this.newProjectForm.project_type) {
+        this.newProjectError = 'Please select a project type.'; return;
+      }
       this.newProjectLoading = true; this.newProjectError = '';
       try {
-        const proj = await this.post('/api/project', this.newProjectForm);
+        const { project_type, ...body } = this.newProjectForm;
+        const proj = await this.post(`/api/project?project_type=${project_type}`, body);
         this.projects.push(proj);
         this.currentProject = proj;
         localStorage.setItem('currentProjectId', proj.id);
         this.showNewProjectModal = false;
-        this.newProjectForm = { name: '', code: '', client: '', address: '', start_date: '', end_date: '', total_budget: 0, lender_budget: null, currency: 'CAD' };
-        await this.loadProjectDashboard();
+        this.newProjectForm = { name: '', code: '', client: '', address: '', start_date: '', end_date: '', total_budget: 0, lender_budget: null, currency: 'CAD', project_type: 'custom' };
+        await Promise.all([this.loadProjectDashboard(), this.loadSubdivisions()]);
       } catch (e) {
         this.newProjectError = e.message || 'Failed to create project';
       } finally { this.newProjectLoading = false; }

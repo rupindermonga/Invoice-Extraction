@@ -69,12 +69,16 @@ def get_project(proj: Optional[Project] = Depends(_get_proj)):
 
 
 @router.post("", response_model=ProjectOut)
-def create_project(body: ProjectCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Create a new project. Multiple projects per user are allowed."""
+def create_project(body: ProjectCreate, project_type: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Create a new project. Pass ?project_type= to auto-seed the category structure."""
     proj = Project(user_id=current_user.id, **body.model_dump())
     db.add(proj)
     db.commit()
     db.refresh(proj)
+    if project_type:
+        from ..seed_project import seed_project_template
+        seed_project_template(db, proj.id, project_type)
+        db.refresh(proj)
     return proj
 
 
@@ -87,6 +91,21 @@ def update_project(body: ProjectUpdate, proj: Project = Depends(_req_proj), db: 
     db.commit()
     db.refresh(proj)
     return proj
+
+
+@router.post("/{project_id}/seed-template")
+def apply_template(project_id: int, body: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Apply a category template to an existing project.
+    Only seeds if the project has no categories yet (safe to call on empty projects)."""
+    proj = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    project_type = body.get("project_type", "custom")
+    from ..seed_project import seed_project_template, _TEMPLATES
+    if project_type not in _TEMPLATES:
+        raise HTTPException(status_code=400, detail=f"Unknown project_type. Choose: {', '.join(_TEMPLATES.keys())}")
+    seed_project_template(db, proj.id, project_type)
+    return {"message": f"Template '{project_type}' applied", "project_id": proj.id}
 
 
 @router.delete("/{project_id}")
