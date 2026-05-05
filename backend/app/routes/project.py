@@ -1,5 +1,7 @@
 """Project finance routes: project CRUD, cost categories, sub-divisions, allocations, payments, dashboard, bookkeeping export."""
-from fastapi import APIRouter, Depends, HTTPException, Header
+import os
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -14,7 +16,7 @@ from ..database import get_db
 from ..models import (
     User, Project, SubDivision, CostCategory, CostSubCategory,
     SubDivisionBudget, Invoice, InvoiceAllocation, Payment,
-    Draw, Claim, PayrollEntry, ChangeOrder, CommittedCost, Subcontractor, LenderToken,
+    Draw, Claim, PayrollEntry, ChangeOrder, CommittedCost, Subcontractor, LenderToken, ProjectDocument,
 )
 from ..schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut,
@@ -732,6 +734,98 @@ def delete_change_order(co_id: int, db: Session = Depends(get_db), current_user:
         raise HTTPException(status_code=404, detail="Change order not found")
     db.delete(co)
     db.commit()
+    return {"message": "Deleted"}
+
+
+# ─── Project Documents ───────────────────────────────────────────────────────
+
+_DOC_TYPES = {"contract","permit","rfi","submittal","drawing","report","other"}
+_DOC_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "docs")
+
+DOC_ALLOWED_EXT = {".pdf",".jpg",".jpeg",".png",".docx",".doc",".xlsx",".xls",".pptx",".ppt",".txt"}
+
+
+def _doc_out(doc):
+    return {
+        "id": doc.id, "doc_type": doc.doc_type, "title": doc.title,
+        "original_filename": doc.original_filename, "external_url": doc.external_url,
+        "notes": doc.notes, "draw_id": doc.draw_id, "category_id": doc.category_id,
+        "has_file": bool(doc.file_path),
+        "created_at": str(doc.created_at),
+    }
+
+
+@router.get("/documents")
+def list_documents(doc_type: Optional[str] = None, proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db)):
+    if not proj:
+        return []
+    q = db.query(ProjectDocument).filter(ProjectDocument.project_id == proj.id)
+    if doc_type:
+        q = q.filter(ProjectDocument.doc_type == doc_type)
+    return [_doc_out(d) for d in q.order_by(ProjectDocument.created_at.desc()).all()]
+
+
+@router.post("/documents/upload")
+async def upload_document(
+    file: UploadFile = File(None),
+    title: str = Form(...),
+    doc_type: str = Form("other"),
+    notes: str = Form(None),
+    draw_id: int = Form(None),
+    category_id: int = Form(None),
+    external_url: str = Form(None),
+    proj: Project = Depends(_req_proj),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if doc_type not in _DOC_TYPES:
+        raise HTTPException(status_code=400, detail=f"doc_type must be one of: {', '.join(_DOC_TYPES)}")
+    import aiofiles
+    file_path = None
+    original_filename = None
+    if file and file.filename:
+        ext = Path(file.filename).suffix.lower()
+        if ext not in DOC_ALLOWED_EXT:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type. Allowed: {', '.join(DOC_ALLOWED_EXT)}")
+        os.makedirs(_DOC_UPLOAD_DIR, exist_ok=True)
+        unique_name = f"{proj.id}_{uuid.uuid4().hex}{ext}"
+        file_path = os.path.join(_DOC_UPLOAD_DIR, unique_name)
+        content = await file.read()
+        with open(file_path, "wb") as f_out:
+            f_out.write(content)
+        original_filename = file.filename
+
+    doc = ProjectDocument(
+        project_id=proj.id, user_id=current_user.id,
+        doc_type=doc_type, title=title, file_path=file_path,
+        original_filename=original_filename, external_url=external_url,
+        notes=notes, draw_id=draw_id, category_id=category_id,
+    )
+    db.add(doc); db.commit(); db.refresh(doc)
+    return _doc_out(doc)
+
+
+@router.get("/documents/{doc_id}/file")
+async def download_document(doc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    doc = (db.query(ProjectDocument).join(Project, Project.id == ProjectDocument.project_id)
+           .filter(ProjectDocument.id == doc_id, Project.user_id == current_user.id).first())
+    if not doc or not doc.file_path:
+        raise HTTPException(status_code=404)
+    if not os.path.isfile(doc.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    from fastapi.responses import FileResponse as _FR
+    return _FR(doc.file_path, filename=doc.original_filename or Path(doc.file_path).name)
+
+
+@router.delete("/documents/{doc_id}")
+def delete_document(doc_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    doc = (db.query(ProjectDocument).join(Project, Project.id == ProjectDocument.project_id)
+           .filter(ProjectDocument.id == doc_id, Project.user_id == current_user.id).first())
+    if not doc:
+        raise HTTPException(status_code=404)
+    if doc.file_path and os.path.isfile(doc.file_path):
+        os.remove(doc.file_path)
+    db.delete(doc); db.commit()
     return {"message": "Deleted"}
 
 

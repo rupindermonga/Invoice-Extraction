@@ -442,6 +442,27 @@ class ChangeOrder(Base):
     category = relationship("CostCategory")
 
 
+class ProjectDocument(Base):
+    """Non-invoice documents filed against a project: contracts, permits, RFIs, submittals, etc."""
+    __tablename__ = "project_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    doc_type = Column(String, nullable=False)    # contract | permit | rfi | submittal | drawing | report | other
+    title = Column(String, nullable=False)
+    file_path = Column(String, nullable=True)    # stored on disk (nullable = link-only docs)
+    original_filename = Column(String, nullable=True)
+    external_url = Column(String, nullable=True) # optional link instead of file
+    notes = Column(Text, nullable=True)
+    draw_id = Column(Integer, ForeignKey("draws.id"), nullable=True)
+    category_id = Column(Integer, ForeignKey("cost_categories.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project")
+    user = relationship("User")
+
+
 class LenderToken(Base):
     """Shareable read-only token for external lender view of a draw package."""
     __tablename__ = "lender_tokens"

@@ -128,6 +128,48 @@ function app() {
     cashFlow: null,
     cashFlowLoading: false,
 
+    // ── Documents ─────────────────────────────────────────────────
+    documents: [],
+    docTypeFilter: 'all',
+    showDocModal: false,
+    docForm: { title:'', doc_type:'contract', notes:'', draw_id:'', category_id:'', external_url:'' },
+    docFile: null,
+    docFormError: '',
+    docFormLoading: false,
+
+    async loadDocuments() {
+      try { this.documents = await this.get(`/api/project/documents${this._pid}`); } catch(e) {}
+    },
+
+    async uploadDocument() {
+      if (!this.docForm.title.trim()) { this.docFormError = 'Title required'; return; }
+      this.docFormLoading = true; this.docFormError = '';
+      try {
+        const fd = new FormData();
+        fd.append('title', this.docForm.title);
+        fd.append('doc_type', this.docForm.doc_type);
+        if (this.docForm.notes) fd.append('notes', this.docForm.notes);
+        if (this.docForm.draw_id) fd.append('draw_id', this.docForm.draw_id);
+        if (this.docForm.category_id) fd.append('category_id', this.docForm.category_id);
+        if (this.docForm.external_url) fd.append('external_url', this.docForm.external_url);
+        if (this.docFile) fd.append('file', this.docFile);
+        const pid = this.currentProject ? '?project_id=' + this.currentProject.id : '';
+        const res = await fetch('/api/project/documents/upload' + pid, { method:'POST', headers:{Authorization:'Bearer '+this.token}, body:fd });
+        if (!res.ok) { const e=await res.json(); throw new Error(e.detail||'Upload failed'); }
+        this.showDocModal = false;
+        this.docFile = null;
+        this.docForm = { title:'', doc_type:'contract', notes:'', draw_id:'', category_id:'', external_url:'' };
+        await this.loadDocuments();
+      } catch(e) { this.docFormError = e.message; }
+      finally { this.docFormLoading = false; }
+    },
+
+    async deleteDocument(id) {
+      if (!confirm('Delete this document?')) return;
+      await this.del(`/api/project/documents/${id}`);
+      await this.loadDocuments();
+    },
+
     // ── Lender Tokens ─────────────────────────────────────────────
     lenderTokens: [],
     showLenderTokenModal: false,

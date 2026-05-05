@@ -575,6 +575,9 @@
         <button @click="view='subcontractors'; loadSubcontractors()" :class="view==='subcontractors' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
           <i class="fa-solid fa-hard-hat w-4"></i> Subcontractors
         </button>
+        <button @click="view='documents'; loadDocuments()" :class="view==='documents' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+          <i class="fa-solid fa-paperclip w-4"></i> Documents
+        </button>
         <button @click="view='lenderlinks'; loadLenderTokens()" :class="view==='lenderlinks' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
           <i class="fa-solid fa-share-nodes w-4"></i> Lender Links
         </button>
@@ -1521,6 +1524,72 @@
             </div>
           </div>
         </template>
+      </div>
+
+
+      <!-- ── DOCUMENTS ────────────────────────────────────────── -->
+      <div x-show="view==='documents'" class="p-6">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-paperclip mr-2 text-blue-600"></i>Documents</h2>
+            <p class="text-sm text-gray-500">Contracts, permits, RFIs, submittals, drawings — filed per project.</p>
+          </div>
+          <button @click="docForm={title:'',doc_type:'contract',notes:'',draw_id:'',category_id:'',external_url:''}; docFile=null; docFormError=''; showDocModal=true"
+                  class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition">
+            <i class="fa-solid fa-plus"></i> Add Document
+          </button>
+        </div>
+
+        <!-- Type filter pills -->
+        <div class="flex gap-2 mb-5 flex-wrap">
+          <template x-for="t in ['all','contract','permit','rfi','submittal','drawing','report','other']" :key="t">
+            <button @click="docTypeFilter=t"
+                    :class="docTypeFilter===t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium transition capitalize" x-text="t"></button>
+          </template>
+        </div>
+
+        <div x-show="documents.length===0" class="text-center text-gray-400 text-sm py-16">
+          <i class="fa-solid fa-folder-open text-3xl mb-3 text-gray-200"></i><br>No documents yet.
+        </div>
+
+        <div class="bg-white rounded-xl border overflow-hidden" x-show="documents.filter(d=>docTypeFilter==='all'||d.doc_type===docTypeFilter).length>0">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b text-xs text-gray-400 uppercase tracking-wide bg-gray-50">
+              <th class="text-left px-4 py-3">Title</th>
+              <th class="text-left px-4 py-3">Type</th>
+              <th class="text-left px-4 py-3">Draw / Category</th>
+              <th class="text-left px-4 py-3">Date</th>
+              <th class="px-4 py-3"></th>
+            </tr></thead>
+            <tbody>
+              <template x-for="doc in documents.filter(d=>docTypeFilter==='all'||d.doc_type===docTypeFilter)" :key="doc.id">
+                <tr class="border-b last:border-0 hover:bg-gray-50">
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-gray-800" x-text="doc.title"></div>
+                    <div x-show="doc.notes" class="text-xs text-gray-400 truncate max-w-xs" x-text="doc.notes"></div>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 capitalize" x-text="doc.doc_type"></span>
+                  </td>
+                  <td class="px-4 py-3 text-gray-500 text-xs" x-text="doc.draw_id ? 'Draw #'+doc.draw_id : (doc.category_id ? 'Category #'+doc.category_id : '—')"></td>
+                  <td class="px-4 py-3 text-gray-400 text-xs" x-text="doc.created_at?.slice(0,10)"></td>
+                  <td class="px-4 py-3 text-right flex items-center gap-2 justify-end">
+                    <a x-show="doc.has_file" :href="'/api/project/documents/'+doc.id+'/file'" target="_blank"
+                       class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1">
+                      <i class="fa-solid fa-download"></i> Download
+                    </a>
+                    <a x-show="doc.external_url && !doc.has_file" :href="doc.external_url" target="_blank"
+                       class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1">
+                      <i class="fa-solid fa-arrow-up-right-from-square"></i> Open
+                    </a>
+                    <button @click="deleteDocument(doc.id)" class="text-red-400 hover:text-red-600 text-xs ml-1"><i class="fa-solid fa-trash"></i></button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
       </div>
 
 
@@ -3011,6 +3080,71 @@
     </main>
     </div><!-- /app-row (sidebar + main) -->
   </div><!-- /app-shell (FinelStrip + app-row) -->
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       DOCUMENT UPLOAD MODAL
+  ══════════════════════════════════════════════════════════════ -->
+  <div x-show="showDocModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showDocModal=false">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-bold text-gray-800">Add Document</h3>
+        <button @click="showDocModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-700 mb-1">Title *</label>
+            <input x-model="docForm.title" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Structural Engineering Contract" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Type</label>
+            <select x-model="docForm.doc_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="contract">Contract</option>
+              <option value="permit">Permit</option>
+              <option value="rfi">RFI</option>
+              <option value="submittal">Submittal</option>
+              <option value="drawing">Drawing</option>
+              <option value="report">Report</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Link to Draw</label>
+            <select x-model="docForm.draw_id" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">No specific draw</option>
+              <template x-for="d in draws" :key="d.id">
+                <option :value="d.id" x-text="'Draw ' + d.draw_number"></option>
+              </template>
+            </select>
+          </div>
+          <!-- File upload -->
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-700 mb-1">File <span class="font-normal text-gray-400">(PDF, Word, Excel, PNG, JPG — max 50MB)</span></label>
+            <input type="file" accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.jpg,.jpeg,.png,.txt"
+                   @change="docFile = $event.target.files[0]"
+                   class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-blue-50 file:text-blue-700" />
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-700 mb-1">External URL <span class="font-normal text-gray-400">(optional — instead of uploading)</span></label>
+            <input x-model="docForm.external_url" type="url" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://" />
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+            <input x-model="docForm.notes" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+        <div x-show="docFormError" class="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="docFormError"></div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button @click="showDocModal=false" class="flex-1 border rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+        <button @click="uploadDocument()" :disabled="docFormLoading" class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition">
+          <span x-show="!docFormLoading">Save Document</span>
+          <span x-show="docFormLoading"><i class="fa-solid fa-spinner fa-spin mr-1"></i></span>
+        </button>
+      </div>
+    </div>
+  </div>
 
 
   <!-- ══════════════════════════════════════════════════════════════
