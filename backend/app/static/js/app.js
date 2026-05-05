@@ -128,6 +128,14 @@ function app() {
     cashFlow: null,
     cashFlowLoading: false,
 
+    // ── Subcontractors ────────────────────────────────────────────
+    subcontractors: [],
+    showSubModal: false,
+    subForm: { name:'', trade:'', contact_name:'', contact_email:'', contact_phone:'', contract_value:'', status:'active', insurance_expiry:'', wsib_expiry:'', notes:'' },
+    subFormError: '',
+    subFormLoading: false,
+    editingSubId: null,
+
     // ── Holdback & Approvals ──────────────────────────────────────
     holdbackFilter: 'outstanding',
     approvalFilter: 'pending',
@@ -270,6 +278,33 @@ function app() {
       } catch (e) {
         this.newProjectError = e.message || 'Failed to create project';
       } finally { this.newProjectLoading = false; }
+    },
+
+    async loadSubcontractors() {
+      try { this.subcontractors = await this.get(`/api/project/subcontractors${this._pid}`); } catch(e) {}
+    },
+
+    async saveSub() {
+      if (!this.subForm.name.trim()) { this.subFormError = 'Name is required.'; return; }
+      this.subFormLoading = true; this.subFormError = '';
+      try {
+        const payload = { ...this.subForm, contract_value: this.subForm.contract_value ? parseFloat(this.subForm.contract_value) : null };
+        if (this.editingSubId) {
+          await this.put(`/api/project/subcontractors/${this.editingSubId}`, payload);
+        } else {
+          await this.post(`/api/project/subcontractors${this._pid}`, payload);
+        }
+        this.showSubModal = false; this.editingSubId = null;
+        this.subForm = { name:'', trade:'', contact_name:'', contact_email:'', contact_phone:'', contract_value:'', status:'active', insurance_expiry:'', wsib_expiry:'', notes:'' };
+        await this.loadSubcontractors();
+      } catch(e) { this.subFormError = e.message || 'Save failed'; }
+      finally { this.subFormLoading = false; }
+    },
+
+    async deleteSub(id) {
+      if (!confirm('Delete this subcontractor?')) return;
+      await this.del(`/api/project/subcontractors/${id}`);
+      await this.loadSubcontractors();
     },
 
     async loadCashFlow() {

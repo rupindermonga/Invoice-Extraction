@@ -379,6 +379,27 @@ class PayrollEntry(Base):
     project = relationship("Project")
 
 
+class Subcontractor(Base):
+    """Vendor/subcontractor directory — contacts, contract values, insurance/WSIB status."""
+    __tablename__ = "subcontractors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    trade = Column(String, nullable=True)               # Electrical, Framing, Plumbing, etc.
+    contact_name = Column(String, nullable=True)
+    contact_email = Column(String, nullable=True)
+    contact_phone = Column(String, nullable=True)
+    contract_value = Column(Float, nullable=True)        # original contract amount
+    status = Column(String, default="active")            # active | complete | terminated
+    insurance_expiry = Column(String, nullable=True)     # YYYY-MM-DD
+    wsib_expiry = Column(String, nullable=True)          # YYYY-MM-DD
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project")
+
+
 class CommittedCost(Base):
     """An approved contract or PO — spend committed but not yet invoiced.
     Closes the gap between budget and invoiced in the budget vs actual view."""

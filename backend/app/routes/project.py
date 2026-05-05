@@ -14,7 +14,7 @@ from ..database import get_db
 from ..models import (
     User, Project, SubDivision, CostCategory, CostSubCategory,
     SubDivisionBudget, Invoice, InvoiceAllocation, Payment,
-    Draw, Claim, PayrollEntry, ChangeOrder, CommittedCost,
+    Draw, Claim, PayrollEntry, ChangeOrder, CommittedCost, Subcontractor,
 )
 from ..schemas import (
     ProjectCreate, ProjectUpdate, ProjectOut,
@@ -732,6 +732,71 @@ def delete_change_order(co_id: int, db: Session = Depends(get_db), current_user:
         raise HTTPException(status_code=404, detail="Change order not found")
     db.delete(co)
     db.commit()
+    return {"message": "Deleted"}
+
+
+# ─── Subcontractor Directory ─────────────────────────────────────────────────
+
+def _sub_out(s, today_str: str):
+    def _expiry_flag(d):
+        if not d: return "missing"
+        return "expired" if d < today_str else ("expiring_soon" if d <= today_str[:4] + "-" + str(int(today_str[5:7]) + 2).zfill(2) + "-" + today_str[8:] else "ok")
+    return {
+        "id": s.id, "name": s.name, "trade": s.trade,
+        "contact_name": s.contact_name, "contact_email": s.contact_email, "contact_phone": s.contact_phone,
+        "contract_value": s.contract_value, "status": s.status,
+        "insurance_expiry": s.insurance_expiry, "insurance_flag": _expiry_flag(s.insurance_expiry),
+        "wsib_expiry": s.wsib_expiry, "wsib_flag": _expiry_flag(s.wsib_expiry),
+        "notes": s.notes, "created_at": str(s.created_at),
+    }
+
+
+@router.get("/subcontractors")
+def list_subcontractors(proj: Optional[Project] = Depends(_get_proj), db: Session = Depends(get_db)):
+    if not proj:
+        return []
+    from datetime import datetime as _dt
+    today = _dt.utcnow().strftime("%Y-%m-%d")
+    return [_sub_out(s, today) for s in
+            db.query(Subcontractor).filter(Subcontractor.project_id == proj.id)
+            .order_by(Subcontractor.name).all()]
+
+
+@router.post("/subcontractors")
+def create_subcontractor(body: dict, proj: Project = Depends(_req_proj), db: Session = Depends(get_db)):
+    if not body.get("name"):
+        raise HTTPException(status_code=400, detail="name is required")
+    s = Subcontractor(
+        project_id=proj.id,
+        name=body["name"], trade=body.get("trade"),
+        contact_name=body.get("contact_name"), contact_email=body.get("contact_email"), contact_phone=body.get("contact_phone"),
+        contract_value=body.get("contract_value"), status=body.get("status", "active"),
+        insurance_expiry=body.get("insurance_expiry"), wsib_expiry=body.get("wsib_expiry"),
+        notes=body.get("notes"),
+    )
+    db.add(s); db.commit(); db.refresh(s)
+    from datetime import datetime as _dt
+    return _sub_out(s, _dt.utcnow().strftime("%Y-%m-%d"))
+
+
+@router.put("/subcontractors/{sub_id}")
+def update_subcontractor(sub_id: int, body: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    s = (db.query(Subcontractor).join(Project, Project.id == Subcontractor.project_id)
+         .filter(Subcontractor.id == sub_id, Project.user_id == current_user.id).first())
+    if not s: raise HTTPException(status_code=404)
+    for f in ("name","trade","contact_name","contact_email","contact_phone","contract_value","status","insurance_expiry","wsib_expiry","notes"):
+        if f in body: setattr(s, f, body[f])
+    db.commit(); db.refresh(s)
+    from datetime import datetime as _dt
+    return _sub_out(s, _dt.utcnow().strftime("%Y-%m-%d"))
+
+
+@router.delete("/subcontractors/{sub_id}")
+def delete_subcontractor(sub_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    s = (db.query(Subcontractor).join(Project, Project.id == Subcontractor.project_id)
+         .filter(Subcontractor.id == sub_id, Project.user_id == current_user.id).first())
+    if not s: raise HTTPException(status_code=404)
+    db.delete(s); db.commit()
     return {"message": "Deleted"}
 
 
