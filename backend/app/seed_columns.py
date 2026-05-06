@@ -71,12 +71,17 @@ def seed_default_columns(db: Session, user_id: int):
 
 
 def patch_existing_user_columns(db: Session, user_id: int):
-    """Add any missing columns to an existing user (run on login or startup)."""
+    """Ensure every user has all current default columns (add any missing ones).
+
+    Uses DEFAULT_COLUMNS as the source of truth — not just NEW_COLUMNS — so
+    that existing users who were seeded before a column was added get it too.
+    Idempotent: skips columns already present.
+    """
     existing_keys = {
         c.field_key for c in db.query(ColumnConfig).filter(ColumnConfig.user_id == user_id).all()
     }
     added = False
-    for col in NEW_COLUMNS:
+    for col in DEFAULT_COLUMNS:
         if col["field_key"] not in existing_keys:
             db.add(ColumnConfig(user_id=user_id, **col))
             added = True

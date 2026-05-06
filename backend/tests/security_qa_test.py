@@ -80,45 +80,42 @@ class TestAuthentication:
         r = requests.post(f"{BASE}/api/auth/login", json={"username": "admin", "password": "x' OR '1'='1"})
         assert r.status_code == 401
 
-    def test_register_new_user(self):
-        """Registration creates a new user (uses valid email domain)."""
+    def test_register_disabled(self):
+        """Public registration is intentionally disabled — returns 403."""
         ts = str(int(time.time()))
         r = register_user(f"testuser_{ts}", f"test_{ts}@example.com", "TestPass123!")
-        assert r.status_code == 200
+        assert r.status_code == 403, f"Expected 403 (disabled), got {r.status_code}"
 
-    def test_register_duplicate_username(self):
-        """Duplicate username is rejected."""
+    def test_register_duplicate_username_disabled(self):
+        """Public registration disabled — all register attempts return 403."""
         ts = str(int(time.time()))
         uname = f"duptest_{ts}"
-        register_user(uname, f"{uname}@example.com", "TestPass123!")
-        r2 = register_user(uname, f"{uname}2@example.com", "TestPass123!")
-        assert r2.status_code in (400, 409, 422)
+        r = register_user(uname, f"{uname}@example.com", "TestPass123!")
+        assert r.status_code == 403
 
-    def test_register_duplicate_email(self):
-        """Duplicate email is rejected."""
+    def test_register_duplicate_email_disabled(self):
+        """Public registration disabled — all register attempts return 403."""
         ts = str(int(time.time()))
-        email = f"dup_{ts}@example.com"
-        register_user(f"user1_{ts}", email, "TestPass123!")
-        r2 = register_user(f"user2_{ts}", email, "TestPass123!")
-        assert r2.status_code in (400, 409, 422)
+        r = register_user(f"user1_{ts}", f"dup_{ts}@example.com", "TestPass123!")
+        assert r.status_code == 403
 
-    def test_register_invalid_email(self):
-        """Registration with .local email domain is rejected by EmailStr."""
+    def test_register_invalid_payload_disabled(self):
+        """Public registration disabled — invalid payload also returns 403."""
         ts = str(int(time.time()))
         r = register_user(f"badmail_{ts}", f"bad_{ts}@qa.local", "TestPass123!")
-        assert r.status_code == 422, "EmailStr should reject .local domain"
+        assert r.status_code == 403
 
-    def test_register_short_password(self):
-        """Registration with password < 8 chars is rejected."""
+    def test_register_short_password_disabled(self):
+        """Public registration disabled — short password also returns 403."""
         ts = str(int(time.time()))
         r = register_user(f"short_{ts}", f"short_{ts}@example.com", "abc")
-        assert r.status_code == 422
+        assert r.status_code == 403
 
-    def test_register_short_username(self):
-        """Registration with username < 3 chars is rejected."""
+    def test_register_short_username_disabled(self):
+        """Public registration disabled — short username also returns 403."""
         ts = str(int(time.time()))
         r = register_user("ab", f"ab_{ts}@example.com", "TestPass123!")
-        assert r.status_code == 422
+        assert r.status_code == 403
 
     def test_token_required_for_protected_routes(self):
         """Protected routes reject requests without token."""

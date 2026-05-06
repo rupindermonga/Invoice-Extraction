@@ -60,11 +60,9 @@ async def upload_invoices(
         _proj = db.query(Project).filter(
             or_(Project.org_id == org.id, Project.user_id == current_user.id)
         ).order_by(Project.created_at).first()
-    if not check_api_key(db):
-        raise HTTPException(
-            status_code=400,
-            detail="No Gemini API key configured. Add one in Admin → Settings → API Keys, or set GEMINI_API_KEY in .env."
-        )
+    # API key check moved below per-file validation so malformed/malicious
+    # files are rejected for the correct reason before AI config is consulted.
+    _api_key_ok = check_api_key(db)
 
     results = []
     for upload in files:
@@ -115,6 +113,15 @@ async def upload_invoices(
                 "filename": upload.filename,
                 "status": "rejected",
                 "reason": "File content does not match any supported format (PDF, JPG, PNG, TIFF, WEBP)"
+            })
+            continue
+
+        # File is valid — now check Gemini API key before queueing processing
+        if not _api_key_ok:
+            results.append({
+                "filename": upload.filename,
+                "status": "rejected",
+                "reason": "No Gemini API key configured. Add one in Admin → Settings → API Keys, or set GEMINI_API_KEY in .env."
             })
             continue
 
