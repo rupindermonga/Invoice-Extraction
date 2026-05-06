@@ -14,9 +14,8 @@ from dotenv import load_dotenv
 
 from ..database import get_db
 from ..models import Invoice, User, Correction
-from ..dependencies import get_current_user
+from ..dependencies import get_current_user, get_current_org
 from ..schemas import InvoiceOut, InvoiceListResponse
-from ..dependencies import get_current_user
 
 load_dotenv()
 _UPLOAD_DIR = os.path.abspath(os.getenv("UPLOAD_FOLDER", "./uploads"))
@@ -27,8 +26,12 @@ router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 processing_store: dict = {}
 
 
-def _apply_filters(query, user_id, start_date, end_date, vendor, currency, status_filter):
-    query = query.filter(Invoice.user_id == user_id)
+def _apply_filters(query, user_id, start_date, end_date, vendor, currency, status_filter, org_id=None):
+    if org_id:
+        from sqlalchemy import or_
+        query = query.filter(or_(Invoice.org_id == org_id, Invoice.user_id == user_id))
+    else:
+        query = query.filter(Invoice.user_id == user_id)
     if start_date:
         query = query.filter(Invoice.invoice_date >= start_date)
     if end_date:
@@ -55,10 +58,12 @@ def list_invoices(
     claim_id: Optional[str] = None,
     unallocated: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    org_ctx=Depends(get_current_org),
 ):
+    org, _ = org_ctx
     query = db.query(Invoice)
-    query = _apply_filters(query, current_user.id, start_date, end_date, vendor, currency, status)
+    query = _apply_filters(query, current_user.id, start_date, end_date, vendor, currency, status, org_id=org.id)
     # Draw filter
     if draw_id == "none":
         query = query.filter(Invoice.draw_id.is_(None))

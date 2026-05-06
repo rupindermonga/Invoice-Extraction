@@ -28,6 +28,98 @@ def _safe_float(v: float | None, field: str, min_val: float = 0.0) -> float | No
     return v
 
 
+# ─── Organisation (Multi-Tenant) ─────────────────────────────────────────────
+
+_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9\-]{1,48}[a-z0-9]$")
+
+class OrgCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    slug: str = Field(..., min_length=3, max_length=50)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def clean_name(cls, v): return _strip_html(v) if isinstance(v, str) else v
+
+    @field_validator("slug")
+    @classmethod
+    def slug_safe(cls, v: str) -> str:
+        v = v.lower().strip()
+        if not _SLUG_RE.match(v):
+            raise ValueError("Slug must be 3-50 lowercase letters, digits, or hyphens")
+        return v
+
+class OrgUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=120)
+    plan: Optional[str] = None
+    is_active: Optional[bool] = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def clean_name(cls, v): return _strip_html(v) if isinstance(v, str) else v
+
+class OrgOut(BaseModel):
+    id: int
+    name: str
+    slug: str
+    plan: str
+    is_active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class OrgMemberOut(BaseModel):
+    id: int
+    org_id: int
+    user_id: int
+    username: str = ""
+    email: str = ""
+    role: str
+    is_active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class OrgMemberUpdate(BaseModel):
+    role: str
+    is_active: Optional[bool] = None
+
+class OrgVendorCreate(BaseModel):
+    vendor_code: Optional[str] = Field(None, max_length=50)
+    name: str = Field(..., min_length=1, max_length=200)
+    trade: Optional[str] = Field(None, max_length=100)
+    contact_name: Optional[str] = Field(None, max_length=100)
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    address: Optional[str] = None
+    payment_terms: Optional[str] = None
+    hst_number: Optional[str] = None
+    wsib_number: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator("name", "trade", "contact_name", mode="before")
+    @classmethod
+    def clean_text(cls, v): return _strip_html(v) if isinstance(v, str) else v
+
+class OrgVendorOut(BaseModel):
+    id: int
+    org_id: int
+    vendor_code: Optional[str]
+    name: str
+    trade: Optional[str]
+    contact_name: Optional[str]
+    contact_email: Optional[str]
+    contact_phone: Optional[str]
+    address: Optional[str]
+    payment_terms: Optional[str]
+    hst_number: Optional[str]
+    wsib_number: Optional[str]
+    notes: Optional[str]
+    is_active: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+
 # ─── Auth ────────────────────────────────────────────────────────────────────
 
 class UserCreate(BaseModel):
@@ -62,6 +154,8 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserOut
+    orgs: List["OrgOut"] = []
+    active_org_id: Optional[int] = None
 
 
 # ─── Column Config ────────────────────────────────────────────────────────────

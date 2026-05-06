@@ -29,21 +29,29 @@ from ..schemas import (
     ClaimCreate, ClaimUpdate, ClaimOut,
     InvoiceCostUpdate, PayrollEntryCreate, PayrollEntryUpdate, PayrollEntryOut,
 )
-from ..dependencies import get_current_user
+from ..dependencies import get_current_user, get_current_org
+from typing import Tuple
 
 router = APIRouter(prefix="/api/project", tags=["project"])
 
 
 # ─── Project resolver dependency ─────────────────────────────────────────────
-# Any endpoint that Depends on these automatically accepts ?project_id=N.
-# If project_id is omitted, the user's first project is used (backwards compat).
+# Resolves the active project, scoped to the current org (with user fallback
+# for backwards compat when org_id is not yet set on older records).
 
 def _get_proj(
     project_id: Optional[int] = None,
+    org_ctx: Tuple = Depends(get_current_org),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Optional[Project]:
-    q = db.query(Project).filter(Project.user_id == current_user.id)
+    org, _ = org_ctx
+    # Primary: filter by org_id (multi-tenant)
+    # Fallback: also accept projects owned by this user without an org_id yet (migration safety)
+    from sqlalchemy import or_
+    q = db.query(Project).filter(
+        or_(Project.org_id == org.id, Project.user_id == current_user.id)
+    )
     if project_id:
         q = q.filter(Project.id == project_id)
     return q.order_by(Project.created_at).first()
@@ -69,9 +77,16 @@ def get_project(proj: Optional[Project] = Depends(_get_proj)):
 
 
 @router.post("", response_model=ProjectOut)
-def create_project(body: ProjectCreate, project_type: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_project(
+    body: ProjectCreate,
+    project_type: Optional[str] = None,
+    org_ctx: Tuple = Depends(get_current_org),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Create a new project. Pass ?project_type= to auto-seed the category structure."""
-    proj = Project(user_id=current_user.id, **body.model_dump())
+    org, _ = org_ctx
+    proj = Project(user_id=current_user.id, org_id=org.id, **body.model_dump())
     db.add(proj)
     db.commit()
     db.refresh(proj)

@@ -8,9 +8,28 @@ import os
 import time
 
 from ..database import get_db
-from ..models import User
+from ..models import User, OrganizationMember, Organization
 from ..schemas import UserCreate, UserLogin, UserOut, Token
 from ..dependencies import get_current_user, SECRET_KEY, ALGORITHM
+
+
+def _user_orgs(user_id: int, db: Session) -> list:
+    """Return list of orgs the user belongs to (for login response)."""
+    memberships = (
+        db.query(OrganizationMember)
+        .filter(OrganizationMember.user_id == user_id, OrganizationMember.is_active == True)
+        .order_by(OrganizationMember.created_at)
+        .all()
+    )
+    result = []
+    for m in memberships:
+        org = db.query(Organization).filter(Organization.id == m.org_id, Organization.is_active == True).first()
+        if org:
+            result.append({
+                "id": org.id, "name": org.name, "slug": org.slug,
+                "plan": org.plan, "role": m.role,
+            })
+    return result
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -93,8 +112,17 @@ def login(body: UserLogin, request: Request = None, db: Session = Depends(get_db
     from ..seed_project import seed_project_finance
     seed_project_finance(db, user.id)
 
+    from ..seed_org import ensure_user_org
+    ensure_user_org(db, user)
+
     token = create_token(user.id)
-    return Token(access_token=token, token_type="bearer", user=UserOut.model_validate(user))
+    orgs = _user_orgs(user.id, db)
+    return Token(
+        access_token=token, token_type="bearer",
+        user=UserOut.model_validate(user),
+        orgs=orgs,
+        active_org_id=orgs[0]["id"] if orgs else None,
+    )
 
 
 @router.post("/demo", response_model=Token)
@@ -109,8 +137,16 @@ def demo_login(request: Request = None, db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail="Demo account not initialized. Contact the administrator.")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Demo account is disabled.")
+    from ..seed_org import ensure_user_org
+    ensure_user_org(db, user)
     token = create_token(user.id)
-    return Token(access_token=token, token_type="bearer", user=UserOut.model_validate(user))
+    orgs = _user_orgs(user.id, db)
+    return Token(
+        access_token=token, token_type="bearer",
+        user=UserOut.model_validate(user),
+        orgs=orgs,
+        active_org_id=orgs[0]["id"] if orgs else None,
+    )
 
 
 @router.get("/me", response_model=UserOut)

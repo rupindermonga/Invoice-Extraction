@@ -560,6 +560,38 @@
         <span><strong>Demo mode</strong> — sample project data. Sign in for your own account.</span>
       </div>
 
+      <!-- Org switcher -->
+      <div class="relative mx-3 mt-3" x-data="{ open: false }">
+        <button @click="open=!open"
+                class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition border border-slate-600">
+          <div class="flex items-center gap-2 min-w-0">
+            <i class="fa-solid fa-building text-purple-400 text-xs flex-shrink-0"></i>
+            <span class="truncate text-xs font-semibold text-white" x-text="currentOrg?.name || 'No organization'"></span>
+            <span class="text-xs px-1.5 rounded text-purple-300 bg-purple-900/50 flex-shrink-0" x-text="currentOrg?.role || ''"></span>
+          </div>
+          <svg class="w-3 h-3 flex-shrink-0 text-slate-400 transition-transform" :class="open?'rotate-180':''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open" @click.outside="open=false" x-transition
+             class="absolute left-0 right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 max-h-56 overflow-y-auto">
+          <template x-for="o in orgs" :key="o.id">
+            <button @click="switchOrg(o); open=false"
+                    class="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-700 transition"
+                    :class="currentOrg?.id===o.id?'text-purple-300 font-semibold':'text-slate-200'">
+              <i class="fa-solid fa-check w-3" x-show="currentOrg?.id===o.id"></i>
+              <i class="fa-regular fa-building w-3 text-slate-400" x-show="currentOrg?.id!==o.id"></i>
+              <span class="truncate flex-1" x-text="o.name"></span>
+              <span class="text-xs text-slate-400" x-text="o.role"></span>
+            </button>
+          </template>
+          <div class="border-t border-slate-700 mt-1 pt-1 px-2 pb-2">
+            <button @click="open=false; showOrgModal=true"
+                    class="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-purple-400 hover:text-purple-300 hover:bg-slate-700 rounded transition">
+              <i class="fa-solid fa-plus w-3"></i> Create organization
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Project switcher -->
       <div class="relative mx-3 mt-3" x-data="{ open: false }">
         <button @click="open = !open"
@@ -649,6 +681,15 @@
           <i class="fa-solid fa-brain w-4"></i>
           <span class="flex-1 text-left">AI Insights</span>
           <span x-show="aiInsights && aiInsights.total_alerts > 0" x-text="aiInsights?.total_alerts" class="bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"></span>
+        </button>
+        <button @click="view='org-settings'; loadOrgMembers(); sidebarOpen=false" :class="view==='org-settings' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+          <i class="fa-solid fa-building w-4"></i> Organization
+        </button>
+        <button @click="view='vendors'; loadOrgVendors(); sidebarOpen=false" :class="view==='vendors' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+          <i class="fa-solid fa-address-book w-4"></i> Vendor Directory
+        </button>
+        <button x-show="user?.is_admin" @click="view='superadmin'; loadAllOrgs(); sidebarOpen=false" :class="view==='superadmin' ? 'bg-red-700' : 'hover:bg-red-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition text-red-200">
+          <i class="fa-solid fa-shield-halved w-4"></i> Super Admin
         </button>
         <button @click="view='settings'; sidebarOpen=false" :class="view==='settings' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
           <i class="fa-solid fa-gear w-4"></i> Settings
@@ -4141,6 +4182,212 @@
       </div>
 
 
+      <!-- ── ORGANIZATION SETTINGS ────────────────────────────────── -->
+      <div x-show="view==='org-settings'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-building mr-2 text-purple-600"></i>Organization</h2>
+            <p class="text-sm text-gray-500" x-text="currentOrg?.name + ' · ' + currentOrg?.slug"></p>
+          </div>
+          <span class="text-xs px-3 py-1.5 rounded-full font-semibold bg-purple-100 text-purple-700" x-text="currentOrg?.plan?.toUpperCase()"></span>
+        </div>
+
+        <!-- Org summary cards -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-purple-600" x-text="orgMembers.filter(m=>m.is_active).length"></div>
+            <div class="text-xs text-gray-400 mt-1">Active Members</div>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-blue-600" x-text="projects.length"></div>
+            <div class="text-xs text-gray-400 mt-1">Projects</div>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-gray-700" x-text="currentOrg?.role || '—'"></div>
+            <div class="text-xs text-gray-400 mt-1">Your Role</div>
+          </div>
+        </div>
+
+        <!-- Members table -->
+        <div class="bg-white border rounded-xl overflow-hidden mb-6">
+          <div class="flex items-center justify-between px-5 py-4 border-b">
+            <h3 class="font-semibold text-gray-800">Team Members</h3>
+            <button x-show="['owner','admin'].includes(currentOrg?.role)"
+                    @click="showMemberModal=true"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition">
+              <i class="fa-solid fa-user-plus"></i> Add Member
+            </button>
+          </div>
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+              <tr>
+                <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500">Member</th>
+                <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500">Email</th>
+                <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500">Role</th>
+                <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
+                <th x-show="['owner','admin'].includes(currentOrg?.role)" class="text-center px-4 py-3 text-xs font-semibold text-gray-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              <template x-for="m in orgMembers" :key="m.id">
+                <tr class="hover:bg-gray-50" :class="!m.is_active?'opacity-50':''">
+                  <td class="px-5 py-3 font-medium text-gray-800" x-text="m.username"></td>
+                  <td class="px-4 py-3 text-gray-500 text-xs" x-text="m.email"></td>
+                  <td class="px-4 py-3 text-center">
+                    <span class="text-xs px-2 py-0.5 rounded-full font-semibold" :class="roleBadge(m.role)" x-text="m.role"></span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <span class="text-xs" :class="m.is_active?'text-green-600':'text-red-500'" x-text="m.is_active?'Active':'Inactive'"></span>
+                  </td>
+                  <td x-show="['owner','admin'].includes(currentOrg?.role)" class="px-4 py-3 text-center space-x-1">
+                    <select x-show="m.role!=='owner' || orgMembers.filter(x=>x.role==='owner'&&x.is_active).length>1"
+                            @change="updateMemberRole(m.id, $event.target.value)"
+                            class="text-xs border rounded px-2 py-1">
+                      <option value="owner" :selected="m.role==='owner'">Owner</option>
+                      <option value="admin" :selected="m.role==='admin'">Admin</option>
+                      <option value="editor" :selected="m.role==='editor'">Editor</option>
+                      <option value="viewer" :selected="m.role==='viewer'">Viewer</option>
+                    </select>
+                    <button @click="removeMember(m.id)" x-show="m.is_active && m.user_id!==user?.id"
+                            class="text-xs px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100">
+                      <i class="fa-solid fa-user-minus"></i>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="orgMembers.length===0">
+                <td colspan="5" class="text-center text-gray-400 text-sm py-6">No members yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Roles legend -->
+        <div class="bg-gray-50 border rounded-xl p-4 text-xs text-gray-500">
+          <div class="font-semibold text-gray-700 mb-2">Role Permissions</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div><span class="font-bold text-purple-700">Owner</span> — full control, billing, delete org</div>
+            <div><span class="font-bold text-blue-700">Admin</span> — add members, manage projects, all data</div>
+            <div><span class="font-bold text-green-700">Editor</span> — create/edit all project data, upload invoices</div>
+            <div><span class="font-bold text-gray-600">Viewer</span> — read-only access to all data</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── VENDOR DIRECTORY ───────────────────────────────────────── -->
+      <div x-show="view==='vendors'" class="p-6">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-address-book mr-2 text-blue-600"></i>Vendor Directory</h2>
+            <p class="text-sm text-gray-500">Organisation-level vendor registry — reusable across all projects.</p>
+          </div>
+          <button @click="editingVendorId=null; vendorForm={vendor_code:'',name:'',trade:'',contact_name:'',contact_email:'',contact_phone:'',payment_terms:'',hst_number:'',notes:''}; showVendorModal=true"
+                  class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition">
+            <i class="fa-solid fa-plus"></i> Add Vendor
+          </button>
+        </div>
+
+        <!-- Search -->
+        <div class="mb-4 flex gap-3">
+          <div class="flex-1 relative">
+            <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+            <input x-model="orgVendorSearch" type="text" placeholder="Search by name, code, or trade…" class="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+        </div>
+
+        <!-- Vendor table -->
+        <div class="bg-white border rounded-xl overflow-hidden mobile-scroll">
+          <div class="grid text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3 bg-gray-50 border-b"
+               style="grid-template-columns: 80px 1.5fr 1fr 1fr 1fr 1fr 80px">
+            <div>Code</div><div>Vendor</div><div>Trade</div><div>Contact</div><div>Payment Terms</div><div>HST #</div><div class="text-center">Actions</div>
+          </div>
+          <div x-show="filteredOrgVendors.length===0" class="text-center text-gray-400 text-sm py-10">No vendors yet. Click "Add Vendor" to create your first entry.</div>
+          <template x-for="v in filteredOrgVendors" :key="v.id">
+            <div class="grid px-5 py-3 border-b items-center hover:bg-gray-50 text-sm"
+                 style="grid-template-columns: 80px 1.5fr 1fr 1fr 1fr 1fr 80px">
+              <div class="text-xs font-mono text-gray-500" x-text="v.vendor_code||'—'"></div>
+              <div>
+                <div class="font-medium text-gray-800" x-text="v.name"></div>
+                <div class="text-xs text-gray-400" x-text="v.contact_email||''"></div>
+              </div>
+              <div class="text-gray-600 text-xs" x-text="v.trade||'—'"></div>
+              <div class="text-gray-600 text-xs" x-text="v.contact_name||'—'"></div>
+              <div class="text-gray-600 text-xs" x-text="v.payment_terms||'—'"></div>
+              <div class="text-gray-600 text-xs font-mono" x-text="v.hst_number||'—'"></div>
+              <div class="flex gap-1 justify-center">
+                <button @click="editVendor(v)" class="p-1.5 rounded bg-gray-50 hover:bg-gray-100 text-gray-600"><i class="fa-solid fa-pen text-xs"></i></button>
+                <button @click="deleteVendor(v.id)" class="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-600"><i class="fa-solid fa-trash text-xs"></i></button>
+              </div>
+            </div>
+          </template>
+        </div>
+        <p class="text-xs text-gray-400 mt-3">Total: <strong x-text="orgVendors.length"></strong> vendor(s)</p>
+      </div>
+
+      <!-- ── SUPER-ADMIN ─────────────────────────────────────────────── -->
+      <div x-show="view==='superadmin'" class="p-6">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-shield-halved mr-2 text-red-600"></i>Super Admin — All Organizations</h2>
+            <p class="text-sm text-gray-500">Manage all tenants on this instance.</p>
+          </div>
+          <button @click="loadAllOrgs()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-100 rounded-lg hover:bg-gray-200 transition">
+            <i class="fa-solid fa-rotate-right"></i> Refresh
+          </button>
+        </div>
+
+        <!-- Stats strip -->
+        <div class="grid grid-cols-3 gap-4 mb-5">
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-gray-800" x-text="allOrgsList.length"></div>
+            <div class="text-xs text-gray-400 mt-1">Total Organizations</div>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-green-600" x-text="allOrgsList.filter(o=>o.is_active).length"></div>
+            <div class="text-xs text-gray-400 mt-1">Active</div>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-blue-600" x-text="allOrgsList.reduce((s,o)=>s+(o.project_count||0),0)"></div>
+            <div class="text-xs text-gray-400 mt-1">Total Projects</div>
+          </div>
+        </div>
+
+        <!-- Org table -->
+        <div class="bg-white border rounded-xl overflow-hidden mobile-scroll">
+          <div class="grid text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3 bg-gray-50 border-b"
+               style="grid-template-columns: 1fr 100px 80px 70px 70px 70px 80px 80px">
+            <div>Organization</div><div>Slug</div><div>Plan</div><div class="text-right">Members</div><div class="text-right">Projects</div><div class="text-right">Invoices</div><div class="text-center">Status</div><div class="text-center">Actions</div>
+          </div>
+          <template x-for="o in allOrgsList" :key="o.id">
+            <div class="grid px-5 py-3 border-b items-center hover:bg-gray-50 text-sm"
+                 style="grid-template-columns: 1fr 100px 80px 70px 70px 70px 80px 80px"
+                 :class="!o.is_active?'bg-red-50':''">
+              <div>
+                <div class="font-semibold text-gray-800" x-text="o.name"></div>
+                <div class="text-xs text-gray-400" x-text="'Created '+o.created_at?.slice(0,10)"></div>
+              </div>
+              <div class="text-xs font-mono text-gray-500" x-text="o.slug"></div>
+              <div>
+                <span class="text-xs px-2 py-0.5 rounded font-medium" :class="o.plan==='enterprise'?'bg-purple-100 text-purple-700':o.plan==='pro'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-600'" x-text="o.plan"></span>
+              </div>
+              <div class="text-right text-gray-700 font-medium" x-text="o.member_count||0"></div>
+              <div class="text-right text-gray-700 font-medium" x-text="o.project_count||0"></div>
+              <div class="text-right text-gray-700 font-medium" x-text="o.invoice_count||0"></div>
+              <div class="text-center">
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-full" :class="o.is_active?'bg-green-100 text-green-700':'bg-red-100 text-red-600'" x-text="o.is_active?'Active':'Suspended'"></span>
+              </div>
+              <div class="text-center">
+                <button @click="toggleOrgActive(o.id)"
+                        class="text-xs px-2 py-1 rounded transition"
+                        :class="o.is_active?'bg-red-50 text-red-600 hover:bg-red-100':'bg-green-50 text-green-600 hover:bg-green-100'"
+                        x-text="o.is_active?'Suspend':'Activate'"></button>
+              </div>
+            </div>
+          </template>
+          <div x-show="allOrgsList.length===0" class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading…</div>
+        </div>
+      </div>
+
       <!-- ── SETTINGS ───────────────────────────────────────────────── -->
       <div x-show="view==='settings'" class="p-6 max-w-3xl">
         <h2 class="text-xl font-bold text-gray-800 mb-6">Settings</h2>
@@ -4226,6 +4473,130 @@
   <!-- ══════════════════════════════════════════════════════════════
        MILESTONE MODAL
   ══════════════════════════════════════════════════════════════ -->
+  <!-- ══════════════════════════════════════════════════════════════
+       CREATE ORGANIZATION MODAL
+  ══════════════════════════════════════════════════════════════ -->
+  <div x-show="showOrgModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showOrgModal=false">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-building mr-2 text-purple-600"></i>Create Organization</h3>
+        <button @click="showOrgModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Organization Name *</label>
+          <input x-model="orgForm.name" @input="autoSlug()" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none" placeholder="Acme Construction Inc." />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Slug * <span class="text-gray-400 font-normal">(URL-safe ID, e.g. acme-construction)</span></label>
+          <input x-model="orgForm.slug" class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-purple-400 focus:outline-none" placeholder="acme-construction" />
+          <p class="text-xs text-gray-400 mt-1">Lowercase letters, digits, hyphens only. Cannot be changed later.</p>
+        </div>
+        <div x-show="orgFormError" class="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="orgFormError"></div>
+        <div class="flex gap-3 pt-2">
+          <button @click="showOrgModal=false" class="flex-1 border rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button @click="createOrg()" :disabled="orgFormLoading" class="flex-1 bg-purple-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">
+            <span x-show="!orgFormLoading">Create Organization</span>
+            <span x-show="orgFormLoading"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Creating…</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ADD MEMBER MODAL
+  ══════════════════════════════════════════════════════════════ -->
+  <div x-show="showMemberModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showMemberModal=false">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-user-plus mr-2 text-purple-600"></i>Add Team Member</h3>
+        <button @click="showMemberModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Username or Email *</label>
+          <input x-model="memberForm.username" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none" placeholder="username or email@company.com" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Role</label>
+          <select x-model="memberForm.role" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-400 focus:outline-none">
+            <option value="owner">Owner — full control</option>
+            <option value="admin">Admin — manage members & projects</option>
+            <option value="editor" selected>Editor — create & edit data</option>
+            <option value="viewer">Viewer — read only</option>
+          </select>
+        </div>
+        <div x-show="memberFormError" class="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="memberFormError"></div>
+        <div class="flex gap-3 pt-2">
+          <button @click="showMemberModal=false" class="flex-1 border rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button @click="addMember()" :disabled="memberFormLoading" class="flex-1 bg-purple-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">
+            <span x-show="!memberFormLoading">Add Member</span>
+            <span x-show="memberFormLoading"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Adding…</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       ADD / EDIT VENDOR MODAL
+  ══════════════════════════════════════════════════════════════ -->
+  <div x-show="showVendorModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showVendorModal=false">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-bold text-gray-800" x-text="editingVendorId ? 'Edit Vendor' : 'Add Vendor'"></h3>
+        <button @click="showVendorModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Vendor Name *</label>
+          <input x-model="vendorForm.name" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="ABC Electrical Ltd." />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Vendor Code</label>
+          <input x-model="vendorForm.vendor_code" class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="VEN-001" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Trade / Category</label>
+          <input x-model="vendorForm.trade" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="Electrical" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Payment Terms</label>
+          <input x-model="vendorForm.payment_terms" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="Net 30" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Contact Name</label>
+          <input x-model="vendorForm.contact_name" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Contact Email</label>
+          <input x-model="vendorForm.contact_email" type="email" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+          <input x-model="vendorForm.contact_phone" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">HST / GST Number</label>
+          <input x-model="vendorForm.hst_number" class="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="123456789 RT0001" />
+        </div>
+        <div class="col-span-2">
+          <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+          <textarea x-model="vendorForm.notes" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"></textarea>
+        </div>
+      </div>
+      <div x-show="vendorFormError" class="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2 mt-3" x-text="vendorFormError"></div>
+      <div class="flex gap-3 mt-5">
+        <button @click="showVendorModal=false" class="flex-1 border rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+        <button @click="saveVendor()" :disabled="vendorFormLoading" class="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+          <span x-show="!vendorFormLoading" x-text="editingVendorId ? 'Save Changes' : 'Add Vendor'"></span>
+          <span x-show="vendorFormLoading"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Saving…</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div x-show="showMsModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showMsModal=false">
     <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
       <div class="flex items-center justify-between mb-6">

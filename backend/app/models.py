@@ -26,6 +26,7 @@ class Invoice(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    org_id  = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
     # Source tracking
     source = Column(String, default="upload")  # upload | email | folder
@@ -175,6 +176,67 @@ class Correction(Base):
     user = relationship("User")
 
 
+# ─── Multi-Tenant: Organization & Members ─────────────────────────────────────
+
+class Organization(Base):
+    """A company/tenant. All data is scoped to an org."""
+    __tablename__ = "organizations"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    name        = Column(String, nullable=False)
+    slug        = Column(String, unique=True, nullable=False, index=True)   # url-safe short id
+    plan        = Column(String, default="starter")   # starter | pro | enterprise
+    is_active   = Column(Boolean, default=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    members     = relationship("OrganizationMember", back_populates="organization",
+                               cascade="all, delete-orphan",
+                               foreign_keys="OrganizationMember.org_id")
+    vendors     = relationship("OrgVendor", back_populates="organization",
+                               cascade="all, delete-orphan")
+
+
+class OrganizationMember(Base):
+    """Maps a User to an Organization with a role."""
+    __tablename__ = "organization_members"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    role        = Column(String, default="editor")    # owner | admin | editor | viewer
+    is_active   = Column(Boolean, default=True)
+    invited_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    organization = relationship("Organization", back_populates="members",
+                                foreign_keys=[org_id])
+    user         = relationship("User", foreign_keys=[user_id])
+    inviter      = relationship("User", foreign_keys=[invited_by])
+
+
+class OrgVendor(Base):
+    """Organisation-level vendor/supplier directory — reusable across all projects."""
+    __tablename__ = "org_vendors"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    vendor_code     = Column(String, nullable=True)       # internal ID (e.g. VEN-001)
+    name            = Column(String, nullable=False)
+    trade           = Column(String, nullable=True)
+    contact_name    = Column(String, nullable=True)
+    contact_email   = Column(String, nullable=True)
+    contact_phone   = Column(String, nullable=True)
+    address         = Column(String, nullable=True)
+    payment_terms   = Column(String, nullable=True)       # Net 30, Net 60, etc.
+    hst_number      = Column(String, nullable=True)       # GST/HST registration
+    wsib_number     = Column(String, nullable=True)
+    notes           = Column(Text, nullable=True)
+    is_active       = Column(Boolean, default=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    organization = relationship("Organization", back_populates="vendors")
+
+
 # ─── Project Finance Models ──────────────────────────────────────────────────
 
 class Project(Base):
@@ -182,6 +244,7 @@ class Project(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    org_id  = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     name = Column(String, nullable=False)
     code = Column(String, nullable=True)
     client = Column(String, nullable=True)

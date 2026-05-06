@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org
 
 
 def _run_migrations():
@@ -155,6 +155,46 @@ def _run_migrations():
                 notes TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )""",
+            # Multi-tenant: organisations
+            """CREATE TABLE IF NOT EXISTS organizations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                plan TEXT DEFAULT 'starter',
+                is_active INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS organization_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                role TEXT DEFAULT 'editor',
+                is_active INTEGER DEFAULT 1,
+                invited_by INTEGER REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS org_vendors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                vendor_code TEXT,
+                name TEXT NOT NULL,
+                trade TEXT,
+                contact_name TEXT,
+                contact_email TEXT,
+                contact_phone TEXT,
+                address TEXT,
+                payment_terms TEXT,
+                hst_number TEXT,
+                wsib_number TEXT,
+                notes TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "ALTER TABLE projects ADD COLUMN org_id INTEGER REFERENCES organizations(id)",
+            "ALTER TABLE invoices ADD COLUMN org_id INTEGER REFERENCES organizations(id)",
+            "CREATE INDEX IF NOT EXISTS ix_projects_org_id ON projects(org_id)",
+            "CREATE INDEX IF NOT EXISTS ix_invoices_org_id ON invoices(org_id)",
+            "CREATE INDEX IF NOT EXISTS ix_org_members_org_user ON organization_members(org_id, user_id)",
             # AI suggestions log (optional — stores Gemini suggestions for audit)
             """CREATE TABLE IF NOT EXISTS ai_suggestions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -200,11 +240,29 @@ def _retire_default_admin():
         db.close()
 
 
+def _seed_existing_user_orgs():
+    """On startup: ensure every existing user has an org (migration for pre-org users)."""
+    from .database import SessionLocal
+    from .models import User as _User
+    from .seed_org import ensure_user_org
+    db = SessionLocal()
+    try:
+        users = db.query(_User).filter(_User.is_active == True).all()
+        for user in users:
+            try:
+                ensure_user_org(db, user)
+            except Exception:
+                db.rollback()
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     _run_migrations()
     _retire_default_admin()
+    _seed_existing_user_orgs()
     _upload_dir = os.getenv("UPLOAD_FOLDER", "./uploads")
     os.makedirs(_upload_dir, mode=0o700, exist_ok=True)
     os.makedirs(os.path.join(_upload_dir, "docs"), mode=0o700, exist_ok=True)
@@ -256,8 +314,9 @@ app.add_middleware(
     allow_origins=_allowed_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-Organization-Id"],
 )
+
 
 # API routes
 app.include_router(auth.router)
@@ -270,6 +329,7 @@ app.include_router(admin.router)
 app.include_router(project.router)
 app.include_router(project._lender_router)
 app.include_router(filetools.router)
+app.include_router(org.router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")

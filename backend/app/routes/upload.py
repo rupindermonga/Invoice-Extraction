@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ..database import get_db
 from ..models import Invoice, User, Project
-from ..dependencies import get_current_user
+from ..dependencies import get_current_user, get_current_org
 from ..services.extractor import save_upload_file, process_invoice_file
 from ..services.gemini import check_api_key
 from .invoices import processing_store
@@ -43,14 +43,23 @@ async def upload_invoices(
     files: List[UploadFile] = File(...),
     project_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    org_ctx=Depends(get_current_org),
 ):
-    # Resolve project for tagging invoices (fallback to first project)
+    org, _ = org_ctx
+    # Resolve project for tagging invoices (org-scoped, fallback to first project)
     _proj = None
     if project_id:
-        _proj = db.query(Project).filter(Project.id == project_id, Project.user_id == current_user.id).first()
+        from sqlalchemy import or_
+        _proj = db.query(Project).filter(
+            Project.id == project_id,
+            or_(Project.org_id == org.id, Project.user_id == current_user.id),
+        ).first()
     if not _proj:
-        _proj = db.query(Project).filter(Project.user_id == current_user.id).order_by(Project.created_at).first()
+        from sqlalchemy import or_
+        _proj = db.query(Project).filter(
+            or_(Project.org_id == org.id, Project.user_id == current_user.id)
+        ).order_by(Project.created_at).first()
     if not check_api_key(db):
         raise HTTPException(
             status_code=400,
@@ -115,6 +124,7 @@ async def upload_invoices(
         # Create invoice record
         invoice = Invoice(
             user_id=current_user.id,
+            org_id=org.id,
             project_id=_proj.id if _proj else None,
             source="upload",
             source_file=saved_path,

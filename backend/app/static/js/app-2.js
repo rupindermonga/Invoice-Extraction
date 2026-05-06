@@ -17,6 +17,27 @@ function app() {
     // ── Mobile sidebar ────────────────────────────────────────────
     sidebarOpen: false,
 
+    // ── Organisation (multi-tenant) ───────────────────────────────
+    orgs: [],
+    currentOrg: null,
+    orgMembers: [],
+    orgVendors: [],
+    showOrgModal: false,          // create org modal
+    showMemberModal: false,
+    showVendorModal: false,
+    orgForm: { name: '', slug: '' },
+    orgFormError: '',
+    orgFormLoading: false,
+    memberForm: { username: '', role: 'editor' },
+    memberFormError: '',
+    memberFormLoading: false,
+    vendorForm: { vendor_code: '', name: '', trade: '', contact_name: '', contact_email: '', contact_phone: '', payment_terms: '', hst_number: '', notes: '' },
+    vendorFormError: '',
+    vendorFormLoading: false,
+    editingVendorId: null,
+    orgVendorSearch: '',
+    allOrgsList: [],              // super-admin: all orgs
+
     // ── Multi-project ──────────────────────────────────────────────
     projects: [],
     currentProject: null,
@@ -487,6 +508,12 @@ function app() {
       if (saved && savedUser) {
         this.token = saved;
         this.user = JSON.parse(savedUser);
+        // Restore org context — fetch fresh from server to get membership list
+        try {
+          this.orgs = await this.get('/api/org');
+          const savedOrgId = parseInt(localStorage.getItem('currentOrgId'));
+          this.currentOrg = (savedOrgId && this.orgs.find(o => o.id === savedOrgId)) || this.orgs[0] || null;
+        } catch(e) { this.orgs = []; }
         this.view = 'dashboard';
         await this.loadProjects();
         await Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()]);
@@ -525,8 +552,15 @@ function app() {
     setAuth(data) {
       this.token = data.access_token;
       this.user = data.user;
+      // Set org context from login response
+      this.orgs = data.orgs || [];
+      const savedOrgId = parseInt(localStorage.getItem('currentOrgId'));
+      this.currentOrg = (savedOrgId && this.orgs.find(o => o.id === savedOrgId))
+        || (data.active_org_id && this.orgs.find(o => o.id === data.active_org_id))
+        || this.orgs[0] || null;
       localStorage.setItem('invoice_token', this.token);
       localStorage.setItem('invoice_user', JSON.stringify(this.user));
+      if (this.currentOrg) localStorage.setItem('currentOrgId', this.currentOrg.id);
       this.view = 'dashboard';
       this.loadProjects().then(() => {
         Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()])
@@ -534,13 +568,120 @@ function app() {
       });
     },
 
+    switchOrg(org) {
+      this.currentOrg = org;
+      localStorage.setItem('currentOrgId', org.id);
+      // Reset project-scoped state
+      this.projects = []; this.currentProject = null; this.projectDash = null;
+      this.financeInvoices = []; this.aiInsights = null;
+      Promise.all([
+        this.loadProjects(),
+        this.loadInvoices(),
+        this.loadStats(),
+      ]);
+    },
+
     logout() {
-      this.token = null;
-      this.user = null;
+      this.token = null; this.user = null;
+      this.orgs = []; this.currentOrg = null;
       localStorage.removeItem('invoice_token');
       localStorage.removeItem('invoice_user');
+      localStorage.removeItem('currentOrgId');
       if (this.sseSource) this.sseSource.close();
       this.view = 'landing';
+    },
+
+    // ── Org management ────────────────────────────────────────────
+    async loadOrgMembers() {
+      try { this.orgMembers = await this.get('/api/org/members'); } catch(e) {}
+    },
+
+    async loadOrgVendors() {
+      try { this.orgVendors = await this.get('/api/org/vendors'); } catch(e) {}
+    },
+
+    async createOrg() {
+      if (!this.orgForm.name.trim()) { this.orgFormError = 'Name required'; return; }
+      if (!this.orgForm.slug.trim()) { this.orgFormError = 'Slug required'; return; }
+      this.orgFormLoading = true; this.orgFormError = '';
+      try {
+        const org = await this.post('/api/org', this.orgForm);
+        this.orgs.push(org);
+        this.showOrgModal = false;
+        this.orgForm = { name: '', slug: '' };
+        if (!this.currentOrg) this.switchOrg(org);
+      } catch(e) { this.orgFormError = e.message; }
+      finally { this.orgFormLoading = false; }
+    },
+
+    autoSlug() {
+      this.orgForm.slug = this.orgForm.name.toLowerCase()
+        .replace(/[^a-z0-9\s\-]/g, '').trim().replace(/\s+/g, '-').replace(/\-+/g, '-').slice(0, 48);
+    },
+
+    async addMember() {
+      if (!this.memberForm.username.trim()) { this.memberFormError = 'Username required'; return; }
+      this.memberFormLoading = true; this.memberFormError = '';
+      try {
+        await this.post('/api/org/members', this.memberForm);
+        this.showMemberModal = false;
+        this.memberForm = { username: '', role: 'editor' };
+        await this.loadOrgMembers();
+      } catch(e) { this.memberFormError = e.message; }
+      finally { this.memberFormLoading = false; }
+    },
+
+    async updateMemberRole(memberId, role) {
+      try { await this.put(`/api/org/members/${memberId}`, { role }); await this.loadOrgMembers(); } catch(e) { alert(e.message); }
+    },
+
+    async removeMember(memberId) {
+      if (!confirm('Remove this member from the organization?')) return;
+      try { await this.del(`/api/org/members/${memberId}`); await this.loadOrgMembers(); } catch(e) { alert(e.message); }
+    },
+
+    async saveVendor() {
+      if (!this.vendorForm.name.trim()) { this.vendorFormError = 'Name required'; return; }
+      this.vendorFormLoading = true; this.vendorFormError = '';
+      try {
+        const payload = { ...this.vendorForm };
+        if (this.editingVendorId) await this.put(`/api/org/vendors/${this.editingVendorId}`, payload);
+        else await this.post('/api/org/vendors', payload);
+        this.showVendorModal = false; this.editingVendorId = null;
+        this.vendorForm = { vendor_code: '', name: '', trade: '', contact_name: '', contact_email: '', contact_phone: '', payment_terms: '', hst_number: '', notes: '' };
+        await this.loadOrgVendors();
+      } catch(e) { this.vendorFormError = e.message; }
+      finally { this.vendorFormLoading = false; }
+    },
+
+    async deleteVendor(id) {
+      if (!confirm('Deactivate this vendor?')) return;
+      try { await this.del(`/api/org/vendors/${id}`); await this.loadOrgVendors(); } catch(e) { alert(e.message); }
+    },
+
+    editVendor(v) {
+      this.editingVendorId = v.id;
+      this.vendorForm = { vendor_code: v.vendor_code||'', name: v.name, trade: v.trade||'', contact_name: v.contact_name||'', contact_email: v.contact_email||'', contact_phone: v.contact_phone||'', payment_terms: v.payment_terms||'', hst_number: v.hst_number||'', notes: v.notes||'' };
+      this.showVendorModal = true;
+    },
+
+    get filteredOrgVendors() {
+      if (!this.orgVendorSearch) return this.orgVendors;
+      const s = this.orgVendorSearch.toLowerCase();
+      return this.orgVendors.filter(v => (v.name||'').toLowerCase().includes(s) || (v.vendor_code||'').toLowerCase().includes(s) || (v.trade||'').toLowerCase().includes(s));
+    },
+
+    async loadAllOrgs() {
+      try { this.allOrgsList = await this.get('/api/org/admin/all'); } catch(e) {}
+    },
+
+    async toggleOrgActive(orgId) {
+      try { await this.put(`/api/org/admin/${orgId}/toggle`, {}); await this.loadAllOrgs(); } catch(e) { alert(e.message); }
+    },
+
+    roleBadge(role) {
+      const m = { owner: 'bg-purple-100 text-purple-700', admin: 'bg-blue-100 text-blue-700', editor: 'bg-green-100 text-green-700', viewer: 'bg-gray-100 text-gray-600' };
+      return m[role] || 'bg-gray-100 text-gray-600';
     },
 
     async loadProjects() {
@@ -1980,7 +2121,9 @@ function app() {
     },
 
     _headers() {
-      return this.token ? { Authorization: `Bearer ${this.token}` } : {};
+      const h = this.token ? { Authorization: `Bearer ${this.token}` } : {};
+      if (this.currentOrg?.id) h['X-Organization-Id'] = String(this.currentOrg.id);
+      return h;
     },
   };
 }
