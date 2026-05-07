@@ -96,7 +96,7 @@
                 Services
                 <svg class="w-4 h-4 transition-transform" :class="servicesOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
               </button>
-              <div x-show="servicesOpen" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+              <div x-show="servicesOpen" x-cloak x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
                    class="absolute top-full left-1/2 -translate-x-1/2 pt-4 z-50 w-56">
                 <div class="bg-white rounded-xl shadow-xl border border-gray-100 p-3 space-y-0.5">
                   <a href="https://finel.ai/tax"        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-800 hover:bg-gray-50 transition-colors">
@@ -130,7 +130,7 @@
                   <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400"></span>
                 </span>
               </a>
-              <div x-show="aiOpen" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+              <div x-show="aiOpen" x-cloak x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
                    class="absolute top-full left-1/2 -translate-x-1/2 pt-4 z-50 w-72">
                 <div class="bg-white rounded-xl shadow-xl border border-gray-100 p-4">
                   <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Live Tools</p>
@@ -181,13 +181,13 @@
           <!-- Mobile hamburger -->
           <button class="lg:hidden text-gray-500 hover:text-gray-900" @click="mobileOpen = !mobileOpen" :aria-label="mobileOpen ? 'Close menu' : 'Open menu'">
             <svg x-show="!mobileOpen" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
-            <svg x-show="mobileOpen"  class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            <svg x-show="mobileOpen" x-cloak class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
       </div>
 
       <!-- Mobile menu -->
-      <div x-show="mobileOpen" x-transition class="lg:hidden bg-white border-b border-gray-100 px-4 pb-4 space-y-1">
+      <div x-show="mobileOpen" x-cloak x-transition class="lg:hidden bg-white border-b border-gray-100 px-4 pb-4 space-y-1">
         <a href="https://finel.ai/"            class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">Home</a>
         <a href="https://finel.ai/tax"         class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">Finel Tax</a>
         <a href="https://mortgage.finel.ai/"   class="block px-3 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50">Finel Mortgage</a>
