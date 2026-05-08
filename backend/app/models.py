@@ -214,6 +214,54 @@ class OrganizationMember(Base):
     inviter      = relationship("User", foreign_keys=[invited_by])
 
 
+class PasswordResetToken(Base):
+    """Single-use password reset tokens (1-hour TTL)."""
+    __tablename__ = "password_reset_tokens"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token      = Column(String, unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used       = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
+
+
+class OrgInvitation(Base):
+    """Email invitation to join an organisation (7-day TTL)."""
+    __tablename__ = "org_invitations"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    email       = Column(String, nullable=False, index=True)
+    role        = Column(String, default="editor")
+    token       = Column(String, unique=True, nullable=False, index=True)
+    invited_by  = Column(Integer, ForeignKey("users.id"), nullable=False)
+    expires_at  = Column(DateTime, nullable=False)
+    accepted_at = Column(DateTime, nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    organization = relationship("Organization")
+    inviter      = relationship("User")
+
+
+class AuditLog(Base):
+    """Org-scoped audit trail for financial actions."""
+    __tablename__ = "audit_logs"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id"), nullable=True)
+    username    = Column(String, nullable=True)
+    action      = Column(String, nullable=False)       # upload_invoice | edit_invoice | delete_invoice | login | etc.
+    entity_type = Column(String, nullable=True)        # invoice | project | draw | claim | member
+    entity_id   = Column(Integer, nullable=True)
+    detail      = Column(Text, nullable=True)          # human-readable summary
+    ip_address  = Column(String, nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 class OrgVendor(Base):
     """Organisation-level vendor/supplier directory — reusable across all projects."""
     __tablename__ = "org_vendors"

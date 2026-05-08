@@ -1,14 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from collections import defaultdict
 from jose import jwt
 from passlib.context import CryptContext
-import os
-import time
+import os, time, secrets
 
 from ..database import get_db
-from ..models import User, OrganizationMember, Organization
+from ..models import User, OrganizationMember, Organization, PasswordResetToken, OrgInvitation
 from ..schemas import UserCreate, UserLogin, UserOut, Token
 from ..dependencies import get_current_user, SECRET_KEY, ALGORITHM
 
@@ -173,3 +172,159 @@ def change_password(
     current_user.hashed_password = pwd_context.hash(new_pw)
     db.commit()
     return {"message": "Password changed successfully"}
+
+
+# ── Password Reset ────────────────────────────────────────────────────────────
+
+@router.post("/forgot-password")
+def forgot_password(body: dict, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Send a password-reset email. Always returns 200 to avoid user enumeration."""
+    email = (body.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="email required")
+    user = db.query(User).filter(User.email == email, User.is_active == True).first()
+    if user:
+        # Invalidate old tokens
+        db.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used == False
+        ).update({"used": True})
+        db.commit()
+        token = secrets.token_urlsafe(32)
+        db.add(PasswordResetToken(
+            user_id=user.id, token=token,
+            expires_at=datetime.utcnow() + timedelta(hours=1)
+        ))
+        db.commit()
+        from ..services.email import send_password_reset
+        background_tasks.add_task(send_password_reset, user.email, token)
+    return {"message": "If that email is registered, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+def reset_password(body: dict, db: Session = Depends(get_db)):
+    token_str = (body.get("token") or "").strip()
+    new_pw    = (body.get("password") or "").strip()
+    if not token_str or not new_pw:
+        raise HTTPException(status_code=400, detail="token and password required")
+    if len(new_pw) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    rec = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token == token_str,
+        PasswordResetToken.used == False
+    ).first()
+    if not rec or rec.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+    rec.used = True
+    rec.user.hashed_password = pwd_context.hash(new_pw)
+    db.commit()
+    return {"message": "Password reset successfully. You can now sign in."}
+
+
+# ── Self-serve Signup ─────────────────────────────────────────────────────────
+
+@router.post("/signup", response_model=Token)
+def signup(body: dict, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Create a new organisation + owner account in one step."""
+    from ..seed_org import ensure_user_org
+    username = (body.get("username") or "").strip()
+    email    = (body.get("email") or "").strip().lower()
+    password = (body.get("password") or "").strip()
+    org_name = (body.get("org_name") or "").strip()
+
+    if not all([username, email, password, org_name]):
+        raise HTTPException(status_code=400, detail="username, email, password and org_name are required")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=400, detail="Username already taken")
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    import re
+    slug_base = re.sub(r"[^a-z0-9]+", "-", org_name.lower()).strip("-")[:40]
+    slug = slug_base
+    suffix = 1
+    while db.query(Organization).filter(Organization.slug == slug).first():
+        slug = f"{slug_base}-{suffix}"; suffix += 1
+
+    org = Organization(name=org_name, slug=slug, plan="starter")
+    db.add(org); db.flush()
+
+    user = User(username=username, email=email,
+                hashed_password=pwd_context.hash(password), is_active=True)
+    db.add(user); db.flush()
+
+    db.add(OrganizationMember(org_id=org.id, user_id=user.id, role="owner"))
+    db.commit(); db.refresh(user)
+
+    from ..services.email import send_welcome
+    background_tasks.add_task(send_welcome, email, username, org_name)
+
+    token = create_token(user.id)
+    orgs  = _user_orgs(user.id, db)
+    return Token(access_token=token, token_type="bearer",
+                 user=UserOut.model_validate(user),
+                 orgs=orgs, active_org_id=orgs[0]["id"] if orgs else None)
+
+
+# ── Invitation accept ─────────────────────────────────────────────────────────
+
+@router.get("/invite/{token}")
+def get_invite_info(token: str, db: Session = Depends(get_db)):
+    """Return invite metadata so the frontend can pre-fill the accept form."""
+    inv = db.query(OrgInvitation).filter(
+        OrgInvitation.token == token,
+        OrgInvitation.accepted_at == None
+    ).first()
+    if not inv or inv.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=404, detail="Invitation not found or expired")
+    return {"org_name": inv.organization.name, "email": inv.email, "role": inv.role}
+
+
+@router.post("/accept-invite", response_model=Token)
+def accept_invite(body: dict, db: Session = Depends(get_db)):
+    """Accept an email invitation — creates account if needed, adds to org."""
+    token_str = (body.get("token") or "").strip()
+    username  = (body.get("username") or "").strip()
+    password  = (body.get("password") or "").strip()
+    if not all([token_str, username, password]):
+        raise HTTPException(status_code=400, detail="token, username and password required")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    inv = db.query(OrgInvitation).filter(
+        OrgInvitation.token == token_str,
+        OrgInvitation.accepted_at == None
+    ).first()
+    if not inv or inv.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired invitation")
+
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    user = db.query(User).filter(User.email == inv.email).first()
+    if not user:
+        user = User(username=username, email=inv.email,
+                    hashed_password=pwd_context.hash(password), is_active=True)
+        db.add(user); db.flush()
+    else:
+        user.hashed_password = pwd_context.hash(password)
+
+    existing = db.query(OrganizationMember).filter(
+        OrganizationMember.org_id == inv.org_id,
+        OrganizationMember.user_id == user.id
+    ).first()
+    if existing:
+        existing.is_active = True; existing.role = inv.role
+    else:
+        db.add(OrganizationMember(org_id=inv.org_id, user_id=user.id,
+                                  role=inv.role, invited_by=inv.invited_by))
+    inv.accepted_at = datetime.utcnow()
+    db.commit(); db.refresh(user)
+
+    token = create_token(user.id)
+    orgs  = _user_orgs(user.id, db)
+    return Token(access_token=token, token_type="bearer",
+                 user=UserOut.model_validate(user),
+                 orgs=orgs, active_org_id=orgs[0]["id"] if orgs else None)

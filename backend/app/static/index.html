@@ -464,38 +464,224 @@
   <!-- ══════════════════════════════════════════════════════════════
        LOGIN / REGISTER PAGE
   ══════════════════════════════════════════════════════════════ -->
-  <div x-show="view === 'login'" class="min-h-screen flex items-center justify-center bg-brand-gradient">
+  <!-- ── LOGIN ─────────────────────────────────────────────────── -->
+  <div x-show="view === 'login'" x-cloak class="min-h-screen flex items-center justify-center bg-brand-gradient">
     <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
       <div class="text-center mb-8">
         <img src="/static/favicon.svg" alt="Finel AI" class="w-16 h-16 mx-auto mb-4 rounded-2xl shadow-sm" />
         <h1 class="text-3xl font-serif text-slate-900 leading-tight">Finel AI</h1>
         <p class="text-gray-500 text-sm mt-1 tracking-wide uppercase">Project Finance</p>
       </div>
-
-      <!-- Login form -->
       <form @submit.prevent="login()">
         <div class="mb-4">
           <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
           <input x-model="loginForm.username" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="your username" required />
         </div>
-        <div class="mb-6">
+        <div class="mb-2">
           <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
           <input x-model="loginForm.password" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••" required />
         </div>
-        <div x-show="authError" class="mb-4 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="authError"></div>
+        <div class="text-right mb-4">
+          <button type="button" @click="view='forgot-password'; history.pushState({},'',' /forgot-password')" class="text-xs text-blue-600 hover:underline">Forgot password?</button>
+        </div>
+        <div x-show="authError" x-cloak class="mb-4 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="authError"></div>
         <button type="submit" :disabled="authLoading" class="w-full bg-blue-700 text-white rounded-lg py-2.5 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition">
           <span x-show="!authLoading">Sign In</span>
-          <span x-show="authLoading"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Signing in...</span>
+          <span x-show="authLoading" x-cloak><i class="fa-solid fa-spinner fa-spin mr-1"></i> Signing in...</span>
         </button>
       </form>
-      <p class="text-xs text-gray-400 text-center mt-4">Need an account? Contact your administrator.</p>
+      <div class="mt-5 pt-4 border-t border-gray-100 text-center space-y-2">
+        <p class="text-xs text-gray-400">No account? <button @click="view='signup'; history.pushState({},'',' /signup')" class="text-blue-600 hover:underline font-medium">Create one</button></p>
+        <button @click="view='landing'; history.pushState({},'',' /')" class="text-xs text-gray-400 hover:text-gray-600">← Back to home</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FORGOT PASSWORD ────────────────────────────────────────── -->
+  <div x-show="view === 'forgot-password'" x-cloak class="min-h-screen flex items-center justify-center bg-brand-gradient"
+       x-data="{ fpEmail:'', fpLoading:false, fpMsg:'', fpError:'' }">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+      <div class="text-center mb-8">
+        <img src="/static/favicon.svg" alt="Finel AI" class="w-16 h-16 mx-auto mb-4 rounded-2xl shadow-sm" />
+        <h1 class="text-2xl font-serif text-slate-900">Reset Password</h1>
+        <p class="text-gray-500 text-sm mt-1">Enter your email and we'll send a reset link.</p>
+      </div>
+      <template x-if="!fpMsg">
+        <form @submit.prevent="
+          fpLoading=true; fpError='';
+          fetch('/api/auth/forgot-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:fpEmail})})
+            .then(r=>r.json()).then(d=>{ fpMsg=d.message||'Reset link sent!'; }).catch(()=>{ fpError='Request failed. Try again.'; }).finally(()=>fpLoading=false)">
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+            <input x-model="fpEmail" type="email" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="you@company.com" required />
+          </div>
+          <div x-show="fpError" x-cloak class="mb-4 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="fpError"></div>
+          <button type="submit" :disabled="fpLoading" class="w-full bg-blue-700 text-white rounded-lg py-2.5 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition">
+            <span x-show="!fpLoading">Send Reset Link</span>
+            <span x-show="fpLoading" x-cloak><i class="fa-solid fa-spinner fa-spin mr-1"></i> Sending...</span>
+          </button>
+        </form>
+      </template>
+      <template x-if="fpMsg">
+        <div class="text-center py-4">
+          <i class="fa-solid fa-envelope-circle-check text-4xl text-green-500 mb-3"></i>
+          <p class="text-slate-700 text-sm" x-text="fpMsg"></p>
+        </div>
+      </template>
+      <p class="text-center mt-4"><button @click="view='login'" class="text-xs text-blue-600 hover:underline">← Back to Sign In</button></p>
+    </div>
+  </div>
+
+  <!-- ── RESET PASSWORD ─────────────────────────────────────────── -->
+  <div x-show="view === 'reset-password'" x-cloak class="min-h-screen flex items-center justify-center bg-brand-gradient"
+       x-data="{ rpPw:'', rpPw2:'', rpLoading:false, rpMsg:'', rpError:'' }">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+      <div class="text-center mb-8">
+        <img src="/static/favicon.svg" alt="Finel AI" class="w-16 h-16 mx-auto mb-4 rounded-2xl shadow-sm" />
+        <h1 class="text-2xl font-serif text-slate-900">New Password</h1>
+      </div>
+      <template x-if="!rpMsg">
+        <form @submit.prevent="
+          rpError='';
+          if(rpPw.length<8){rpError='Min 8 characters';return;}
+          if(rpPw!==rpPw2){rpError='Passwords do not match';return;}
+          rpLoading=true;
+          const token=new URLSearchParams(window.location.search).get('token')||resetToken||'';
+          fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,password:rpPw})})
+            .then(r=>r.json().then(d=>({ok:r.ok,d})))
+            .then(({ok,d})=>{ if(ok) rpMsg=d.message; else rpError=d.detail||'Reset failed'; })
+            .catch(()=>{ rpError='Request failed. Try again.'; }).finally(()=>rpLoading=false)">
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+            <input x-model="rpPw" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Min 8 characters" required />
+          </div>
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <input x-model="rpPw2" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••" required />
+          </div>
+          <div x-show="rpError" x-cloak class="mb-4 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="rpError"></div>
+          <button type="submit" :disabled="rpLoading" class="w-full bg-blue-700 text-white rounded-lg py-2.5 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition">
+            <span x-show="!rpLoading">Set New Password</span>
+            <span x-show="rpLoading" x-cloak><i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving...</span>
+          </button>
+        </form>
+      </template>
+      <template x-if="rpMsg">
+        <div class="text-center py-4">
+          <i class="fa-solid fa-circle-check text-4xl text-green-500 mb-3"></i>
+          <p class="text-slate-700 text-sm mb-4" x-text="rpMsg"></p>
+          <button @click="view='login'" class="bg-blue-700 text-white rounded-lg px-6 py-2.5 text-sm font-semibold hover:bg-blue-800">Sign In</button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- ── SELF-SERVE SIGNUP ──────────────────────────────────────── -->
+  <div x-show="view === 'signup'" x-cloak class="min-h-screen flex items-center justify-center bg-brand-gradient py-10">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md"
+         x-data="{ su:{org_name:'',username:'',email:'',password:''}, suLoading:false, suError:'' }">
+      <div class="text-center mb-8">
+        <img src="/static/favicon.svg" alt="Finel AI" class="w-16 h-16 mx-auto mb-4 rounded-2xl shadow-sm" />
+        <h1 class="text-2xl font-serif text-slate-900">Create your account</h1>
+        <p class="text-gray-500 text-sm mt-1">Set up your organisation and start tracking invoices.</p>
+      </div>
+      <form @submit.prevent="
+        suError=''; suLoading=true;
+        fetch('/api/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(su)})
+          .then(r=>r.json().then(d=>({ok:r.ok,d})))
+          .then(({ok,d})=>{ if(ok){ setAuth(d); } else { suError=d.detail||'Signup failed'; suLoading=false; } })
+          .catch(()=>{ suError='Request failed. Try again.'; suLoading=false; })">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Organisation Name</label>
+          <input x-model="su.org_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Acme Construction Ltd." required />
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Your Username</label>
+          <input x-model="su.username" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="john_doe" required minlength="3" />
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input x-model="su.email" type="email" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="you@company.com" required />
+        </div>
+        <div class="mb-5">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+          <input x-model="su.password" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Min 8 characters" required minlength="8" />
+        </div>
+        <div x-show="suError" x-cloak class="mb-4 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="suError"></div>
+        <button type="submit" :disabled="suLoading" class="w-full bg-blue-700 text-white rounded-lg py-2.5 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition">
+          <span x-show="!suLoading">Create Account</span>
+          <span x-show="suLoading" x-cloak><i class="fa-solid fa-spinner fa-spin mr-1"></i> Creating...</span>
+        </button>
+      </form>
+      <p class="text-center mt-4 text-xs text-gray-400">Already have an account? <button @click="view='login'" class="text-blue-600 hover:underline font-medium">Sign in</button></p>
+    </div>
+  </div>
+
+  <!-- ── ACCEPT INVITATION ──────────────────────────────────────── -->
+  <div x-show="view === 'accept-invite'" x-cloak class="min-h-screen flex items-center justify-center bg-brand-gradient"
+       x-data="{ inv:null, invLoading:true, invError:'', ai:{username:'',password:'',password2:''}, aiSaving:false, aiError:'', aiDone:false,
+         async init() {
+           const token = new URLSearchParams(window.location.search).get('token') || inviteToken || '';
+           if(!token){ invError='Invalid invitation link.'; invLoading=false; return; }
+           const r = await fetch('/api/auth/invite/'+token);
+           if(!r.ok){ invError='Invitation not found or expired.'; invLoading=false; return; }
+           inv = await r.json(); invLoading=false;
+         }
+       }">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+      <div class="text-center mb-8">
+        <img src="/static/favicon.svg" alt="Finel AI" class="w-16 h-16 mx-auto mb-4 rounded-2xl shadow-sm" />
+        <h1 class="text-2xl font-serif text-slate-900">Accept Invitation</h1>
+      </div>
+      <template x-if="invLoading"><div class="text-center py-6"><i class="fa-solid fa-spinner fa-spin text-2xl text-blue-500"></i></div></template>
+      <template x-if="invError && !invLoading"><div class="text-center py-4"><i class="fa-solid fa-circle-xmark text-3xl text-red-400 mb-2"></i><p class="text-red-600 text-sm" x-text="invError"></p><button @click="view='login'" class="mt-4 text-blue-600 hover:underline text-sm">Go to Sign In</button></div></template>
+      <template x-if="!invLoading && !invError && !aiDone">
+        <div>
+          <div class="bg-blue-50 rounded-xl p-4 mb-5 text-sm text-blue-800">
+            You've been invited to join <strong x-text="inv?.org_name"></strong> as <strong x-text="inv?.role"></strong>.
+          </div>
+          <form @submit.prevent="
+            aiError='';
+            if(ai.password.length<8){aiError='Min 8 characters';return;}
+            if(ai.password!==ai.password2){aiError='Passwords do not match';return;}
+            aiSaving=true;
+            const token=new URLSearchParams(window.location.search).get('token')||inviteToken||'';
+            fetch('/api/auth/accept-invite',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({token,username:ai.username,password:ai.password})})
+              .then(r=>r.json().then(d=>({ok:r.ok,d})))
+              .then(({ok,d})=>{ if(ok){ setAuth(d); aiDone=true; } else { aiError=d.detail||'Failed to accept invite'; aiSaving=false; } })
+              .catch(()=>{ aiError='Request failed.'; aiSaving=false; })">
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" :value="inv?.email" disabled class="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400" />
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Choose a Username</label>
+              <input x-model="ai.username" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="your_username" required minlength="3" />
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input x-model="ai.password" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Min 8 characters" required />
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+              <input x-model="ai.password2" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••" required />
+            </div>
+            <div x-show="aiError" x-cloak class="mb-4 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="aiError"></div>
+            <button type="submit" :disabled="aiSaving" class="w-full bg-blue-700 text-white rounded-lg py-2.5 font-semibold text-sm hover:bg-blue-800 disabled:opacity-50 transition">
+              <span x-show="!aiSaving">Create Account &amp; Join</span>
+              <span x-show="aiSaving" x-cloak><i class="fa-solid fa-spinner fa-spin mr-1"></i> Joining...</span>
+            </button>
+          </form>
+        </div>
+      </template>
     </div>
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════
        MAIN APP SHELL
   ══════════════════════════════════════════════════════════════ -->
-  <div x-show="view !== 'login' && view !== 'landing'" class="flex flex-col h-screen overflow-hidden">
+  <div x-show="!['login','landing','forgot-password','reset-password','signup','accept-invite'].includes(view)" class="flex flex-col h-screen overflow-hidden">
 
     <!-- ── MOBILE TOP BAR (hidden on lg+) ──────────────────────────── -->
     <div class="lg:hidden flex items-center h-14 px-3 bg-slate-900 text-white flex-shrink-0 z-40 gap-2 pt-safe">
@@ -676,6 +862,9 @@
         </button>
         <button x-show="user?.is_admin" @click="view='superadmin'; loadAllOrgs(); sidebarOpen=false" :class="view==='superadmin' ? 'bg-red-700' : 'hover:bg-red-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition text-red-200">
           <i class="fa-solid fa-shield-halved w-4"></i> Super Admin
+        </button>
+        <button x-show="user?.is_admin || currentOrg" @click="view='audit-log'; loadAuditLog(); sidebarOpen=false" :class="view==='audit-log' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+          <i class="fa-solid fa-shield-halved w-4"></i> Audit Log
         </button>
         <button @click="view='settings'; sidebarOpen=false" :class="view==='settings' ? 'bg-blue-700' : 'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
           <i class="fa-solid fa-gear w-4"></i> Settings
@@ -4198,11 +4387,59 @@
         <div class="bg-white border rounded-xl overflow-hidden mb-6">
           <div class="flex items-center justify-between px-5 py-4 border-b">
             <h3 class="font-semibold text-gray-800">Team Members</h3>
-            <button x-show="['owner','admin'].includes(currentOrg?.role)"
-                    @click="showMemberModal=true"
-                    class="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition">
-              <i class="fa-solid fa-user-plus"></i> Add Member
+            <div class="flex gap-2">
+              <button x-show="['owner','admin'].includes(currentOrg?.role)"
+                      @click="showMemberModal=true"
+                      class="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition">
+                <i class="fa-solid fa-user-plus"></i> Add Existing
+              </button>
+              <button x-show="['owner','admin'].includes(currentOrg?.role)"
+                      @click="showInvitePanel=!showInvitePanel; if(showInvitePanel) loadPendingInvites()"
+                      :class="showInvitePanel ? 'bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'"
+                      class="flex items-center gap-1.5 px-3 py-1.5 text-white text-xs rounded-lg transition">
+                <i class="fa-solid fa-envelope"></i> Invite by Email
+              </button>
+            </div>
+          </div>
+
+          <!-- Email invite panel -->
+          <div x-show="showInvitePanel" x-cloak x-data="{ showInvitePanel: false }"
+               class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+            <h4 class="text-sm font-semibold text-blue-800 mb-3"><i class="fa-solid fa-paper-plane mr-1"></i>Send Email Invitation</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+              <div class="sm:col-span-2">
+                <input x-model="inviteForm.email" type="email" placeholder="colleague@company.com"
+                       class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              </div>
+              <div>
+                <select x-model="inviteForm.role" class="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  <option value="viewer">Viewer</option>
+                  <option value="editor" selected>Editor</option>
+                  <option value="admin">Admin</option>
+                  <option value="owner">Owner</option>
+                </select>
+              </div>
+            </div>
+            <button @click="sendInvite()" :disabled="inviteLoading"
+                    class="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
+              <span x-show="!inviteLoading"><i class="fa-solid fa-paper-plane mr-1"></i>Send Invite</span>
+              <span x-show="inviteLoading" x-cloak><i class="fa-solid fa-spinner fa-spin mr-1"></i>Sending...</span>
             </button>
+            <span x-show="inviteMsg" x-cloak class="ml-3 text-xs text-green-700" x-text="inviteMsg"></span>
+            <span x-show="inviteError" x-cloak class="ml-3 text-xs text-red-600" x-text="inviteError"></span>
+
+            <!-- Pending invites -->
+            <div x-show="pendingInvites.length > 0" x-cloak class="mt-4 pt-3 border-t border-blue-200">
+              <p class="text-xs font-semibold text-blue-700 mb-2">Pending Invitations</p>
+              <template x-for="inv in pendingInvites" :key="inv.id">
+                <div class="flex items-center justify-between py-1.5 text-xs text-slate-600">
+                  <span x-text="inv.email"></span>
+                  <span class="mx-2 text-slate-400" x-text="inv.role"></span>
+                  <span class="text-slate-400 flex-1">expires <span x-text="new Date(inv.expires_at).toLocaleDateString()"></span></span>
+                  <button @click="cancelInvite(inv.id)" class="text-red-400 hover:text-red-600 transition"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+              </template>
+            </div>
           </div>
           <table class="w-full text-sm">
             <thead class="bg-gray-50 border-b">
@@ -4440,6 +4677,64 @@
           </table>
         </div>
       </div><!-- /settings -->
+
+      <!-- ── AUDIT LOG ──────────────────────────────────────────────── -->
+      <div x-show="view==='audit-log'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-shield-halved mr-2 text-blue-600"></i>Audit Log</h2>
+            <p class="text-sm text-gray-500 mt-0.5">All actions taken within your organisation</p>
+          </div>
+          <button @click="loadAuditLog(auditPage)" class="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition"><i class="fa-solid fa-rotate-right mr-1"></i>Refresh</button>
+        </div>
+
+        <div x-show="auditLoading" x-cloak class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+
+        <div x-show="!auditLoading" class="bg-white rounded-xl border overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+              <tr>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">When</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">User</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Action</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Detail</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              <template x-for="row in auditLog" :key="row.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-2.5 text-xs text-gray-400 whitespace-nowrap" x-text="new Date(row.created_at).toLocaleString()"></td>
+                  <td class="px-4 py-2.5 font-medium text-gray-700" x-text="row.username || '—'"></td>
+                  <td class="px-4 py-2.5">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                          :class="{
+                            'bg-green-100 text-green-700': row.action.startsWith('upload') || row.action.startsWith('create'),
+                            'bg-amber-100 text-amber-700': row.action.startsWith('edit') || row.action.startsWith('update'),
+                            'bg-red-100 text-red-700':    row.action.startsWith('delete'),
+                            'bg-blue-100 text-blue-700':  row.action === 'login' || row.action.startsWith('invite'),
+                            'bg-gray-100 text-gray-600':  true
+                          }"
+                          x-text="row.action.replace(/_/g,' ')"></span>
+                  </td>
+                  <td class="px-4 py-2.5 text-xs text-gray-500 max-w-xs truncate" x-text="row.detail || '—'"></td>
+                </tr>
+              </template>
+              <tr x-show="auditLog.length === 0" x-cloak>
+                <td colspan="4" class="px-4 py-8 text-center text-gray-400 text-sm">No audit events yet</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div x-show="auditTotal > 50" x-cloak class="flex items-center justify-between mt-4 text-sm text-gray-500">
+          <span x-text="`Showing page ${auditPage} · ${auditTotal} total events`"></span>
+          <div class="flex gap-2">
+            <button @click="loadAuditLog(auditPage-1)" :disabled="auditPage<=1" class="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-40 transition">← Prev</button>
+            <button @click="loadAuditLog(auditPage+1)" :disabled="auditPage*50>=auditTotal" class="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 disabled:opacity-40 transition">Next →</button>
+          </div>
+        </div>
+      </div><!-- /audit-log -->
 
     </main>
     </div><!-- /app-row (sidebar + main) -->

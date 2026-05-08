@@ -13,6 +13,17 @@ function app() {
     token: null,
     demoLoading: false,
     demoError: '',
+    resetToken: '',
+    inviteToken: '',
+
+    // ── Audit log ─────────────────────────────────────────────────
+    auditLog: [], auditTotal: 0, auditPage: 1, auditLoading: false,
+
+    // ── Org invite UI ─────────────────────────────────────────────
+    showInvitePanel: false,
+    inviteForm: { email: '', role: 'editor' },
+    inviteLoading: false, inviteMsg: '', inviteError: '',
+    pendingInvites: [],
 
     // ── Mobile sidebar ────────────────────────────────────────────
     sidebarOpen: false,
@@ -503,6 +514,12 @@ function app() {
 
     // ── Init ──────────────────────────────────────────────────────
     async init() {
+      // Handle deep-link routes: /reset-password, /signup, /accept-invite
+      const path = window.location.pathname.replace(/^\//, '');
+      if (path === 'reset-password') { this.resetToken = new URLSearchParams(window.location.search).get('token') || ''; this.view = 'reset-password'; return; }
+      if (path === 'signup') { this.view = 'signup'; return; }
+      if (path === 'accept-invite') { this.inviteToken = new URLSearchParams(window.location.search).get('token') || ''; this.view = 'accept-invite'; return; }
+
       const saved = localStorage.getItem('invoice_token');
       const savedUser = localStorage.getItem('invoice_user');
       if (saved && savedUser) {
@@ -2124,6 +2141,37 @@ function app() {
       const h = this.token ? { Authorization: `Bearer ${this.token}` } : {};
       if (this.currentOrg?.id) h['X-Organization-Id'] = String(this.currentOrg.id);
       return h;
+    },
+
+    // ── Audit log ─────────────────────────────────────────────────
+    async loadAuditLog(page = 1) {
+      this.auditLoading = true;
+      try {
+        const data = await this.get(`/api/audit?page=${page}&limit=50`);
+        this.auditLog = data.items || [];
+        this.auditTotal = data.total || 0;
+        this.auditPage = page;
+      } catch(e) { this.auditLog = []; }
+      finally { this.auditLoading = false; }
+    },
+
+    // ── Org invitations ───────────────────────────────────────────
+    async sendInvite() {
+      this.inviteLoading = true; this.inviteMsg = ''; this.inviteError = '';
+      try {
+        const r = await this.post('/api/org/invite', this.inviteForm);
+        this.inviteMsg = r.message || 'Invitation sent!';
+        this.inviteForm = { email: '', role: 'editor' };
+        await this.loadPendingInvites();
+      } catch(e) { this.inviteError = e.message; }
+      finally { this.inviteLoading = false; }
+    },
+    async loadPendingInvites() {
+      try { this.pendingInvites = await this.get('/api/org/invitations'); } catch(e) { this.pendingInvites = []; }
+    },
+    async cancelInvite(id) {
+      if(!confirm('Cancel this invitation?')) return;
+      try { await this.delete(`/api/org/invitations/${id}`); await this.loadPendingInvites(); } catch(e) {}
     },
   };
 }

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit
 
 
 def _run_migrations():
@@ -195,6 +195,38 @@ def _run_migrations():
             "CREATE INDEX IF NOT EXISTS ix_projects_org_id ON projects(org_id)",
             "CREATE INDEX IF NOT EXISTS ix_invoices_org_id ON invoices(org_id)",
             "CREATE INDEX IF NOT EXISTS ix_org_members_org_user ON organization_members(org_id, user_id)",
+            """CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                token TEXT UNIQUE NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS org_invitations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                email TEXT NOT NULL,
+                role TEXT DEFAULT 'editor',
+                token TEXT UNIQUE NOT NULL,
+                invited_by INTEGER NOT NULL REFERENCES users(id),
+                expires_at DATETIME NOT NULL,
+                accepted_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                user_id INTEGER REFERENCES users(id),
+                username TEXT,
+                action TEXT NOT NULL,
+                entity_type TEXT,
+                entity_id INTEGER,
+                detail TEXT,
+                ip_address TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_audit_logs_org_created ON audit_logs(org_id, created_at)",
             # AI suggestions log (optional — stores Gemini suggestions for audit)
             """CREATE TABLE IF NOT EXISTS ai_suggestions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -330,6 +362,7 @@ app.include_router(project.router)
 app.include_router(project._lender_router)
 app.include_router(filetools.router)
 app.include_router(org.router)
+app.include_router(audit.router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")

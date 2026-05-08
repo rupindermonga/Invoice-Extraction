@@ -1,12 +1,13 @@
 """Organisation management: CRUD, members, roles, and org-level vendor directory."""
-import re
+import re, secrets
+from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Organization, OrganizationMember, OrgVendor, User, Project, Invoice
+from ..models import Organization, OrganizationMember, OrgVendor, User, Project, Invoice, OrgInvitation
 from ..schemas import (
     OrgCreate, OrgUpdate, OrgOut, OrgMemberOut, OrgMemberUpdate,
     OrgVendorCreate, OrgVendorOut,
@@ -402,3 +403,91 @@ def superadmin_toggle_org(
     org.is_active = not org.is_active
     db.commit()
     return {"id": org.id, "is_active": org.is_active}
+
+
+
+# ── Email Invitations ─────────────────────────────────────────────────────────
+
+@router.post("/invite")
+def invite_member(
+    body: dict,
+    background_tasks: BackgroundTasks,
+    org_ctx=Depends(require_org_role("owner", "admin")),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Send an email invitation to join the org. Requires owner/admin."""
+    org, _ = org_ctx
+    email = (body.get("email") or "").strip().lower()
+    role  = body.get("role", "editor")
+    if not email:
+        raise HTTPException(status_code=400, detail="email required")
+    if role not in ROLES:
+        raise HTTPException(status_code=400, detail=f"Role must be one of: {', '.join(ROLES)}")
+
+    # Already a member?
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user:
+        mem = db.query(OrganizationMember).filter(
+            OrganizationMember.org_id == org.id,
+            OrganizationMember.user_id == existing_user.id,
+            OrganizationMember.is_active == True,
+        ).first()
+        if mem:
+            raise HTTPException(status_code=400, detail="This email is already a member of the org")
+
+    # Invalidate existing pending invites to this email/org
+    db.query(OrgInvitation).filter(
+        OrgInvitation.org_id == org.id,
+        OrgInvitation.email == email,
+        OrgInvitation.accepted_at == None,
+    ).delete()
+    db.commit()
+
+    token = secrets.token_urlsafe(32)
+    db.add(OrgInvitation(
+        org_id=org.id, email=email, role=role,
+        token=token, invited_by=current_user.id,
+        expires_at=datetime.utcnow() + timedelta(days=7),
+    ))
+    db.commit()
+
+    from ..services.email import send_invite
+    background_tasks.add_task(send_invite, email, org.name, current_user.username, role, token)
+    return {"message": f"Invitation sent to {email}"}
+
+
+@router.get("/invitations")
+def list_invitations(
+    org_ctx=Depends(require_org_role("owner", "admin")),
+    db: Session = Depends(get_db),
+):
+    """List pending invitations for the current org."""
+    org, _ = org_ctx
+    invites = db.query(OrgInvitation).filter(
+        OrgInvitation.org_id == org.id,
+        OrgInvitation.accepted_at == None,
+        OrgInvitation.expires_at > datetime.utcnow(),
+    ).order_by(OrgInvitation.created_at.desc()).all()
+    return [{"id": i.id, "email": i.email, "role": i.role,
+             "expires_at": str(i.expires_at), "invited_by": i.inviter.username if i.inviter else ""}
+            for i in invites]
+
+
+@router.delete("/invitations/{invite_id}")
+def cancel_invitation(
+    invite_id: int,
+    org_ctx=Depends(require_org_role("owner", "admin")),
+    db: Session = Depends(get_db),
+):
+    """Cancel a pending invitation."""
+    org, _ = org_ctx
+    inv = db.query(OrgInvitation).filter(
+        OrgInvitation.id == invite_id,
+        OrgInvitation.org_id == org.id,
+    ).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    db.delete(inv)
+    db.commit()
+    return {"message": "Invitation cancelled"}
