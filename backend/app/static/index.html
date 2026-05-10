@@ -855,8 +855,8 @@
               <button @click="view='lienwaivers'; loadLienWaivers(); sidebarOpen=false" :class="view==='lienwaivers'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
                 <i class="fa-solid fa-file-signature w-4"></i> Lien Waivers
               </button>
-              <button @click="view='lenderlinks'; loadLenderTokens(); sidebarOpen=false" :class="view==='lenderlinks'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
-                <i class="fa-solid fa-share-nodes w-4"></i> Lender Links
+              <button @click="view='lenderlinks'; loadLenderTokens(); loadOwnerTokens(); sidebarOpen=false" :class="view==='lenderlinks'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-share-nodes w-4"></i> Lender &amp; Owner Links
               </button>
               <button @click="view='filetools'; sidebarOpen=false" :class="view==='filetools'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
                 <i class="fa-solid fa-folder-open w-4"></i> File Tools
@@ -2106,8 +2106,8 @@
       <div x-show="view==='lenderlinks'" class="p-6">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-share-nodes mr-2 text-blue-600"></i>Lender Links</h2>
-            <p class="text-sm text-gray-500">Generate shareable read-only draw packages for your lenders — no login required. Each link is token-secured and can be revoked.</p>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-share-nodes mr-2 text-blue-600"></i>Lender &amp; Owner Links</h2>
+            <p class="text-sm text-gray-500">Shareable read-only portals for lenders and owners — no login required. Each link is token-secured and revocable.</p>
           </div>
           <button @click="lenderTokenForm={label:'',draw_id:'',expires_at:''}; lenderTokenError=''; showLenderTokenModal=true"
                   class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition">
@@ -2155,6 +2155,41 @@
               </div>
             </div>
           </template>
+        </div>
+
+        <!-- Owner Portal Tokens -->
+        <div class="mt-8 pt-6 border-t border-gray-100">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-user-tie mr-2 text-green-600"></i>Owner Portal Links</h3>
+              <p class="text-sm text-gray-500">Share a read-only project overview with your client, owner, or developer — no login needed.</p>
+            </div>
+            <button @click="ownerTokenForm={label:'Owner Portal',expires_at:''}; showOwnerTokenModal=true"
+                    class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
+              <i class="fa-solid fa-plus"></i> New Owner Link
+            </button>
+          </div>
+          <div x-show="ownerTokens.length===0" class="text-center text-gray-400 text-sm py-8">
+            <i class="fa-solid fa-user-tie text-3xl mb-2 text-gray-200"></i><br>
+            No owner portal links yet.
+          </div>
+          <div class="space-y-3">
+            <template x-for="t in ownerTokens" :key="t.id">
+              <div class="bg-white rounded-xl border p-4 flex items-center justify-between gap-4" :class="!t.is_active?'opacity-60':''">
+                <div class="flex-1 min-w-0">
+                  <div class="font-semibold text-gray-800 text-sm" x-text="t.label"></div>
+                  <div class="text-xs text-gray-400 mt-1 font-mono truncate" x-text="window.location.origin+t.url"></div>
+                  <div x-show="t.expires_at" class="text-xs text-amber-600 mt-0.5">Expires: <span x-text="t.expires_at"></span></div>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <button @click="navigator.clipboard.writeText(window.location.origin+t.url)" class="text-xs px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100"><i class="fa-solid fa-copy mr-1"></i>Copy</button>
+                  <a :href="t.url" target="_blank" class="text-xs px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+                  <button @click="toggleOwnerToken(t.id)" class="text-xs px-3 py-1.5 rounded-lg transition" :class="t.is_active?'bg-amber-50 text-amber-700 hover:bg-amber-100':'bg-green-50 text-green-700 hover:bg-green-100'" x-text="t.is_active?'Deactivate':'Reactivate'"></button>
+                  <button @click="deleteOwnerToken(t.id)" class="text-red-400 hover:text-red-600 text-xs px-2"><i class="fa-solid fa-trash"></i></button>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
 
@@ -2724,6 +2759,9 @@
                         <td class="px-3 py-2 text-gray-500" x-text="d.submission_date || '—'"></td>
                         <td class="px-3 py-2 text-center space-x-1">
                           <button @click="openDrawPackage(d.id)" class="text-xs px-2 py-1 rounded bg-purple-600 text-white hover:bg-purple-700 font-semibold" title="Generate Print-Ready Draw Package"><i class="fa-solid fa-print mr-1"></i>Package</button>
+                          <button @click="openCCDCClaim(d.id)" class="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 font-semibold" title="CCDC Progress Claim"><i class="fa-solid fa-file-contract mr-1"></i>CCDC</button>
+                          <button @click="loadConditions(d.id); showConditionModal=true" class="text-xs px-2 py-1 rounded bg-amber-50 text-amber-700 hover:bg-amber-100" title="Funding Conditions"><i class="fa-solid fa-list-check"></i></button>
+                          <button @click="loadCertificates(d.id); showCertModal=true" class="text-xs px-2 py-1 rounded bg-teal-50 text-teal-700 hover:bg-teal-100" title="Inspector Certificates"><i class="fa-solid fa-certificate"></i></button>
                           <button @click="downloadLenderPackage(d.id, d.draw_number)" class="text-xs px-2 py-1 rounded bg-purple-50 text-purple-700 hover:bg-purple-100" title="Download Excel Package"><i class="fa-solid fa-file-excel mr-1"></i>XLS</button>
                           <button @click="bulkApproveDraw(d.id)" class="text-xs px-2 py-1 rounded bg-green-50 text-green-600 hover:bg-green-100" title="Approve all invoices"><i class="fa-solid fa-check-double"></i></button>
                           <button @click="openAssignInvoices('draw', d.id, d.draw_number)" class="text-xs px-2 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100" title="Assign invoices"><i class="fa-solid fa-link"></i></button>
@@ -4941,12 +4979,18 @@
       ═══════════════════════════════════════════════════════════ -->
 
       <!-- ── PM TASKS ──────────────────────────────────────────────── -->
-      <div x-show="view==='pm-tasks'" class="p-6 max-w-6xl">
+      <div x-show="view==='pm-tasks'" class="p-6 max-w-6xl" x-data="{ taskSubView: 'list' }">
         <div class="flex items-center justify-between mb-6">
           <div>
             <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-list-check mr-2 text-green-600"></i>Tasks</h2>
             <p class="text-sm text-gray-500 mt-0.5" x-text="currentProject?.name"></p>
           </div>
+          <div class="flex items-center gap-2">
+            <!-- View toggle -->
+            <div class="flex bg-gray-100 rounded-lg p-0.5 text-xs">
+              <button @click="taskSubView='list'" :class="taskSubView==='list'?'bg-white shadow text-gray-800':'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 rounded-md font-medium transition"><i class="fa-solid fa-list mr-1"></i>List</button>
+              <button @click="taskSubView='gantt'" :class="taskSubView==='gantt'?'bg-white shadow text-gray-800':'text-gray-500 hover:text-gray-700'" class="px-3 py-1.5 rounded-md font-medium transition"><i class="fa-solid fa-bars-staggered mr-1"></i>Gantt</button>
+            </div>
           <div class="flex items-center gap-2">
             <select x-model="pmTaskFilter.status" @change="loadPMTasks()" class="text-xs border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-green-400">
               <option value="">All Statuses</option>
@@ -4960,6 +5004,9 @@
             </button>
           </div>
         </div>
+
+        <!-- List view wrapper -->
+        <div x-show="taskSubView==='list'">
 
         <!-- PM Summary strip -->
         <div x-show="pmSummary" class="grid grid-cols-4 gap-3 mb-5">
@@ -5033,6 +5080,119 @@
             </tbody>
           </table>
         </div>
+
+        </div><!-- /list view wrapper -->
+
+        <!-- ── GANTT VIEW ──────────────────────────────────────── -->
+        <div x-show="taskSubView==='gantt'" x-cloak
+             x-data="{
+               get ganttTasks() {
+                 return pmTasks.filter(t => t.start_date || t.due_date).slice(0,40);
+               },
+               get ganttStart() {
+                 const dates = pmTasks.flatMap(t => [t.start_date, t.due_date].filter(Boolean));
+                 if (!dates.length) return new Date().toISOString().slice(0,10);
+                 return dates.sort()[0];
+               },
+               get ganttEnd() {
+                 const dates = pmTasks.flatMap(t => [t.end_date, t.due_date].filter(Boolean));
+                 if (!dates.length) {
+                   const d = new Date(); d.setMonth(d.getMonth()+3);
+                   return d.toISOString().slice(0,10);
+                 }
+                 return dates.sort().reverse()[0];
+               },
+               get ganttDays() {
+                 const s = new Date(this.ganttStart), e = new Date(this.ganttEnd);
+                 return Math.max(30, Math.ceil((e-s)/(1000*86400))+7);
+               },
+               dayOffset(dateStr) {
+                 if (!dateStr) return 0;
+                 const s = new Date(this.ganttStart), d = new Date(dateStr);
+                 return Math.max(0, Math.ceil((d-s)/(1000*86400)));
+               },
+               taskWidth(t) {
+                 const s = t.start_date||t.due_date, e = t.end_date||t.due_date||t.start_date;
+                 if (!s) return 30;
+                 return Math.max(30, (this.dayOffset(e) - this.dayOffset(s) + 1) * 28);
+               },
+               taskLeft(t) { return this.dayOffset(t.start_date||t.due_date) * 28; },
+               taskColor(t) {
+                 return {not_started:'#94a3b8',in_progress:'#3b82f6',blocked:'#ef4444',completed:'#22c55e',cancelled:'#64748b'}[t.status]||'#94a3b8';
+               },
+               months() {
+                 const months = []; let d = new Date(this.ganttStart);
+                 const end = new Date(this.ganttEnd);
+                 while (d <= end) {
+                   months.push({ label: d.toLocaleString('default',{month:'short',year:'2-digit'}), offset: this.dayOffset(d.toISOString().slice(0,10)) });
+                   d = new Date(d.getFullYear(), d.getMonth()+1, 1);
+                 }
+                 return months;
+               },
+             }">
+          <div x-show="ganttTasks.length === 0" class="text-center py-12 text-gray-400">
+            <i class="fa-solid fa-bars-staggered text-3xl mb-3 text-gray-200"></i>
+            <div>No tasks with dates. Add start/end dates to tasks to see the Gantt chart.</div>
+          </div>
+          <div x-show="ganttTasks.length > 0" class="bg-white border rounded-xl overflow-hidden">
+            <div class="overflow-x-auto" style="max-height:65vh;overflow-y:auto;">
+              <div :style="'min-width:'+(ganttDays*28+200)+'px'">
+                <!-- Month headers -->
+                <div class="flex border-b sticky top-0 bg-white z-10" style="height:32px;">
+                  <div class="w-48 flex-shrink-0 border-r bg-gray-50 flex items-center px-3 text-xs font-semibold text-gray-500">TASK</div>
+                  <div class="relative flex-1">
+                    <template x-for="m in months()" :key="m.label">
+                      <div class="absolute top-0 h-full flex items-center text-xs font-semibold text-gray-400 border-l border-gray-200 pl-2"
+                           :style="'left:'+(m.offset*28)+'px'">
+                        <span x-text="m.label"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+                <!-- Task rows -->
+                <template x-for="t in ganttTasks" :key="t.id">
+                  <div class="flex border-b hover:bg-gray-50" style="height:36px;">
+                    <div class="w-48 flex-shrink-0 border-r flex items-center px-3 gap-2" style="min-width:192px;">
+                      <i class="fa-solid fa-flag text-xs flex-shrink-0" :class="priorityColor(t.priority)"></i>
+                      <span class="text-xs text-gray-700 truncate" x-text="t.title"></span>
+                    </div>
+                    <div class="flex-1 relative" :style="'width:'+(ganttDays*28)+'px'">
+                      <!-- Today line -->
+                      <div class="absolute top-0 h-full border-l-2 border-red-300 border-dashed opacity-50 pointer-events-none z-10"
+                           :style="'left:'+(dayOffset(new Date().toISOString().slice(0,10))*28)+'px'"></div>
+                      <!-- Task bar -->
+                      <div x-show="t.start_date||t.due_date"
+                           class="absolute top-3 h-5 rounded flex items-center px-1.5 text-white text-xs font-medium overflow-hidden cursor-pointer hover:opacity-90 transition"
+                           :style="'left:'+taskLeft(t)+'px;width:'+taskWidth(t)+'px;background:'+taskColor(t)"
+                           @click="openTaskDetail(t)"
+                           :title="t.title+' | '+t.status">
+                        <span class="truncate" x-text="t.percent_complete > 0 ? t.percent_complete+'%' : ''"></span>
+                        <!-- Progress overlay -->
+                        <div class="absolute left-0 top-0 h-full rounded opacity-30 bg-white pointer-events-none"
+                             :style="'width:'+t.percent_complete+'%'"></div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <!-- Legend -->
+            <div class="px-4 py-2 bg-gray-50 border-t flex flex-wrap gap-4 text-xs text-gray-500">
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-gray-400 inline-block"></span>Not Started</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-blue-500 inline-block"></span>In Progress</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-green-500 inline-block"></span>Completed</span>
+              <span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-red-500 inline-block"></span>Blocked</span>
+              <span class="flex items-center gap-1"><span class="w-0.5 h-4 bg-red-300 inline-block"></span>Today</span>
+              <span class="text-gray-400">Click a bar to open task details</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── LIST VIEW (original) - only show in list mode ─────── -->
+        <template x-if="taskSubView==='list'">
+          <div><!-- list content placeholder - already rendered below --></div>
+        </template>
+
       </div><!-- /pm-tasks -->
 
       <!-- ── PM DAILY LOGS ──────────────────────────────────────────── -->
@@ -7035,6 +7195,107 @@
   ══════════════════════════════════════════════════════════════ -->
 
   <script src="/static/js/app-2.js?v=2"></script>
+
+<!-- Funding Conditions Modal -->
+<div x-show="showConditionModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showConditionModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-lg max-h-[85vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-list-check mr-2 text-amber-600"></i>Funding Conditions</h3>
+      <button @click="showConditionModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <!-- Existing conditions -->
+    <div class="space-y-2 mb-4">
+      <template x-for="c in drawConditions" :key="c.id">
+        <div class="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2.5">
+          <span class="text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0" :class="conditionStatusColor(c.status)" x-text="c.status"></span>
+          <span class="text-sm text-gray-700 flex-1" x-text="c.description"></span>
+          <span x-show="c.required_by" class="text-xs text-gray-400" x-text="'Due '+c.required_by"></span>
+          <button x-show="c.status==='open'" @click="satisfyCondition(c.id, activeDrawForConditions)" class="text-xs text-green-600 hover:text-green-700 font-semibold"><i class="fa-solid fa-check"></i></button>
+        </div>
+      </template>
+      <div x-show="drawConditions.length===0" class="text-center text-gray-400 text-sm py-4">No conditions for this draw</div>
+    </div>
+    <!-- Add condition -->
+    <div class="border-t pt-4 space-y-3">
+      <h4 class="text-sm font-semibold text-gray-700">Add Condition</h4>
+      <div><input x-model="conditionForm.description" type="text" placeholder="e.g. Provide statutory declaration from framing sub" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <select x-model="conditionForm.condition_type" class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <option value="document">Document</option><option value="inspection">Inspection</option>
+          <option value="approval">Approval</option><option value="insurance">Insurance</option><option value="other">Other</option>
+        </select>
+        <input x-model="conditionForm.required_by" type="date" class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+      </div>
+      <button @click="saveCondition(activeDrawForConditions)" class="w-full px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700"><i class="fa-solid fa-plus mr-1"></i>Add Condition</button>
+    </div>
+  </div>
+</div>
+
+<!-- Draw Certificates Modal -->
+<div x-show="showCertModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showCertModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-lg max-h-[85vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-certificate mr-2 text-teal-600"></i>Inspector / Consultant Certificates</h3>
+      <button @click="showCertModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-2 mb-4">
+      <template x-for="c in drawCertificates" :key="c.id">
+        <div class="bg-gray-50 rounded-lg px-3 py-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-800" x-text="c.cert_type.replace(/_/g,' ').toUpperCase()"></span>
+            <span class="text-xs px-2 py-0.5 rounded-full font-semibold" :class="c.status==='accepted'?'bg-green-100 text-green-700':c.status==='submitted'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-500'" x-text="c.status"></span>
+          </div>
+          <div class="text-xs text-gray-400 mt-1" x-text="[c.certifier_name, c.certifier_firm, c.cert_date].filter(Boolean).join(' · ')"></div>
+          <div x-show="c.amount_certified" class="text-xs text-green-700 font-semibold mt-0.5" x-text="'Certified: $'+(c.amount_certified||0).toLocaleString()"></div>
+          <div x-show="c.has_file" class="text-xs text-blue-600 mt-0.5"><i class="fa-solid fa-paperclip mr-1"></i><span x-text="c.original_filename"></span></div>
+        </div>
+      </template>
+      <div x-show="drawCertificates.length===0" class="text-center text-gray-400 text-sm py-4">No certificates added</div>
+    </div>
+    <div class="border-t pt-4 space-y-3">
+      <h4 class="text-sm font-semibold text-gray-700">Add Certificate</h4>
+      <div class="grid grid-cols-2 gap-3">
+        <select x-model="certForm.cert_type" class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+          <option value="progress">Progress Certificate</option>
+          <option value="substantial_completion">Substantial Completion</option>
+          <option value="final">Final Certificate</option>
+          <option value="inspection">Inspection Report</option>
+          <option value="occupancy">Occupancy Permit</option>
+        </select>
+        <input x-model="certForm.cert_date" type="date" class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+        <input x-model="certForm.certifier_name" type="text" placeholder="Certifier name" class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+        <input x-model="certForm.certifier_firm" type="text" placeholder="Firm / company" class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+        <input x-model="certForm.amount_certified" type="number" placeholder="Amount certified" class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" />
+      </div>
+      <button @click="saveCertificate(activeDrawForCerts)" class="w-full px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700"><i class="fa-solid fa-plus mr-1"></i>Add Certificate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Owner Token Modal -->
+<div x-show="showOwnerTokenModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showOwnerTokenModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-md">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-user-tie mr-2 text-green-600"></i>Create Owner Portal Link</h3>
+      <button @click="showOwnerTokenModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Label <span class="text-gray-400">(e.g. BMO Construction Finance, Owner Portal)</span></label>
+        <input x-model="ownerTokenForm.label" type="text" placeholder="Owner Portal" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Expiry Date <span class="text-gray-400">(optional)</span></label>
+        <input x-model="ownerTokenForm.expires_at" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+      </div>
+      <p class="text-xs text-gray-400">The owner will see: project budget, all draws, approved amounts, holdback, and cost-by-category — read-only, no login required.</p>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showOwnerTokenModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="createOwnerToken()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700">Create Link</button>
+    </div>
+  </div>
+</div>
 
 <!-- Create Org modal (Super Admin) -->
 <div x-show="showCreateOrgModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showCreateOrgModal=false">

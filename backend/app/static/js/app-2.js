@@ -43,6 +43,39 @@ function app() {
     // ── Prompt Payment ────────────────────────────────────────────
     promptPayment: null,
 
+    // ── Funding Conditions ────────────────────────────────────────
+    drawConditions: [], showConditionModal: false,
+    conditionForm: { description:'', condition_type:'document', required_by:'' },
+    activeDrawForConditions: null,
+
+    // ── Draw Certificates ─────────────────────────────────────────
+    drawCertificates: [], showCertModal: false,
+    certForm: { cert_type:'progress', certifier_name:'', certifier_firm:'', cert_date:'', amount_certified:'' },
+    activeDrawForCerts: null,
+
+    // ── Owner Tokens ──────────────────────────────────────────────
+    ownerTokens: [], showOwnerTokenModal: false,
+    ownerTokenForm: { label:'', expires_at:'' },
+
+    // ── Funding Conditions ────────────────────────────────────────
+    drawConditions: [], showConditionModal: false,
+    conditionForm: { description:'', condition_type:'document', required_by:'' },
+    activeDrawForConditions: null,
+
+    // ── Draw Certificates ─────────────────────────────────────────
+    drawCertificates: [], showCertModal: false,
+    certForm: { cert_type:'progress', certifier_name:'', certifier_firm:'', cert_date:'', amount_certified:'' },
+    activeDrawForCerts: null,
+
+    // ── Statutory Declarations ────────────────────────────────────
+    drawDeclarations: [], showDeclModal: false,
+    declForm: { vendor_name:'', declaration_date:'', period_end:'', amount:'' },
+    activeDrawForDecls: null,
+
+    // ── Owner Tokens ──────────────────────────────────────────────
+    ownerTokens: [], showOwnerTokenModal: false,
+    ownerTokenForm: { label:'', expires_at:'' },
+
     // ── PM state ──────────────────────────────────────────────────
     pmSummary: null,
     // Tasks
@@ -2215,6 +2248,61 @@ function app() {
       const h = this.token ? { Authorization: `Bearer ${this.token}` } : {};
       if (this.currentOrg?.id) h['X-Organization-Id'] = String(this.currentOrg.id);
       return h;
+    },
+
+    // ── Funding Conditions functions ──────────────────────────────
+    async loadConditions(drawId) {
+      this.activeDrawForConditions = drawId;
+      try { this.drawConditions = await this.get(`/api/project/draws/${drawId}/conditions`); }
+      catch(e) { this.drawConditions = []; }
+    },
+    async saveCondition(drawId) {
+      await this.post(`/api/project/draws/${drawId}/conditions`, this.conditionForm);
+      this.showConditionModal = false;
+      this.conditionForm = { description:'', condition_type:'document', required_by:'' };
+      await this.loadConditions(drawId);
+    },
+    async satisfyCondition(id, drawId) {
+      await this.put(`/api/project/conditions/${id}`, { status:'satisfied' });
+      await this.loadConditions(drawId);
+    },
+    async loadCertificates(drawId) {
+      this.activeDrawForCerts = drawId;
+      try { this.drawCertificates = await this.get(`/api/project/draws/${drawId}/certificates`); }
+      catch(e) { this.drawCertificates = []; }
+    },
+    async saveCertificate(drawId) {
+      await this.post(`/api/project/draws/${drawId}/certificates`, this.certForm);
+      this.showCertModal = false;
+      this.certForm = { cert_type:'progress', certifier_name:'', certifier_firm:'', cert_date:'', amount_certified:'' };
+      await this.loadCertificates(drawId);
+    },
+    openCCDCClaim(drawId) { window.open(`/api/project/draws/${drawId}/ccdc-claim`, '_blank'); },
+    conditionStatusColor(s) {
+      return { open:'bg-amber-100 text-amber-700', satisfied:'bg-green-100 text-green-700', waived:'bg-gray-100 text-gray-500', submitted:'bg-blue-100 text-blue-700' }[s] || 'bg-gray-100';
+    },
+
+    // ── Owner Tokens functions ────────────────────────────────────
+    async loadOwnerTokens() {
+      try { this.ownerTokens = await this.get('/api/project/owner-tokens'); }
+      catch(e) { this.ownerTokens = []; }
+    },
+    async createOwnerToken() {
+      if (!this.currentProject) return;
+      const body = { ...this.ownerTokenForm, project_id: this.currentProject.id };
+      await this.post('/api/project/owner-tokens', body);
+      this.showOwnerTokenModal = false;
+      this.ownerTokenForm = { label:'', expires_at:'' };
+      await this.loadOwnerTokens();
+    },
+    async toggleOwnerToken(id) {
+      await fetch(`/api/project/owner-tokens/${id}/toggle`, { method:'PUT', headers: this._headers() });
+      await this.loadOwnerTokens();
+    },
+    async deleteOwnerToken(id) {
+      if (!confirm('Delete this owner portal link?')) return;
+      await this.delete(`/api/project/owner-tokens/${id}`);
+      await this.loadOwnerTokens();
     },
 
     // ── Canadian Compliance ───────────────────────────────────────

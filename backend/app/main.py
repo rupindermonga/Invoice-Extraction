@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus
 
 
 def _run_migrations():
@@ -328,6 +328,58 @@ def _run_migrations():
             )""",
             "CREATE INDEX IF NOT EXISTS ix_pm_tasks_project ON pm_tasks(project_id, org_id)",
             "CREATE INDEX IF NOT EXISTS ix_pm_tasks_assigned ON pm_tasks(assigned_to)",
+            # Lender+ tables
+            """CREATE TABLE IF NOT EXISTS funding_conditions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                draw_id INTEGER REFERENCES draws(id),
+                description TEXT NOT NULL,
+                condition_type TEXT DEFAULT 'document',
+                status TEXT DEFAULT 'open',
+                required_by TEXT, satisfied_date TEXT, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS draw_certificates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                draw_id INTEGER REFERENCES draws(id),
+                cert_type TEXT DEFAULT 'progress',
+                certifier_name TEXT, certifier_firm TEXT,
+                cert_date TEXT, amount_certified REAL,
+                file_path TEXT, original_filename TEXT,
+                status TEXT DEFAULT 'pending', notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS statutory_declarations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                draw_id INTEGER REFERENCES draws(id),
+                vendor_name TEXT NOT NULL,
+                vendor_id INTEGER REFERENCES org_vendors(id),
+                declaration_date TEXT, period_end TEXT,
+                amount REAL, file_path TEXT,
+                status TEXT DEFAULT 'required',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS owner_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                token TEXT UNIQUE NOT NULL,
+                label TEXT NOT NULL,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                is_active INTEGER DEFAULT 1,
+                expires_at TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_funding_conditions_draw ON funding_conditions(draw_id)",
+            "CREATE INDEX IF NOT EXISTS ix_draw_certs_draw ON draw_certificates(draw_id)",
+            "CREATE INDEX IF NOT EXISTS ix_stat_decls_draw ON statutory_declarations(draw_id)",
             # Canadian Compliance
             """CREATE TABLE IF NOT EXISTS prompt_payment_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -495,6 +547,8 @@ app.include_router(audit.router)
 app.include_router(pm.router)
 app.include_router(construction_health.router)
 app.include_router(compliance.router)
+app.include_router(lender_plus.router)
+app.include_router(lender_plus._owner_router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -514,6 +568,12 @@ async def service_worker():
 async def lender_view(token: str):
     """Serve the public lender HTML page (token is handled client-side)."""
     return FileResponse(os.path.join(static_dir, "lender.html"))
+
+
+@app.get("/owner/{token}", include_in_schema=False)
+async def owner_view(token: str):
+    """Serve the owner portal HTML page."""
+    return FileResponse(os.path.join(static_dir, "owner.html"))
 
 
 @app.get("/report", include_in_schema=False)

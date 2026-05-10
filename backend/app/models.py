@@ -443,6 +443,84 @@ class PhotoLog(Base):
     creator = relationship("User")
 
 
+class FundingCondition(Base):
+    """Per-draw lender funding conditions — items required before funds are released."""
+    __tablename__ = "funding_conditions"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id  = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    draw_id     = Column(Integer, ForeignKey("draws.id"), nullable=True, index=True)
+    description = Column(Text, nullable=False)
+    condition_type = Column(String, default="document")  # document | inspection | approval | insurance | other
+    status      = Column(String, default="open")          # open | submitted | waived | satisfied
+    required_by = Column(String, nullable=True)           # YYYY-MM-DD deadline
+    satisfied_date = Column(String, nullable=True)
+    notes       = Column(Text, nullable=True)
+    created_by  = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")
+
+
+class DrawCertificate(Base):
+    """Inspector / consultant certificate per draw — required for lender fund release."""
+    __tablename__ = "draw_certificates"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id      = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    draw_id         = Column(Integer, ForeignKey("draws.id"), nullable=True, index=True)
+    cert_type       = Column(String, default="progress")  # progress | occupancy | substantial_completion | final | inspection
+    certifier_name  = Column(String, nullable=True)
+    certifier_firm  = Column(String, nullable=True)
+    cert_date       = Column(String, nullable=True)         # YYYY-MM-DD date certified
+    amount_certified = Column(Float, nullable=True)         # amount certified by consultant
+    file_path       = Column(String, nullable=True)
+    original_filename = Column(String, nullable=True)
+    status          = Column(String, default="pending")     # pending | submitted | accepted | rejected
+    notes           = Column(Text, nullable=True)
+    created_by      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")
+
+
+class StatutoryDeclaration(Base):
+    """Per-draw statutory declaration from vendor/subcontractor."""
+    __tablename__ = "statutory_declarations"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id  = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    draw_id     = Column(Integer, ForeignKey("draws.id"), nullable=True, index=True)
+    vendor_name = Column(String, nullable=False)
+    vendor_id   = Column(Integer, ForeignKey("org_vendors.id"), nullable=True)
+    declaration_date = Column(String, nullable=True)       # YYYY-MM-DD date signed
+    period_end  = Column(String, nullable=True)            # period covered to
+    amount      = Column(Float, nullable=True)             # amount declared
+    file_path   = Column(String, nullable=True)
+    status      = Column(String, default="required")       # required | received | expired | waived
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+
+class OwnerToken(Base):
+    """Token-based owner portal access — owner sees project overview without a GC account."""
+    __tablename__ = "owner_tokens"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    project_id  = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    token       = Column(String, unique=True, nullable=False, index=True)
+    label       = Column(String, nullable=False)           # e.g. "BMO Construction Finance"
+    created_by  = Column(Integer, ForeignKey("users.id"), nullable=False)
+    is_active   = Column(Boolean, default=True)
+    expires_at  = Column(String, nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")
+
+
 class PromptPaymentLog(Base):
     """Tracks Ontario Construction Act / provincial prompt-payment deadlines per draw/payment."""
     __tablename__ = "prompt_payment_logs"
