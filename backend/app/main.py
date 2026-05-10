@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour
 
 
 def _run_migrations():
@@ -421,6 +421,170 @@ def _run_migrations():
                 accepted INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )""",
+            # Lender Risk: Covenants + Interest Reserve
+            """CREATE TABLE IF NOT EXISTS lender_covenants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                covenant_type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                threshold_value REAL,
+                threshold_operator TEXT DEFAULT '<=',
+                current_value REAL,
+                as_of_date TEXT,
+                status TEXT DEFAULT 'compliant',
+                notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS interest_reserves (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                reserve_amount REAL NOT NULL,
+                drawn_to_date REAL DEFAULT 0,
+                interest_rate REAL,
+                accrual_basis TEXT DEFAULT 'actual/365',
+                notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS interest_reserve_draws (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reserve_id INTEGER NOT NULL REFERENCES interest_reserves(id),
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                draw_date TEXT NOT NULL,
+                amount REAL NOT NULL,
+                period_start TEXT, period_end TEXT, notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Bond Registry
+            """CREATE TABLE IF NOT EXISTS bonds (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                vendor_id INTEGER REFERENCES org_vendors(id),
+                vendor_name TEXT,
+                bond_type TEXT NOT NULL,
+                bond_number TEXT,
+                surety_company TEXT,
+                bond_amount REAL,
+                effective_date TEXT,
+                expiry_date TEXT,
+                status TEXT DEFAULT 'active',
+                file_path TEXT, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Permit & Inspection Workflow
+            """CREATE TABLE IF NOT EXISTS permits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                permit_type TEXT NOT NULL,
+                permit_number TEXT,
+                description TEXT NOT NULL,
+                authority TEXT,
+                application_date TEXT, issued_date TEXT, expiry_date TEXT,
+                status TEXT DEFAULT 'pending',
+                fee_paid REAL, file_path TEXT, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS permit_inspections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                permit_id INTEGER NOT NULL REFERENCES permits(id) ON DELETE CASCADE,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                inspection_type TEXT NOT NULL,
+                scheduled_date TEXT, completed_date TEXT,
+                inspector_name TEXT,
+                result TEXT DEFAULT 'pending',
+                deficiencies TEXT, notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Safety Management
+            """CREATE TABLE IF NOT EXISTS safety_incidents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                incident_date TEXT NOT NULL,
+                incident_type TEXT NOT NULL,
+                severity TEXT DEFAULT 'low',
+                description TEXT NOT NULL,
+                location TEXT,
+                persons_involved TEXT,
+                immediate_actions TEXT,
+                root_cause TEXT,
+                corrective_actions TEXT,
+                wsib_reportable INTEGER DEFAULT 0,
+                wsib_reported_date TEXT,
+                mol_reportable INTEGER DEFAULT 0,
+                mol_reported_date TEXT,
+                status TEXT DEFAULT 'open',
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS toolbox_talks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                talk_date TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                facilitator TEXT,
+                attendee_count INTEGER DEFAULT 0,
+                attendees TEXT,
+                duration_minutes INTEGER,
+                notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Warranty Items
+            """CREATE TABLE IF NOT EXISTS warranty_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                item_number TEXT,
+                category TEXT DEFAULT 'other',
+                description TEXT NOT NULL,
+                location TEXT,
+                reported_date TEXT,
+                warranty_type TEXT DEFAULT '1year',
+                homeowner_name TEXT,
+                status TEXT DEFAULT 'open',
+                assigned_to TEXT,
+                scheduled_date TEXT,
+                resolved_date TEXT,
+                notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Labour Time Tracking
+            """CREATE TABLE IF NOT EXISTS timecards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                worker_name TEXT NOT NULL,
+                trade TEXT,
+                classification TEXT,
+                work_date TEXT NOT NULL,
+                regular_hours REAL DEFAULT 0,
+                overtime_hours REAL DEFAULT 0,
+                double_time_hours REAL DEFAULT 0,
+                hourly_rate REAL,
+                burden_pct REAL DEFAULT 0,
+                cost_category_id INTEGER REFERENCES cost_categories(id),
+                work_description TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_timecards_project_date ON timecards(project_id, work_date)",
+            "CREATE INDEX IF NOT EXISTS ix_safety_incidents_project ON safety_incidents(project_id)",
+            "CREATE INDEX IF NOT EXISTS ix_permits_project ON permits(project_id)",
+            "CREATE INDEX IF NOT EXISTS ix_lender_covenants_project ON lender_covenants(project_id)",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -549,6 +713,10 @@ app.include_router(construction_health.router)
 app.include_router(compliance.router)
 app.include_router(lender_plus.router)
 app.include_router(lender_plus._owner_router)
+app.include_router(lender_risk.router)
+app.include_router(permits.router)
+app.include_router(safety.router)
+app.include_router(labour.router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")

@@ -115,6 +115,53 @@ function app() {
     // Photos
     pmPhotos: [], pmPhotosLoading: false,
 
+    // ── Safety Management ──────────────────────────────────────────
+    safetyIncidents: [], safetyLoading: false,
+    safetySummary: null,
+    showSafetyModal: false, safetyEditId: null,
+    safetyForm: { incident_date:'', incident_type:'near_miss', severity:'low', description:'', location:'', persons_involved:'', immediate_actions:'', wsib_reportable:false, mol_reportable:false, status:'open' },
+    toolboxTalks: [], toolboxLoading: false,
+    showToolboxModal: false, toolboxEditId: null,
+    toolboxForm: { talk_date:'', topic:'', facilitator:'', attendee_count:0, attendees:'', duration_minutes:'', notes:'' },
+
+    // ── Permits ────────────────────────────────────────────────────
+    permitsData: [], permitsLoading: false,
+    showPermitModal: false, permitEditId: null,
+    permitForm: { permit_type:'building', permit_number:'', description:'', authority:'', application_date:'', issued_date:'', expiry_date:'', status:'pending', fee_paid:'', notes:'' },
+    permitFormError: '',
+    showPermitInspModal: false, activePermitForInsp: null,
+    permitInspections: [],
+    inspForm: { inspection_type:'', result:'pending', scheduled_date:'', completed_date:'', inspector_name:'', deficiencies:'' },
+
+    // ── Warranty ───────────────────────────────────────────────────
+    warrantyItems: [], warrantyLoading: false,
+    showWarrantyModal: false, warrantyEditId: null,
+    warrantyForm: { category:'other', description:'', location:'', reported_date:'', warranty_type:'1year', homeowner_name:'', status:'open', assigned_to:'', scheduled_date:'', notes:'' },
+
+    // ── Labour / Timecards ─────────────────────────────────────────
+    timecards: [], timecardsLoading: false,
+    labourReport: null,
+    showTimecardModal: false, timecardEditId: null,
+    timecardForm: { worker_name:'', trade:'', classification:'', work_date:'', regular_hours:8, overtime_hours:0, double_time_hours:0, hourly_rate:'', burden_pct:30, work_description:'' },
+
+    // ── WIP Report ─────────────────────────────────────────────────
+    wipData: null, wipLoading: false,
+
+    // ── Covenants ──────────────────────────────────────────────────
+    covenantsData: [], covenantsLoading: false,
+    showCovenantModal: false, covenantEditId: null,
+    covenantForm: { covenant_type:'ltc', name:'', threshold_value:'', threshold_operator:'<=', current_value:'', as_of_date:'', status:'compliant', notes:'' },
+
+    // ── Interest Reserve ───────────────────────────────────────────
+    interestReserve: null, irLoading: false,
+    showIRModal: false, irForm: { reserve_amount:'', interest_rate:'', accrual_basis:'actual/365', notes:'' },
+    showIRDrawModal: false, irDrawForm: { draw_date:'', amount:'', period_start:'', period_end:'', notes:'' },
+
+    // ── Bonds ──────────────────────────────────────────────────────
+    bondsData: [], bondsLoading: false,
+    showBondModal: false, bondEditId: null,
+    bondForm: { vendor_name:'', bond_type:'performance', bond_number:'', surety_company:'', bond_amount:'', effective_date:'', expiry_date:'', status:'active', notes:'' },
+
     // ── Super Admin UI ────────────────────────────────────────────
     showCreateOrgModal: false,
     createOrgForm: { name: '', owner_username: '', plan: 'starter' },
@@ -2777,5 +2824,275 @@ function app() {
       if(!confirm('Cancel this invitation?')) return;
       try { await this.delete(`/api/org/invitations/${id}`); await this.loadPendingInvites(); } catch(e) {}
     },
+
+    // ── Safety Incidents ────────────────────────────────────────────
+    async loadSafetyIncidents() {
+      if (!this.currentProject) return;
+      this.safetyLoading = true;
+      try {
+        const [incidents, summary] = await Promise.all([
+          this.get(`/api/project/${this.currentProject.id}/safety/incidents`),
+          this.get(`/api/project/${this.currentProject.id}/safety/summary`),
+        ]);
+        this.safetyIncidents = incidents;
+        this.safetySummary = summary;
+      } catch(e) { this.safetyIncidents = []; }
+      finally { this.safetyLoading = false; }
+    },
+    editSafetyIncident(inc) {
+      this.safetyEditId = inc.id;
+      this.safetyForm = { incident_date:inc.incident_date, incident_type:inc.incident_type, severity:inc.severity, description:inc.description, location:inc.location||'', persons_involved:inc.persons_involved||'', immediate_actions:inc.immediate_actions||'', wsib_reportable:inc.wsib_reportable, mol_reportable:inc.mol_reportable, status:inc.status };
+      this.showSafetyModal = true;
+    },
+    async saveSafetyIncident() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.safetyEditId) await this.put(`/api/project/${pid}/safety/incidents/${this.safetyEditId}`, this.safetyForm);
+        else await this.post(`/api/project/${pid}/safety/incidents`, this.safetyForm);
+        this.showSafetyModal = false; this.safetyEditId = null;
+        await this.loadSafetyIncidents();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteSafetyIncident(id) {
+      if (!confirm('Delete this incident?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/safety/incidents/${id}`); await this.loadSafetyIncidents(); } catch(e) {}
+    },
+
+    // ── Toolbox Talks ───────────────────────────────────────────────
+    async loadToolboxTalks() {
+      if (!this.currentProject) return;
+      this.toolboxLoading = true;
+      try { this.toolboxTalks = await this.get(`/api/project/${this.currentProject.id}/safety/toolbox-talks`); } catch(e) { this.toolboxTalks = []; }
+      finally { this.toolboxLoading = false; }
+    },
+    editToolboxTalk(t) {
+      this.toolboxEditId = t.id;
+      this.toolboxForm = { talk_date:t.talk_date, topic:t.topic, facilitator:t.facilitator||'', attendee_count:t.attendee_count||0, attendees:t.attendees||'', duration_minutes:t.duration_minutes||'', notes:t.notes||'' };
+      this.showToolboxModal = true;
+    },
+    async saveToolboxTalk() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.toolboxEditId) await this.put(`/api/project/${pid}/safety/toolbox-talks/${this.toolboxEditId}`, this.toolboxForm);
+        else await this.post(`/api/project/${pid}/safety/toolbox-talks`, this.toolboxForm);
+        this.showToolboxModal = false; this.toolboxEditId = null;
+        await this.loadToolboxTalks();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteToolboxTalk(id) {
+      if (!confirm('Delete this talk record?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/safety/toolbox-talks/${id}`); await this.loadToolboxTalks(); } catch(e) {}
+    },
+
+    // ── Permits ─────────────────────────────────────────────────────
+    async loadPermits() {
+      if (!this.currentProject) return;
+      this.permitsLoading = true;
+      try { this.permitsData = await this.get(`/api/project/${this.currentProject.id}/permits`); } catch(e) { this.permitsData = []; }
+      finally { this.permitsLoading = false; }
+    },
+    editPermit(p) {
+      this.permitEditId = p.id;
+      this.permitForm = { permit_type:p.permit_type, permit_number:p.permit_number||'', description:p.description, authority:p.authority||'', application_date:p.application_date||'', issued_date:p.issued_date||'', expiry_date:p.expiry_date||'', status:p.status, fee_paid:p.fee_paid||'', notes:p.notes||'' };
+      this.permitFormError = ''; this.showPermitModal = true;
+    },
+    async savePermit() {
+      if (!this.currentProject) return;
+      if (!this.permitForm.description.trim()) { this.permitFormError = 'Description is required'; return; }
+      const pid = this.currentProject.id;
+      try {
+        if (this.permitEditId) await this.put(`/api/project/${pid}/permits/${this.permitEditId}`, this.permitForm);
+        else await this.post(`/api/project/${pid}/permits`, this.permitForm);
+        this.showPermitModal = false; this.permitEditId = null;
+        await this.loadPermits();
+      } catch(e) { this.permitFormError = e.message||'Save failed'; }
+    },
+    async deletePermit(id) {
+      if (!confirm('Delete this permit?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/permits/${id}`); await this.loadPermits(); } catch(e) {}
+    },
+    async openPermitInspections(p) {
+      this.activePermitForInsp = p;
+      this.inspForm = { inspection_type:'', result:'pending', scheduled_date:'', completed_date:'', inspector_name:'', deficiencies:'' };
+      try { this.permitInspections = await this.get(`/api/project/${this.currentProject.id}/permits/${p.id}/inspections`); } catch(e) { this.permitInspections = []; }
+      this.showPermitInspModal = true;
+    },
+    async savePermitInspection() {
+      if (!this.currentProject || !this.activePermitForInsp) return;
+      if (!this.inspForm.inspection_type.trim()) { alert('Inspection type is required'); return; }
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/permits/${this.activePermitForInsp.id}/inspections`, this.inspForm);
+        this.permitInspections = await this.get(`/api/project/${this.currentProject.id}/permits/${this.activePermitForInsp.id}/inspections`);
+        this.inspForm = { inspection_type:'', result:'pending', scheduled_date:'', completed_date:'', inspector_name:'', deficiencies:'' };
+        await this.loadPermits();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+
+    // ── Warranty ────────────────────────────────────────────────────
+    async loadWarranty() {
+      if (!this.currentProject) return;
+      this.warrantyLoading = true;
+      try { this.warrantyItems = await this.get(`/api/project/${this.currentProject.id}/warranty`); } catch(e) { this.warrantyItems = []; }
+      finally { this.warrantyLoading = false; }
+    },
+    editWarranty(w) {
+      this.warrantyEditId = w.id;
+      this.warrantyForm = { category:w.category, description:w.description, location:w.location||'', reported_date:w.reported_date||'', warranty_type:w.warranty_type, homeowner_name:w.homeowner_name||'', status:w.status, assigned_to:w.assigned_to||'', scheduled_date:w.scheduled_date||'', notes:w.notes||'' };
+      this.showWarrantyModal = true;
+    },
+    async saveWarranty() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.warrantyEditId) await this.put(`/api/project/${pid}/warranty/${this.warrantyEditId}`, this.warrantyForm);
+        else await this.post(`/api/project/${pid}/warranty`, this.warrantyForm);
+        this.showWarrantyModal = false; this.warrantyEditId = null;
+        await this.loadWarranty();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteWarranty(id) {
+      if (!confirm('Delete this warranty item?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/warranty/${id}`); await this.loadWarranty(); } catch(e) {}
+    },
+
+    // ── Labour / Timecards ──────────────────────────────────────────
+    async loadTimecards() {
+      if (!this.currentProject) return;
+      this.timecardsLoading = true;
+      try {
+        const [tcs, report] = await Promise.all([
+          this.get(`/api/project/${this.currentProject.id}/timecards`),
+          this.get(`/api/project/${this.currentProject.id}/labour-report`),
+        ]);
+        this.timecards = tcs; this.labourReport = report;
+      } catch(e) { this.timecards = []; }
+      finally { this.timecardsLoading = false; }
+    },
+    async loadLabourReport() {
+      if (!this.currentProject) return;
+      try { this.labourReport = await this.get(`/api/project/${this.currentProject.id}/labour-report`); } catch(e) {}
+    },
+    editTimecard(tc) {
+      this.timecardEditId = tc.id;
+      this.timecardForm = { worker_name:tc.worker_name, trade:tc.trade||'', classification:tc.classification||'', work_date:tc.work_date, regular_hours:tc.regular_hours, overtime_hours:tc.overtime_hours, double_time_hours:tc.double_time_hours, hourly_rate:tc.hourly_rate||'', burden_pct:tc.burden_pct||0, work_description:tc.work_description||'' };
+      this.showTimecardModal = true;
+    },
+    async saveTimecard() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.timecardEditId) await this.put(`/api/project/${pid}/timecards/${this.timecardEditId}`, this.timecardForm);
+        else await this.post(`/api/project/${pid}/timecards`, this.timecardForm);
+        this.showTimecardModal = false; this.timecardEditId = null;
+        await this.loadTimecards();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteTimecard(id) {
+      if (!confirm('Delete this timecard?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/timecards/${id}`); await this.loadTimecards(); } catch(e) {}
+    },
+
+    // ── WIP Report ──────────────────────────────────────────────────
+    async loadWIPReport() {
+      if (!this.currentProject) return;
+      this.wipLoading = true;
+      try { this.wipData = await this.get(`/api/project/${this.currentProject.id}/wip-report`); } catch(e) { this.wipData = null; }
+      finally { this.wipLoading = false; }
+    },
+
+    // ── Covenants ───────────────────────────────────────────────────
+    async loadCovenants() {
+      if (!this.currentProject) return;
+      this.covenantsLoading = true;
+      try { this.covenantsData = await this.get(`/api/project/${this.currentProject.id}/covenants`); } catch(e) { this.covenantsData = []; }
+      finally { this.covenantsLoading = false; }
+    },
+    editCovenant(c) {
+      this.covenantEditId = c.id;
+      this.covenantForm = { covenant_type:c.covenant_type, name:c.name, threshold_value:c.threshold_value??'', threshold_operator:c.threshold_operator, current_value:c.current_value??'', as_of_date:c.as_of_date||'', status:c.status, notes:c.notes||'' };
+      this.showCovenantModal = true;
+    },
+    async saveCovenant() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.covenantEditId) await this.put(`/api/project/${pid}/covenants/${this.covenantEditId}`, this.covenantForm);
+        else await this.post(`/api/project/${pid}/covenants`, this.covenantForm);
+        this.showCovenantModal = false; this.covenantEditId = null;
+        await this.loadCovenants();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteCovenant(id) {
+      if (!confirm('Delete this covenant?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/covenants/${id}`); await this.loadCovenants(); } catch(e) {}
+    },
+    async openCreditCommittee() {
+      if (!this.currentProject) return;
+      try {
+        const r = await fetch(`/api/project/${this.currentProject.id}/credit-committee-report`, { headers: { Authorization: 'Bearer ' + this.token } });
+        if (!r.ok) throw new Error('Failed to generate report');
+        const html = await r.text();
+        const blob = new Blob([html], { type: 'text/html' });
+        window.open(URL.createObjectURL(blob), '_blank');
+      } catch(e) { alert(e.message||'Could not open report'); }
+    },
+
+    // ── Interest Reserve ────────────────────────────────────────────
+    async loadInterestReserve() {
+      if (!this.currentProject) return;
+      this.irLoading = true;
+      try { this.interestReserve = await this.get(`/api/project/${this.currentProject.id}/interest-reserve`); } catch(e) { this.interestReserve = null; }
+      finally { this.irLoading = false; }
+    },
+    async saveInterestReserve() {
+      if (!this.currentProject) return;
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/interest-reserve`, this.irForm);
+        this.showIRModal = false;
+        await this.loadInterestReserve();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async addIRDraw() {
+      if (!this.currentProject) return;
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/interest-reserve/draws`, this.irDrawForm);
+        this.showIRDrawModal = false;
+        await this.loadInterestReserve();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteIRDraw(id) {
+      if (!confirm('Delete this reserve draw?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/interest-reserve/draws/${id}`); await this.loadInterestReserve(); } catch(e) {}
+    },
+
+    // ── Bonds ────────────────────────────────────────────────────────
+    async loadBonds() {
+      if (!this.currentProject) return;
+      this.bondsLoading = true;
+      try { this.bondsData = await this.get(`/api/project/${this.currentProject.id}/bonds`); } catch(e) { this.bondsData = []; }
+      finally { this.bondsLoading = false; }
+    },
+    editBond(b) {
+      this.bondEditId = b.id;
+      this.bondForm = { vendor_name:b.vendor_name||'', bond_type:b.bond_type, bond_number:b.bond_number||'', surety_company:b.surety_company||'', bond_amount:b.bond_amount||'', effective_date:b.effective_date||'', expiry_date:b.expiry_date||'', status:b.status, notes:b.notes||'' };
+      this.showBondModal = true;
+    },
+    async saveBond() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.bondEditId) await this.put(`/api/project/${pid}/bonds/${this.bondEditId}`, this.bondForm);
+        else await this.post(`/api/project/${pid}/bonds`, this.bondForm);
+        this.showBondModal = false; this.bondEditId = null;
+        await this.loadBonds();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteBond(id) {
+      if (!confirm('Delete this bond record?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/bonds/${id}`); await this.loadBonds(); } catch(e) {}
+    },
+
   };
 }

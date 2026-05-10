@@ -948,3 +948,241 @@ class GeminiApiKey(Base):
     priority = Column(Integer, default=100)       # lower number = tried first
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ─── Lender Risk & Finance Models ────────────────────────────────────────────
+
+class LenderCovenant(Base):
+    """Loan covenant tracking — DSCR, LTC/LTV, equity contribution triggers."""
+    __tablename__ = "lender_covenants"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    covenant_type    = Column(String, nullable=False)   # ltc | ltv | dscr | equity | other
+    name             = Column(String, nullable=False)
+    threshold_value  = Column(Float, nullable=True)     # e.g. 0.65 for 65% LTC
+    threshold_operator = Column(String, default="<=")   # <= | >= | =
+    current_value    = Column(Float, nullable=True)
+    as_of_date       = Column(String, nullable=True)    # YYYY-MM-DD
+    status           = Column(String, default="compliant")  # compliant | warning | breach
+    notes            = Column(Text, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    creator = relationship("User")
+
+
+class InterestReserve(Base):
+    """Interest reserve per project — tracks total, drawn, and rate for depletion forecasting."""
+    __tablename__ = "interest_reserves"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    org_id         = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id     = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    reserve_amount = Column(Float, nullable=False)    # total interest reserve funded
+    drawn_to_date  = Column(Float, default=0.0)       # cumulative drawn from reserve
+    interest_rate  = Column(Float, nullable=True)     # annual rate %
+    accrual_basis  = Column(String, default="actual/365")  # actual/365 | 30/360
+    notes          = Column(Text, nullable=True)
+    created_by     = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    creator = relationship("User")
+    draws   = relationship("InterestReserveDraw", back_populates="reserve", cascade="all, delete-orphan")
+
+
+class InterestReserveDraw(Base):
+    """Individual draw against the interest reserve."""
+    __tablename__ = "interest_reserve_draws"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    reserve_id  = Column(Integer, ForeignKey("interest_reserves.id"), nullable=False, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id  = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    draw_date   = Column(String, nullable=False)   # YYYY-MM-DD
+    amount      = Column(Float, nullable=False)
+    period_start = Column(String, nullable=True)
+    period_end  = Column(String, nullable=True)
+    notes       = Column(Text, nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    reserve = relationship("InterestReserve", back_populates="draws")
+
+
+# ─── Bond Registry ────────────────────────────────────────────────────────────
+
+class Bond(Base):
+    """Performance bond, labour & material bond, bid bond, maintenance bond registry."""
+    __tablename__ = "bonds"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    org_id         = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id     = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    vendor_id      = Column(Integer, ForeignKey("org_vendors.id"), nullable=True)
+    vendor_name    = Column(String, nullable=True)
+    bond_type      = Column(String, nullable=False)  # performance | labour_material | maintenance | bid | payment
+    bond_number    = Column(String, nullable=True)
+    surety_company = Column(String, nullable=True)
+    bond_amount    = Column(Float, nullable=True)
+    effective_date = Column(String, nullable=True)   # YYYY-MM-DD
+    expiry_date    = Column(String, nullable=True)   # YYYY-MM-DD
+    status         = Column(String, default="active")  # active | expired | claimed | cancelled
+    file_path      = Column(String, nullable=True)
+    notes          = Column(Text, nullable=True)
+    created_by     = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")
+
+
+# ─── Permit & Inspection Workflow ─────────────────────────────────────────────
+
+class Permit(Base):
+    """Municipal permit register — building, electrical, plumbing, occupancy, etc."""
+    __tablename__ = "permits"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    permit_type      = Column(String, nullable=False)  # building | electrical | plumbing | mechanical | demolition | occupancy | other
+    permit_number    = Column(String, nullable=True)
+    description      = Column(String, nullable=False)
+    authority        = Column(String, nullable=True)   # issuing municipality/authority
+    application_date = Column(String, nullable=True)   # YYYY-MM-DD
+    issued_date      = Column(String, nullable=True)   # YYYY-MM-DD
+    expiry_date      = Column(String, nullable=True)   # YYYY-MM-DD
+    status           = Column(String, default="pending")  # pending | applied | issued | expired | closed | revoked
+    fee_paid         = Column(Float, nullable=True)
+    file_path        = Column(String, nullable=True)
+    notes            = Column(Text, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+    creator     = relationship("User")
+    inspections = relationship("PermitInspection", back_populates="permit", cascade="all, delete-orphan")
+
+
+class PermitInspection(Base):
+    """Inspection record under a permit."""
+    __tablename__ = "permit_inspections"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    permit_id       = Column(Integer, ForeignKey("permits.id"), nullable=False, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id      = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    inspection_type = Column(String, nullable=False)   # framing | electrical | plumbing | final | etc.
+    scheduled_date  = Column(String, nullable=True)    # YYYY-MM-DD
+    completed_date  = Column(String, nullable=True)    # YYYY-MM-DD
+    inspector_name  = Column(String, nullable=True)
+    result          = Column(String, default="pending")  # pending | passed | failed | conditional
+    deficiencies    = Column(Text, nullable=True)
+    notes           = Column(Text, nullable=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    permit = relationship("Permit", back_populates="inspections")
+
+
+# ─── Safety Management ────────────────────────────────────────────────────────
+
+class SafetyIncident(Base):
+    """Safety incident and near-miss reporting (COR/WSIB/MOL compliance)."""
+    __tablename__ = "safety_incidents"
+
+    id                  = Column(Integer, primary_key=True, index=True)
+    org_id              = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id          = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    incident_date       = Column(String, nullable=False, index=True)
+    incident_type       = Column(String, nullable=False)  # injury | near_miss | property_damage | environmental | first_aid
+    severity            = Column(String, default="low")   # low | medium | high | critical
+    description         = Column(Text, nullable=False)
+    location            = Column(String, nullable=True)
+    persons_involved    = Column(Text, nullable=True)
+    immediate_actions   = Column(Text, nullable=True)
+    root_cause          = Column(Text, nullable=True)
+    corrective_actions  = Column(Text, nullable=True)
+    wsib_reportable     = Column(Boolean, default=False)
+    wsib_reported_date  = Column(String, nullable=True)
+    mol_reportable      = Column(Boolean, default=False)
+    mol_reported_date   = Column(String, nullable=True)
+    status              = Column(String, default="open")  # open | under_investigation | closed
+    created_by          = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at          = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")
+
+
+class ToolboxTalk(Base):
+    """Toolbox talk / safety meeting record with attendance."""
+    __tablename__ = "toolbox_talks"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    talk_date        = Column(String, nullable=False, index=True)
+    topic            = Column(String, nullable=False)
+    facilitator      = Column(String, nullable=True)
+    attendee_count   = Column(Integer, default=0)
+    attendees        = Column(Text, nullable=True)        # comma-separated or JSON
+    duration_minutes = Column(Integer, nullable=True)
+    notes            = Column(Text, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")
+
+
+# ─── Warranty Tracking ────────────────────────────────────────────────────────
+
+class WarrantyItem(Base):
+    """TARION / homeowner warranty deficiency tracking."""
+    __tablename__ = "warranty_items"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    org_id         = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id     = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    item_number    = Column(String, nullable=True)
+    category       = Column(String, default="other")  # structural | envelope | mechanical | finishes | other
+    description    = Column(Text, nullable=False)
+    location       = Column(String, nullable=True)
+    reported_date  = Column(String, nullable=True)    # YYYY-MM-DD
+    warranty_type  = Column(String, default="1year")  # 30day | 1year | 2year | 7year | tarion
+    homeowner_name = Column(String, nullable=True)
+    status         = Column(String, default="open")   # open | scheduled | in_progress | resolved | disputed
+    assigned_to    = Column(String, nullable=True)    # trade/vendor name
+    scheduled_date = Column(String, nullable=True)
+    resolved_date  = Column(String, nullable=True)
+    notes          = Column(Text, nullable=True)
+    created_by     = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")
+
+
+# ─── Labour Time Tracking ─────────────────────────────────────────────────────
+
+class Timecard(Base):
+    """Crew timecard — labour cost tracking per worker per day."""
+    __tablename__ = "timecards"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    org_id            = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id        = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    worker_name       = Column(String, nullable=False)
+    trade             = Column(String, nullable=True)
+    classification    = Column(String, nullable=True)  # journeyman | apprentice | foreman | labourer
+    work_date         = Column(String, nullable=False, index=True)
+    regular_hours     = Column(Float, default=0.0)
+    overtime_hours    = Column(Float, default=0.0)
+    double_time_hours = Column(Float, default=0.0)
+    hourly_rate       = Column(Float, nullable=True)
+    burden_pct        = Column(Float, default=0.0)     # labour burden %
+    cost_category_id  = Column(Integer, ForeignKey("cost_categories.id"), nullable=True)
+    work_description  = Column(String, nullable=True)
+    created_by        = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at        = Column(DateTime, default=datetime.utcnow)
+
+    creator  = relationship("User")
+    category = relationship("CostCategory")

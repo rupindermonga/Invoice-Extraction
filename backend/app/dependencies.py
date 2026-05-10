@@ -154,3 +154,27 @@ def can_access_pm(role: str) -> bool:
 
 def is_vendor(role: str) -> bool:
     return role in VENDOR_FINANCE_ROLES | VENDOR_PM_ROLES
+
+
+def require_org_member(db: Session, org_id: int, user_id: int, allowed_roles: set) -> OrganizationMember:
+    """Check that user is an active member of org_id with one of allowed_roles. Super-admins pass."""
+    from .models import User as _User
+    user = db.query(_User).filter(_User.id == user_id).first()
+    if user and user.is_admin:
+        # Super-admin: synthetic owner role
+        mem = db.query(OrganizationMember).filter(
+            OrganizationMember.org_id == org_id,
+            OrganizationMember.user_id == user_id,
+        ).first()
+        return mem or OrganizationMember(org_id=org_id, user_id=user_id, role="owner", is_active=True)
+
+    mem = db.query(OrganizationMember).filter(
+        OrganizationMember.org_id == org_id,
+        OrganizationMember.user_id == user_id,
+        OrganizationMember.is_active == True,
+    ).first()
+    if not mem:
+        raise HTTPException(status_code=403, detail="Not a member of this organization")
+    if mem.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail=f"Role '{mem.role}' cannot perform this action")
+    return mem

@@ -508,6 +508,56 @@ def delete_meeting(meeting_id: int, org_ctx: Tuple = Depends(_pm_write), db: Ses
     return {"message": "Deleted"}
 
 
+@router.post("/meetings/{meeting_id}/ai-extract")
+def ai_extract_meeting(meeting_id: int, org_ctx: Tuple = Depends(_pm_write),
+                       db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Use Gemini to extract structured action items from raw meeting notes."""
+    import os, json
+    org, _ = org_ctx
+    m = db.query(MeetingMinutes).filter(MeetingMinutes.id == meeting_id, MeetingMinutes.org_id == org.id).first()
+    if not m:
+        raise HTTPException(404)
+    raw_text = (m.minutes or "") + "\n" + (m.agenda or "")
+    if not raw_text.strip():
+        raise HTTPException(400, "No meeting notes to extract from")
+
+    import google.generativeai as genai
+    from ..models import GeminiApiKey
+    keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    for k in keys:
+        if k.key_value:
+            api_key = k.key_value
+            break
+
+    if not api_key:
+        raise HTTPException(503, "No Gemini API key configured")
+
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
+    prompt = f"""Extract structured action items from these construction meeting notes.
+Return ONLY a JSON array of objects with these fields: item (string), owner (person responsible), due (YYYY-MM-DD or null), priority (high/medium/low).
+If no clear owner, use null. Focus on actual action items, commitments, and decisions.
+
+Meeting notes:
+{raw_text[:4000]}
+
+Return only the JSON array, no markdown, no explanation."""
+    try:
+        resp = model.generate_content(prompt)
+        text = resp.text.strip()
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        action_items = json.loads(text)
+        m.action_items = json.dumps(action_items)
+        db.commit()
+        return {"action_items": action_items, "count": len(action_items)}
+    except Exception as e:
+        raise HTTPException(500, f"AI extraction failed: {str(e)}")
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  PHOTO LOGS
 # ══════════════════════════════════════════════════════════════════════════════

@@ -858,6 +858,20 @@
               <button @click="view='lenderlinks'; loadLenderTokens(); loadOwnerTokens(); sidebarOpen=false" :class="view==='lenderlinks'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
                 <i class="fa-solid fa-share-nodes w-4"></i> Lender &amp; Owner Links
               </button>
+              <button @click="view='wip-report'; loadWIPReport(); sidebarOpen=false" :class="view==='wip-report'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-chart-gantt w-4"></i> WIP Report
+              </button>
+              <button @click="view='covenants'; loadCovenants(); sidebarOpen=false" :class="view==='covenants'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-shield-halved w-4"></i>
+                <span class="flex-1 text-left">Covenants</span>
+                <span x-show="(covenantsData||[]).filter(c=>c.status==='breach').length>0" x-text="(covenantsData||[]).filter(c=>c.status==='breach').length" class="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold"></span>
+              </button>
+              <button @click="view='interest-reserve'; loadInterestReserve(); sidebarOpen=false" :class="view==='interest-reserve'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-piggy-bank w-4"></i> Interest Reserve
+              </button>
+              <button @click="view='bonds'; loadBonds(); sidebarOpen=false" :class="view==='bonds'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-file-contract w-4"></i> Bonds
+              </button>
               <button @click="view='filetools'; sidebarOpen=false" :class="view==='filetools'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
                 <i class="fa-solid fa-folder-open w-4"></i> File Tools
               </button>
@@ -910,6 +924,25 @@
             </button>
             <button @click="view='pm-photos'; loadPhotos(); sidebarOpen=false" :class="view==='pm-photos'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-images w-4"></i> Photo Logs
+            </button>
+            <button @click="view='safety'; loadSafetyIncidents(); sidebarOpen=false" :class="view==='safety'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-helmet-safety w-4"></i>
+              <span class="flex-1 text-left">Safety</span>
+              <span x-show="(safetySummary?.open_incidents||0)>0" x-text="safetySummary.open_incidents" class="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold"></span>
+            </button>
+            <button @click="view='toolbox-talks'; loadToolboxTalks(); sidebarOpen=false" :class="view==='toolbox-talks'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-clipboard-list w-4"></i> Toolbox Talks
+            </button>
+            <button @click="view='permits'; loadPermits(); sidebarOpen=false" :class="view==='permits'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-stamp w-4"></i>
+              <span class="flex-1 text-left">Permits</span>
+              <span x-show="(permitsData||[]).filter(p=>p.status==='expired').length>0" x-text="(permitsData||[]).filter(p=>p.status==='expired').length" class="text-xs bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full font-bold"></span>
+            </button>
+            <button @click="view='warranty'; loadWarranty(); sidebarOpen=false" :class="view==='warranty'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-house-circle-check w-4"></i> Warranty
+            </button>
+            <button @click="view='timecards'; loadTimecards(); sidebarOpen=false" :class="view==='timecards'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-clock w-4"></i> Labour / Timecards
             </button>
             <button x-show="canAccessFinance" @click="view='subcontractors'; loadSubcontractors(); sidebarOpen=false" :class="view==='subcontractors'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-hard-hat w-4"></i> Subcontractors
@@ -5421,6 +5454,492 @@
         </div>
       </div><!-- /pm-photos -->
 
+      <!-- ── SAFETY INCIDENTS ───────────────────────────────────────── -->
+      <div x-show="view==='safety'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-helmet-safety mr-2 text-orange-600"></i>Safety Management</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <div class="flex gap-2">
+            <button @click="view='toolbox-talks'; loadToolboxTalks()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-clipboard-list mr-1"></i>Toolbox Talks</button>
+            <button @click="safetyForm={incident_date:'',incident_type:'near_miss',severity:'low',description:'',location:'',persons_involved:'',immediate_actions:'',wsib_reportable:false,mol_reportable:false,status:'open'}; safetyFormError=''; showSafetyModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 text-white text-xs rounded-lg hover:bg-orange-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Log Incident</button>
+          </div>
+        </div>
+        <!-- Summary cards -->
+        <div x-show="safetySummary" x-cloak class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-2xl font-bold text-gray-800" x-text="safetySummary?.total_incidents||0"></div><div class="text-xs text-gray-400">Total Incidents</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-2xl font-bold text-red-600" x-text="safetySummary?.open_incidents||0"></div><div class="text-xs text-gray-400">Open</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-2xl font-bold text-amber-600" x-text="safetySummary?.wsib_reportable||0"></div><div class="text-xs text-gray-400">WSIB Reportable</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-2xl font-bold text-blue-600" x-text="safetySummary?.mol_reportable||0"></div><div class="text-xs text-gray-400">MOL Reportable</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-2xl font-bold text-green-600" x-text="safetySummary?.total_toolbox_talks||0"></div><div class="text-xs text-gray-400">Toolbox Talks</div></div>
+        </div>
+        <div x-show="safetyLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!safetyLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Date</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Type</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Severity</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Description</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">WSIB</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">MOL</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="inc in safetyIncidents" :key="inc.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-xs" x-text="inc.incident_date"></td>
+                  <td class="px-4 py-3 text-xs capitalize" x-text="inc.incident_type.replace('_',' ')"></td>
+                  <td class="px-4 py-3"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="inc.severity==='critical'?'bg-red-100 text-red-700':inc.severity==='high'?'bg-orange-100 text-orange-700':inc.severity==='medium'?'bg-amber-100 text-amber-700':'bg-gray-100 text-gray-600'"
+                    x-text="inc.severity.toUpperCase()"></span></td>
+                  <td class="px-4 py-3 text-xs text-gray-600 max-w-xs truncate" x-text="inc.description"></td>
+                  <td class="px-4 py-3 text-center text-xs" x-text="inc.wsib_reportable?'✓':'—'"></td>
+                  <td class="px-4 py-3 text-center text-xs" x-text="inc.mol_reportable?'✓':'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="inc.status==='open'?'bg-red-100 text-red-700':inc.status==='closed'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'"
+                    x-text="inc.status.replace('_',' ').toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editSafetyIncident(inc)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteSafetyIncident(inc.id)" class="text-xs text-red-400 hover:text-red-600">Delete</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="safetyIncidents.length===0"><td colspan="8" class="px-4 py-8 text-center text-gray-400 text-sm">No incidents recorded. Use the green zone — log near misses proactively.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /safety -->
+
+      <!-- ── TOOLBOX TALKS ───────────────────────────────────────────── -->
+      <div x-show="view==='toolbox-talks'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-clipboard-list mr-2 text-orange-600"></i>Toolbox Talks</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <div class="flex gap-2">
+            <button @click="view='safety'; loadSafetyIncidents()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-helmet-safety mr-1"></i>Incidents</button>
+            <button @click="toolboxForm={talk_date:'',topic:'',facilitator:'',attendee_count:0,attendees:'',duration_minutes:'',notes:''}; showToolboxModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 text-white text-xs rounded-lg hover:bg-orange-700 transition font-semibold"><i class="fa-solid fa-plus"></i> New Talk</button>
+          </div>
+        </div>
+        <div x-show="toolboxLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!toolboxLoading" class="space-y-3">
+          <template x-for="t in toolboxTalks" :key="t.id">
+            <div class="bg-white border rounded-xl p-4">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="font-semibold text-gray-800" x-text="t.topic"></div>
+                  <div class="text-xs text-gray-400 mt-0.5 space-x-3">
+                    <span><i class="fa-solid fa-calendar mr-1"></i><span x-text="t.talk_date"></span></span>
+                    <span x-show="t.facilitator"><i class="fa-solid fa-user mr-1"></i><span x-text="t.facilitator"></span></span>
+                    <span><i class="fa-solid fa-users mr-1"></i><span x-text="(t.attendee_count||0)+' attendees'"></span></span>
+                    <span x-show="t.duration_minutes"><i class="fa-solid fa-clock mr-1"></i><span x-text="t.duration_minutes+' min'"></span></span>
+                  </div>
+                  <div x-show="t.notes" class="text-xs text-gray-500 mt-1.5" x-text="t.notes"></div>
+                </div>
+                <div class="flex gap-2">
+                  <button @click="editToolboxTalk(t)" class="text-xs text-blue-500 hover:text-blue-700">Edit</button>
+                  <button @click="deleteToolboxTalk(t.id)" class="text-xs text-red-400 hover:text-red-600">Delete</button>
+                </div>
+              </div>
+            </div>
+          </template>
+          <div x-show="toolboxTalks.length===0" class="text-center text-gray-400 text-sm py-8">No toolbox talks recorded.</div>
+        </div>
+      </div><!-- /toolbox-talks -->
+
+      <!-- ── PERMITS ─────────────────────────────────────────────────── -->
+      <div x-show="view==='permits'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-stamp mr-2 text-violet-600"></i>Permits &amp; Inspections</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <button @click="permitForm={permit_type:'building',permit_number:'',description:'',authority:'',application_date:'',issued_date:'',expiry_date:'',status:'pending',fee_paid:'',notes:''}; permitEditId=null; permitFormError=''; showPermitModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-xs rounded-lg hover:bg-violet-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Permit</button>
+        </div>
+        <div x-show="permitsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!permitsLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Permit #</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Type</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Description</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Authority</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Issued</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Expiry</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Inspections</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="p in permitsData" :key="p.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-xs font-mono text-gray-600" x-text="p.permit_number||'—'"></td>
+                  <td class="px-4 py-3 text-xs capitalize" x-text="p.permit_type"></td>
+                  <td class="px-4 py-3 text-xs text-gray-700 max-w-xs truncate" x-text="p.description"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="p.authority||'—'"></td>
+                  <td class="px-4 py-3 text-xs" x-text="p.issued_date||'—'"></td>
+                  <td class="px-4 py-3 text-xs" :class="p.status==='expired'?'text-red-600 font-semibold':''" x-text="p.expiry_date||'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="p.status==='issued'?'bg-green-100 text-green-700':p.status==='expired'?'bg-red-100 text-red-700':p.status==='revoked'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-700'"
+                    x-text="p.status.toUpperCase()"></span></td>
+                  <td class="px-4 py-3 text-center">
+                    <button @click="openPermitInspections(p)" class="text-xs text-blue-500 hover:text-blue-700">
+                      <span x-text="p.inspection_count||0"></span> <span x-show="p.failed_inspections>0" class="text-red-500">(<span x-text="p.failed_inspections"></span> fail)</span>
+                    </button>
+                  </td>
+                  <td class="px-4 py-3">
+                    <button @click="editPermit(p)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deletePermit(p.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="permitsData.length===0"><td colspan="9" class="px-4 py-8 text-center text-gray-400 text-sm">No permits added. Track building, electrical, occupancy permits here.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /permits -->
+
+      <!-- ── WARRANTY ────────────────────────────────────────────────── -->
+      <div x-show="view==='warranty'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-house-circle-check mr-2 text-teal-600"></i>Warranty / TARION</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <button @click="warrantyForm={category:'other',description:'',location:'',reported_date:'',warranty_type:'1year',homeowner_name:'',status:'open',assigned_to:'',scheduled_date:'',notes:''}; warrantyEditId=null; showWarrantyModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Log Deficiency</button>
+        </div>
+        <div x-show="warrantyLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!warrantyLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">#</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Category</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Description</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Homeowner</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Warranty</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Reported</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="w in warrantyItems" :key="w.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-xs font-mono text-gray-500" x-text="w.item_number||'—'"></td>
+                  <td class="px-4 py-3 text-xs capitalize" x-text="w.category"></td>
+                  <td class="px-4 py-3 text-xs text-gray-700 max-w-xs truncate" x-text="w.description"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="w.homeowner_name||'—'"></td>
+                  <td class="px-4 py-3 text-xs"><span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-xs" x-text="w.warranty_type"></span></td>
+                  <td class="px-4 py-3 text-xs" x-text="w.reported_date||'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="w.status==='resolved'?'bg-green-100 text-green-700':w.status==='disputed'?'bg-red-100 text-red-700':w.status==='open'?'bg-amber-100 text-amber-700':'bg-blue-100 text-blue-700'"
+                    x-text="w.status.toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editWarranty(w)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteWarranty(w.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="warrantyItems.length===0"><td colspan="8" class="px-4 py-8 text-center text-gray-400 text-sm">No warranty items. Track TARION 30-day, 1-year, 2-year, and 7-year deficiencies here.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /warranty -->
+
+      <!-- ── LABOUR / TIMECARDS ──────────────────────────────────────── -->
+      <div x-show="view==='timecards'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-clock mr-2 text-indigo-600"></i>Labour / Timecards</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <div class="flex gap-2">
+            <button @click="loadLabourReport()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-chart-bar mr-1"></i>Labour Report</button>
+            <button @click="timecardForm={worker_name:'',trade:'',classification:'',work_date:'',regular_hours:8,overtime_hours:0,double_time_hours:0,hourly_rate:'',burden_pct:30,work_description:''}; timecardEditId=null; showTimecardModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Timecard</button>
+          </div>
+        </div>
+        <!-- Labour report summary -->
+        <div x-show="labourReport" x-cloak class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-2xl font-bold text-gray-800" x-text="(labourReport?.total_hours||0).toLocaleString('en-CA',{maximumFractionDigits:1})"></div><div class="text-xs text-gray-400">Total Hours</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-2xl font-bold text-amber-600" x-text="(labourReport?.total_overtime_hours||0).toLocaleString('en-CA',{maximumFractionDigits:1})"></div><div class="text-xs text-gray-400">Overtime Hours</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-2xl font-bold text-indigo-600" x-text="'$'+(labourReport?.total_cost||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div><div class="text-xs text-gray-400">Total Labour Cost</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-2xl font-bold text-green-600" x-text="labourReport?.worker_count||0"></div><div class="text-xs text-gray-400">Workers</div></div>
+        </div>
+        <div x-show="timecardsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!timecardsLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Worker</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Trade</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Date</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Reg hrs</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">OT hrs</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Rate</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Cost</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="tc in timecards" :key="tc.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-xs font-medium" x-text="tc.worker_name"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="tc.trade||'—'"></td>
+                  <td class="px-4 py-3 text-xs" x-text="tc.work_date"></td>
+                  <td class="px-4 py-3 text-right text-xs" x-text="tc.regular_hours"></td>
+                  <td class="px-4 py-3 text-right text-xs" :class="tc.overtime_hours>0?'text-amber-600 font-semibold':''" x-text="tc.overtime_hours"></td>
+                  <td class="px-4 py-3 text-right text-xs text-gray-500" x-text="tc.hourly_rate?'$'+tc.hourly_rate+'\/hr':'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs font-semibold" x-text="tc.total_cost?'$'+tc.total_cost.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3">
+                    <button @click="editTimecard(tc)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteTimecard(tc.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="timecards.length===0"><td colspan="8" class="px-4 py-8 text-center text-gray-400 text-sm">No timecards. Track crew hours and labour costs here.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /timecards -->
+
+      <!-- ── WIP REPORT ─────────────────────────────────────────────── -->
+      <div x-show="view==='wip-report'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-chart-gantt mr-2 text-blue-600"></i>WIP Report</h2>
+            <p class="text-sm text-gray-500">Work-in-Progress: Over/Under Billing, Earned Revenue, Contract Asset/Liability</p>
+          </div>
+          <button @click="loadWIPReport()" :disabled="wipLoading" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50 transition font-semibold">
+            <i class="fa-solid" :class="wipLoading?'fa-spinner fa-spin':'fa-rotate-right'"></i> Refresh
+          </button>
+        </div>
+        <div x-show="wipLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="wipData && !wipLoading" x-cloak>
+          <!-- Key metrics -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">Revised Contract</div>
+              <div class="text-2xl font-bold text-gray-800" x-text="'$'+(wipData?.revised_contract||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+              <div class="text-xs text-gray-400 mt-0.5" x-text="(wipData?.change_orders_approved||0)>=0?'+'+(wipData.change_orders_approved||0).toLocaleString('en-CA',{maximumFractionDigits:0})+' in COs':''"></div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">% Complete</div>
+              <div class="text-2xl font-bold text-blue-600" x-text="(wipData?.pct_complete||0)+'%'"></div>
+              <div class="text-xs text-gray-400 mt-0.5">Earned revenue basis</div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">Contract Asset</div>
+              <div class="text-2xl font-bold text-green-600" x-text="'$'+(wipData?.contract_asset||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+              <div class="text-xs text-gray-400 mt-0.5">Under-billed</div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">Contract Liability</div>
+              <div class="text-2xl font-bold text-red-500" x-text="'$'+(wipData?.contract_liability||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+              <div class="text-xs text-gray-400 mt-0.5">Over-billed</div>
+            </div>
+          </div>
+          <!-- WIP table -->
+          <div class="bg-white border rounded-xl p-5 mb-4">
+            <h3 class="font-semibold text-gray-700 mb-3">Billing vs Earned Analysis</h3>
+            <table class="w-full text-sm">
+              <tbody class="divide-y">
+                <tr><td class="py-2 text-gray-600">Revised Contract Value</td><td class="py-2 text-right font-semibold" x-text="'$'+(wipData?.revised_contract||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></td></tr>
+                <tr><td class="py-2 text-gray-600">Earned Revenue (% × Contract)</td><td class="py-2 text-right font-semibold text-blue-600" x-text="'$'+(wipData?.earned_revenue||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></td></tr>
+                <tr><td class="py-2 text-gray-600">Total Invoiced</td><td class="py-2 text-right font-semibold" x-text="'$'+(wipData?.total_invoiced||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></td></tr>
+                <tr><td class="py-2 text-gray-600">Lender Approved</td><td class="py-2 text-right font-semibold text-green-600" x-text="'$'+(wipData?.total_approved||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></td></tr>
+                <tr><td class="py-2 text-gray-600">Holdback (Unreleased)</td><td class="py-2 text-right font-semibold text-amber-600" x-text="'($'+(wipData?.unreleased_holdback||0).toLocaleString('en-CA',{maximumFractionDigits:0})+')'"></td></tr>
+                <tr class="border-t-2"><td class="py-2.5 font-bold" :class="(wipData?.over_billing||0)>0?'text-red-600':'text-green-600'" x-text="(wipData?.over_billing||0)>0?'Over-Billing (Contract Liability)':'Under-Billing (Contract Asset)'"></td>
+                <td class="py-2.5 text-right font-bold" :class="(wipData?.over_billing||0)>0?'text-red-600':'text-green-600'" x-text="'$'+((wipData?.over_billing||0)+(wipData?.under_billing||0)).toLocaleString('en-CA',{maximumFractionDigits:0})"></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Category breakdown -->
+          <div class="bg-white border rounded-xl p-5">
+            <h3 class="font-semibold text-gray-700 mb-3">Cost Category Breakdown</h3>
+            <div class="space-y-2">
+              <template x-for="cat in wipData?.categories||[]" :key="cat.name">
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="font-medium" x-text="cat.name"></span>
+                    <span class="text-gray-500"><span x-text="'$'+cat.invoiced.toLocaleString('en-CA',{maximumFractionDigits:0})"></span> / <span x-text="'$'+cat.budget.toLocaleString('en-CA',{maximumFractionDigits:0})"></span> <span :class="cat.pct>100?'text-red-600 font-bold':'text-gray-400'" x-text="'('+cat.pct+'%)'"></span></span>
+                  </div>
+                  <div class="bg-gray-100 rounded-full h-2"><div class="h-2 rounded-full" :class="cat.pct>100?'bg-red-500':'bg-blue-500'" :style="'width:'+Math.min(100,cat.pct)+'%'"></div></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+        <div x-show="!wipData && !wipLoading" class="text-center text-gray-400 py-12">Click Refresh to generate WIP report.</div>
+      </div><!-- /wip-report -->
+
+      <!-- ── COVENANTS ───────────────────────────────────────────────── -->
+      <div x-show="view==='covenants'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-shield-halved mr-2 text-blue-600"></i>Loan Covenants</h2>
+            <p class="text-sm text-gray-500">DSCR, LTC/LTV, equity contribution tracking</p>
+          </div>
+          <div class="flex gap-2">
+            <button @click="openCreditCommittee()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-file-pdf mr-1"></i>CC Report</button>
+            <button @click="covenantForm={covenant_type:'ltc',name:'',threshold_value:'',threshold_operator:'<=',current_value:'',as_of_date:'',status:'compliant',notes:''}; covenantEditId=null; showCovenantModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Covenant</button>
+          </div>
+        </div>
+        <div x-show="covenantsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!covenantsLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Covenant</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Type</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Threshold</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Current</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">As Of</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="c in covenantsData" :key="c.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-sm font-medium" x-text="c.name"></td>
+                  <td class="px-4 py-3 text-xs uppercase font-mono text-gray-500" x-text="c.covenant_type"></td>
+                  <td class="px-4 py-3 text-right text-xs"><span x-text="c.threshold_operator"></span> <span x-text="c.threshold_value??'—'"></span></td>
+                  <td class="px-4 py-3 text-right text-xs font-semibold" :class="c.status==='breach'?'text-red-600':'text-gray-800'" x-text="c.current_value??'—'"></td>
+                  <td class="px-4 py-3 text-xs text-gray-400" x-text="c.as_of_date||'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="c.status==='breach'?'bg-red-100 text-red-700':c.status==='warning'?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700'"
+                    x-text="c.status.toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editCovenant(c)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteCovenant(c.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="covenantsData.length===0"><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">No covenants tracked. Add DSCR, LTC, LTV, or equity covenants from your loan agreement.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /covenants -->
+
+      <!-- ── INTEREST RESERVE ────────────────────────────────────────── -->
+      <div x-show="view==='interest-reserve'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-piggy-bank mr-2 text-blue-600"></i>Interest Reserve</h2>
+            <p class="text-sm text-gray-500">Track reserve burn rate and forecast depletion date</p>
+          </div>
+          <button x-show="!interestReserve?.exists" @click="irForm={reserve_amount:'',interest_rate:'',accrual_basis:'actual/365',notes:''}; showIRModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Setup Reserve</button>
+          <button x-show="interestReserve?.exists" x-cloak @click="irForm={reserve_amount:interestReserve.reserve_amount,interest_rate:interestReserve.interest_rate,accrual_basis:interestReserve.accrual_basis,notes:interestReserve.notes}; showIRModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-pen mr-1"></i> Edit Reserve</button>
+        </div>
+        <div x-show="irLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!irLoading && interestReserve?.exists" x-cloak>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">Total Reserve</div>
+              <div class="text-2xl font-bold text-gray-800" x-text="'$'+(interestReserve?.reserve_amount||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">Drawn to Date</div>
+              <div class="text-2xl font-bold text-red-500" x-text="'$'+(interestReserve?.drawn_to_date||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+              <div class="text-xs text-gray-400 mt-0.5" x-text="(interestReserve?.pct_drawn||0)+'% drawn'"></div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">Remaining</div>
+              <div class="text-2xl font-bold text-green-600" x-text="'$'+(interestReserve?.remaining||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">Months Left</div>
+              <div class="text-2xl font-bold" :class="(interestReserve?.months_remaining||99)<3?'text-red-600':'text-blue-600'" x-text="interestReserve?.months_remaining??'—'"></div>
+              <div class="text-xs text-gray-400 mt-0.5">At current burn rate</div>
+            </div>
+          </div>
+          <!-- Burn bar -->
+          <div class="bg-white border rounded-xl p-5 mb-4">
+            <div class="flex justify-between text-xs mb-1.5 text-gray-600">
+              <span>Reserve Utilization</span>
+              <span x-text="(interestReserve?.pct_drawn||0)+'%'"></span>
+            </div>
+            <div class="bg-gray-100 rounded-full h-3">
+              <div class="h-3 rounded-full transition-all"
+                   :class="(interestReserve?.pct_drawn||0)>80?'bg-red-500':(interestReserve?.pct_drawn||0)>60?'bg-amber-500':'bg-blue-500'"
+                   :style="'width:'+Math.min(100,interestReserve?.pct_drawn||0)+'%'"></div>
+            </div>
+          </div>
+          <!-- Draw history -->
+          <div class="bg-white border rounded-xl overflow-hidden">
+            <div class="px-5 py-3 border-b flex items-center justify-between">
+              <h3 class="font-semibold text-gray-700">Reserve Draw History</h3>
+              <button @click="irDrawForm={draw_date:'',amount:'',period_start:'',period_end:'',notes:''}; showIRDrawModal=true" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">+ Add Draw</button>
+            </div>
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b"><tr>
+                <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500">Date</th>
+                <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500">Period</th>
+                <th class="text-right px-4 py-2 text-xs font-semibold text-gray-500">Amount</th>
+                <th class="px-4 py-2"></th>
+              </tr></thead>
+              <tbody class="divide-y">
+                <template x-for="d in interestReserve?.draws||[]" :key="d.id">
+                  <tr><td class="px-4 py-2.5 text-xs" x-text="d.draw_date"></td>
+                    <td class="px-4 py-2.5 text-xs text-gray-400" x-text="d.period_start&&d.period_end?d.period_start+' → '+d.period_end:'—'"></td>
+                    <td class="px-4 py-2.5 text-right text-xs font-semibold" x-text="'$'+(d.amount||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></td>
+                    <td class="px-4 py-2.5 text-right"><button @click="deleteIRDraw(d.id)" class="text-xs text-red-400 hover:text-red-600">Del</button></td>
+                  </tr>
+                </template>
+                <tr x-show="!(interestReserve?.draws?.length)"><td colspan="4" class="px-4 py-4 text-center text-gray-400 text-xs">No draws recorded.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div x-show="!irLoading && !interestReserve?.exists" class="text-center text-gray-400 py-12">No interest reserve set up. Click "Setup Reserve" to begin tracking.</div>
+      </div><!-- /interest-reserve -->
+
+      <!-- ── BONDS ───────────────────────────────────────────────────── -->
+      <div x-show="view==='bonds'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-file-contract mr-2 text-blue-600"></i>Bond Registry</h2>
+            <p class="text-sm text-gray-500">Performance bonds, labour &amp; material bonds, bid bonds, maintenance bonds</p>
+          </div>
+          <button @click="bondForm={vendor_name:'',bond_type:'performance',bond_number:'',surety_company:'',bond_amount:'',effective_date:'',expiry_date:'',status:'active',notes:''}; bondEditId=null; showBondModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Bond</button>
+        </div>
+        <div x-show="bondsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!bondsLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Vendor / Contractor</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Type</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Bond #</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Surety</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Amount</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Effective</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Expiry</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="b in bondsData" :key="b.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-xs font-medium" x-text="b.vendor_name||'—'"></td>
+                  <td class="px-4 py-3 text-xs capitalize" x-text="b.bond_type.replace('_',' ')"></td>
+                  <td class="px-4 py-3 text-xs font-mono text-gray-500" x-text="b.bond_number||'—'"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="b.surety_company||'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs font-semibold" x-text="b.bond_amount?'$'+b.bond_amount.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-xs" x-text="b.effective_date||'—'"></td>
+                  <td class="px-4 py-3 text-xs" :class="b.status==='expired'?'text-red-600 font-semibold':''" x-text="b.expiry_date||'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="b.status==='active'?'bg-green-100 text-green-700':b.status==='expired'?'bg-red-100 text-red-700':b.status==='claimed'?'bg-purple-100 text-purple-700':'bg-gray-100 text-gray-600'"
+                    x-text="b.status.toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editBond(b)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteBond(b.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="bondsData.length===0"><td colspan="9" class="px-4 py-8 text-center text-gray-400 text-sm">No bonds registered. Performance and L&amp;M bonds tracked here.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /bonds -->
 
       <!-- ── AI CONSTRUCTION ACCOUNTANT ────────────────────────────── -->
       <div x-show="view==='health-check'" class="p-6 max-w-4xl">
@@ -7414,6 +7933,369 @@
       <span class="text-xs font-medium">AI</span>
     </button>
 
+  </div>
+</div>
+
+<!-- Safety Incident Modal -->
+<div x-show="showSafetyModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showSafetyModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-helmet-safety mr-2 text-orange-600"></i>Log Safety Incident</h3>
+      <button @click="showSafetyModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Date *</label><input x-model="safetyForm.incident_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Type *</label>
+          <select x-model="safetyForm.incident_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+            <option value="near_miss">Near Miss</option><option value="injury">Injury</option><option value="first_aid">First Aid</option><option value="property_damage">Property Damage</option><option value="environmental">Environmental</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Severity</label>
+        <select x-model="safetyForm.severity" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+          <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
+        </select>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Description *</label><textarea x-model="safetyForm.description" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" placeholder="What happened?"></textarea></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Location</label><input x-model="safetyForm.location" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" placeholder="Where on site?" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Persons Involved</label><input x-model="safetyForm.persons_involved" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Immediate Actions Taken</label><textarea x-model="safetyForm.immediate_actions" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"></textarea></div>
+      <div class="flex gap-4 pt-1">
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="safetyForm.wsib_reportable" class="rounded" /><span>WSIB Reportable</span></label>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="safetyForm.mol_reportable" class="rounded" /><span>MOL Reportable</span></label>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showSafetyModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveSafetyIncident()" class="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-semibold hover:bg-orange-700">Save Incident</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toolbox Talk Modal -->
+<div x-show="showToolboxModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showToolboxModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-clipboard-list mr-2 text-orange-600"></i>Toolbox Talk</h3>
+      <button @click="showToolboxModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Date *</label><input x-model="toolboxForm.talk_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Duration (min)</label><input x-model="toolboxForm.duration_minutes" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Topic *</label><input x-model="toolboxForm.topic" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" placeholder="Fall protection, WHMIS, etc." /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Facilitator</label><input x-model="toolboxForm.facilitator" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Attendee Count</label><input x-model="toolboxForm.attendee_count" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Notes</label><textarea x-model="toolboxForm.notes" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"></textarea></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showToolboxModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveToolboxTalk()" class="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-semibold hover:bg-orange-700">Save Talk</button>
+    </div>
+  </div>
+</div>
+
+<!-- Permit Modal -->
+<div x-show="showPermitModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showPermitModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-stamp mr-2 text-violet-600"></i><span x-text="permitEditId?'Edit Permit':'Add Permit'"></span></h3>
+      <button @click="showPermitModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Type *</label>
+          <select x-model="permitForm.permit_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
+            <option value="building">Building</option><option value="electrical">Electrical</option><option value="plumbing">Plumbing</option><option value="mechanical">Mechanical</option><option value="demolition">Demolition</option><option value="occupancy">Occupancy</option><option value="other">Other</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Permit #</label><input x-model="permitForm.permit_number" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Description *</label><input x-model="permitForm.description" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Issuing Authority</label><input x-model="permitForm.authority" type="text" placeholder="City of Toronto Building Dept." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" /></div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Applied</label><input x-model="permitForm.application_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Issued</label><input x-model="permitForm.issued_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Expiry</label><input x-model="permitForm.expiry_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select x-model="permitForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
+            <option value="pending">Pending Application</option><option value="applied">Applied</option><option value="issued">Issued</option><option value="expired">Expired</option><option value="closed">Closed</option><option value="revoked">Revoked</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Fee Paid ($)</label><input x-model="permitForm.fee_paid" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Notes</label><textarea x-model="permitForm.notes" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"></textarea></div>
+      <div x-show="permitFormError" class="text-red-600 text-xs bg-red-50 rounded-lg px-3 py-2" x-text="permitFormError"></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showPermitModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="savePermit()" class="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700">Save Permit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Permit Inspections Modal -->
+<div x-show="showPermitInspModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showPermitInspModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-clipboard-check mr-2 text-violet-600"></i>Permit Inspections — <span x-text="activePermitForInsp?.permit_number||activePermitForInsp?.description"></span></h3>
+      <button @click="showPermitInspModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-2 mb-4">
+      <template x-for="i in permitInspections" :key="i.id">
+        <div class="border rounded-lg p-3 flex items-start justify-between">
+          <div>
+            <div class="text-sm font-medium" x-text="i.inspection_type"></div>
+            <div class="text-xs text-gray-400 mt-0.5">
+              <span x-show="i.scheduled_date">Scheduled: <span x-text="i.scheduled_date"></span></span>
+              <span x-show="i.completed_date" class="ml-2">Completed: <span x-text="i.completed_date"></span></span>
+              <span x-show="i.inspector_name" class="ml-2">Inspector: <span x-text="i.inspector_name"></span></span>
+            </div>
+            <div x-show="i.deficiencies" class="text-xs text-red-500 mt-1" x-text="'Deficiencies: '+i.deficiencies"></div>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full font-semibold ml-3 flex-shrink-0"
+            :class="i.result==='passed'?'bg-green-100 text-green-700':i.result==='failed'?'bg-red-100 text-red-700':i.result==='conditional'?'bg-amber-100 text-amber-700':'bg-gray-100 text-gray-600'"
+            x-text="i.result.toUpperCase()"></span>
+        </div>
+      </template>
+      <div x-show="!permitInspections.length" class="text-center text-gray-400 text-sm py-4">No inspections recorded.</div>
+    </div>
+    <div class="border-t pt-4">
+      <h4 class="text-sm font-semibold text-gray-700 mb-3">Add Inspection</h4>
+      <div class="space-y-2">
+        <div class="grid grid-cols-2 gap-2">
+          <div><label class="block text-xs font-medium text-gray-600 mb-1">Type</label><input x-model="inspForm.inspection_type" type="text" placeholder="Framing, Electrical..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-400" /></div>
+          <div><label class="block text-xs font-medium text-gray-600 mb-1">Result</label>
+            <select x-model="inspForm.result" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-400">
+              <option value="pending">Pending</option><option value="passed">Passed</option><option value="failed">Failed</option><option value="conditional">Conditional</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div><label class="block text-xs font-medium text-gray-600 mb-1">Scheduled Date</label><input x-model="inspForm.scheduled_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-400" /></div>
+          <div><label class="block text-xs font-medium text-gray-600 mb-1">Completed Date</label><input x-model="inspForm.completed_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-400" /></div>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Inspector Name</label><input x-model="inspForm.inspector_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Deficiencies / Notes</label><textarea x-model="inspForm.deficiencies" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-400"></textarea></div>
+      </div>
+      <button @click="savePermitInspection()" class="w-full mt-3 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700">Add Inspection</button>
+    </div>
+  </div>
+</div>
+
+<!-- Warranty Modal -->
+<div x-show="showWarrantyModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showWarrantyModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-house-circle-check mr-2 text-teal-600"></i><span x-text="warrantyEditId?'Edit Deficiency':'Log Deficiency'"></span></h3>
+      <button @click="showWarrantyModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Category</label>
+          <select x-model="warrantyForm.category" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+            <option value="structural">Structural</option><option value="envelope">Envelope/Exterior</option><option value="mechanical">Mechanical</option><option value="finishes">Finishes</option><option value="other">Other</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Warranty Period</label>
+          <select x-model="warrantyForm.warranty_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+            <option value="30day">30-Day</option><option value="1year">1-Year</option><option value="2year">2-Year</option><option value="7year">7-Year Structural</option><option value="tarion">TARION</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Description *</label><textarea x-model="warrantyForm.description" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" placeholder="Describe the deficiency..."></textarea></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Location</label><input x-model="warrantyForm.location" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Homeowner</label><input x-model="warrantyForm.homeowner_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Reported Date</label><input x-model="warrantyForm.reported_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select x-model="warrantyForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+            <option value="open">Open</option><option value="scheduled">Scheduled</option><option value="in_progress">In Progress</option><option value="resolved">Resolved</option><option value="disputed">Disputed</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Assigned Trade / Vendor</label><input x-model="warrantyForm.assigned_to" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400" /></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showWarrantyModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveWarranty()" class="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Timecard Modal -->
+<div x-show="showTimecardModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showTimecardModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-clock mr-2 text-indigo-600"></i><span x-text="timecardEditId?'Edit Timecard':'Add Timecard'"></span></h3>
+      <button @click="showTimecardModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Worker Name *</label><input x-model="timecardForm.worker_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Work Date *</label><input x-model="timecardForm.work_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Trade</label><input x-model="timecardForm.trade" type="text" placeholder="Framing, Electrical..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Classification</label>
+          <select x-model="timecardForm.classification" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <option value="">Select...</option><option value="journeyman">Journeyman</option><option value="apprentice">Apprentice</option><option value="foreman">Foreman</option><option value="labourer">Labourer</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Regular Hrs</label><input x-model="timecardForm.regular_hours" type="number" step="0.5" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">OT Hrs (×1.5)</label><input x-model="timecardForm.overtime_hours" type="number" step="0.5" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">DT Hrs (×2.0)</label><input x-model="timecardForm.double_time_hours" type="number" step="0.5" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Hourly Rate ($/hr)</label><input x-model="timecardForm.hourly_rate" type="number" step="0.01" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Burden % (benefits, tax)</label><input x-model="timecardForm.burden_pct" type="number" step="1" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Work Description</label><input x-model="timecardForm.work_description" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" /></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showTimecardModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveTimecard()" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700">Save Timecard</button>
+    </div>
+  </div>
+</div>
+
+<!-- Covenant Modal -->
+<div x-show="showCovenantModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showCovenantModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-shield-halved mr-2 text-blue-600"></i><span x-text="covenantEditId?'Edit Covenant':'Add Covenant'"></span></h3>
+      <button @click="showCovenantModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Covenant Name *</label><input x-model="covenantForm.name" type="text" placeholder="e.g. Maximum LTC Ratio" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
+          <select x-model="covenantForm.covenant_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="ltc">LTC (Loan-to-Cost)</option><option value="ltv">LTV (Loan-to-Value)</option><option value="dscr">DSCR</option><option value="equity">Equity Contribution</option><option value="other">Other</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select x-model="covenantForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="compliant">Compliant</option><option value="warning">Warning</option><option value="breach">Breach</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Operator</label>
+          <select x-model="covenantForm.threshold_operator" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="<=">≤ (max)</option><option value=">=">≥ (min)</option><option value="=">=</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Threshold</label><input x-model="covenantForm.threshold_value" type="number" step="0.01" placeholder="e.g. 0.65" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Current Value</label><input x-model="covenantForm.current_value" type="number" step="0.01" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">As of Date</label><input x-model="covenantForm.as_of_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Notes</label><textarea x-model="covenantForm.notes" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showCovenantModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveCovenant()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save Covenant</button>
+    </div>
+  </div>
+</div>
+
+<!-- Interest Reserve Setup Modal -->
+<div x-show="showIRModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showIRModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-piggy-bank mr-2 text-blue-600"></i>Interest Reserve Setup</h3>
+      <button @click="showIRModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Total Reserve Amount ($) *</label><input x-model="irForm.reserve_amount" type="number" step="1000" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Interest Rate (% per year)</label><input x-model="irForm.interest_rate" type="number" step="0.01" placeholder="e.g. 7.5" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Accrual Basis</label>
+          <select x-model="irForm.accrual_basis" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="actual/365">Actual/365</option><option value="actual/360">Actual/360</option><option value="30/360">30/360</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Notes</label><textarea x-model="irForm.notes" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showIRModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveInterestReserve()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Interest Reserve Draw Modal -->
+<div x-show="showIRDrawModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showIRDrawModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-minus-circle mr-2 text-red-500"></i>Add Reserve Draw</h3>
+      <button @click="showIRDrawModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Draw Date *</label><input x-model="irDrawForm.draw_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Amount ($) *</label><input x-model="irDrawForm.amount" type="number" step="100" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Period Start</label><input x-model="irDrawForm.period_start" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Period End</label><input x-model="irDrawForm.period_end" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Notes</label><input x-model="irDrawForm.notes" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showIRDrawModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="addIRDraw()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Add Draw</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bond Modal -->
+<div x-show="showBondModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showBondModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-file-contract mr-2 text-blue-600"></i><span x-text="bondEditId?'Edit Bond':'Register Bond'"></span></h3>
+      <button @click="showBondModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Vendor / Contractor</label><input x-model="bondForm.vendor_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Bond Type *</label>
+          <select x-model="bondForm.bond_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="performance">Performance Bond</option><option value="labour_material">Labour &amp; Material</option><option value="maintenance">Maintenance Bond</option><option value="bid">Bid Bond</option><option value="payment">Payment Bond</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Bond Number</label><input x-model="bondForm.bond_number" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Surety Company</label><input x-model="bondForm.surety_company" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Bond Amount ($)</label><input x-model="bondForm.bond_amount" type="number" step="1000" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Effective Date</label><input x-model="bondForm.effective_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Expiry Date</label><input x-model="bondForm.expiry_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select x-model="bondForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="active">Active</option><option value="expired">Expired</option><option value="claimed">Claimed</option><option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Notes</label><input x-model="bondForm.notes" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showBondModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveBond()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save Bond</button>
+    </div>
   </div>
 </div>
 
