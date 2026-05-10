@@ -367,31 +367,44 @@ def superadmin_list_orgs(
 
 @router.post("/admin/create")
 def superadmin_create_org(
-    body: OrgCreate,
-    owner_username: str,
+    body: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Super-admin only: create an org and assign an owner."""
+    """Super-admin only: create an org + owner account (or assign existing user as owner)."""
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Super-admin access required")
 
-    existing = db.query(Organization).filter(Organization.slug == body.slug).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Slug already exists")
+    org_name      = (body.get("name") or "").strip()
+    owner_username = (body.get("owner_username") or "").strip()
+    plan          = body.get("plan", "starter")
+    if not org_name:
+        raise HTTPException(status_code=400, detail="name required")
 
-    owner = db.query(User).filter(User.username == owner_username).first()
-    if not owner:
-        raise HTTPException(status_code=404, detail=f"User '{owner_username}' not found")
+    # Auto-generate slug from name
+    slug_base = re.sub(r"[^a-z0-9]+", "-", org_name.lower()).strip("-")[:40]
+    slug = slug_base; suffix = 1
+    while db.query(Organization).filter(Organization.slug == slug).first():
+        slug = f"{slug_base}-{suffix}"; suffix += 1
 
-    org = Organization(name=body.name, slug=body.slug)
-    db.add(org)
-    db.flush()
-    mem = OrganizationMember(org_id=org.id, user_id=owner.id, role="owner", invited_by=current_user.id)
-    db.add(mem)
-    db.commit()
-    db.refresh(org)
-    return {"id": org.id, "name": org.name, "slug": org.slug, "owner": owner_username}
+    org = Organization(name=org_name, slug=slug, plan=plan)
+    db.add(org); db.flush()
+
+    if owner_username:
+        owner = db.query(User).filter(
+            (User.username == owner_username) | (User.email == owner_username)
+        ).first()
+        if not owner:
+            raise HTTPException(status_code=404, detail=f"User '{owner_username}' not found. Create the user first in Settings → User Management.")
+        existing_mem = db.query(OrganizationMember).filter(
+            OrganizationMember.org_id == org.id, OrganizationMember.user_id == owner.id
+        ).first()
+        if not existing_mem:
+            db.add(OrganizationMember(org_id=org.id, user_id=owner.id, role="owner", invited_by=current_user.id))
+    db.commit(); db.refresh(org)
+    audit_log(db, org.id, current_user, "superadmin_create_org", entity_type="organization",
+              entity_id=org.id, detail=f"Super-admin created org '{org_name}' (plan={plan}, owner={owner_username or 'none'})")
+    return {"id": org.id, "name": org.name, "slug": org.slug, "plan": org.plan}
 
 
 @router.put("/admin/{org_id}/toggle")
@@ -408,7 +421,92 @@ def superadmin_toggle_org(
         raise HTTPException(status_code=404, detail="Organization not found")
     org.is_active = not org.is_active
     db.commit()
+    audit_log(db, org.id, current_user, "superadmin_toggle_org", entity_type="organization",
+              entity_id=org.id, detail=f"Super-admin {'activated' if org.is_active else 'suspended'} org '{org.name}'")
     return {"id": org.id, "is_active": org.is_active}
+
+
+@router.put("/admin/{org_id}/plan")
+def superadmin_change_plan(
+    org_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Super-admin only: change an org's plan (starter/pro/enterprise/free)."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Super-admin access required")
+    plan = (body.get("plan") or "").strip()
+    if plan not in ("starter", "pro", "enterprise", "free"):
+        raise HTTPException(status_code=400, detail="plan must be starter | pro | enterprise | free")
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    old_plan = org.plan
+    org.plan = plan
+    db.commit()
+    audit_log(db, org.id, current_user, "superadmin_change_plan", entity_type="organization",
+              entity_id=org.id, detail=f"Super-admin changed '{org.name}' plan: {old_plan} → {plan}")
+    return {"id": org.id, "plan": org.plan}
+
+
+@router.get("/admin/{org_id}/members")
+def superadmin_list_members(
+    org_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Super-admin only: list all members of any org."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Super-admin access required")
+    members = db.query(OrganizationMember).filter(
+        OrganizationMember.org_id == org_id, OrganizationMember.is_active == True
+    ).all()
+    return [_member_out(m) for m in members]
+
+
+@router.post("/admin/{org_id}/invite")
+def superadmin_invite_member(
+    org_id: int,
+    body: dict,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Super-admin only: send an invite to any org without being a member."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Super-admin access required")
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    email = (body.get("email") or "").strip().lower()
+    role  = body.get("role", "editor")
+    if not email:
+        raise HTTPException(status_code=400, detail="email required")
+    if role not in ROLES:
+        raise HTTPException(status_code=400, detail=f"Role must be one of: {', '.join(ROLES)}")
+
+    # Invalidate existing pending invites
+    db.query(OrgInvitation).filter(
+        OrgInvitation.org_id == org_id, OrgInvitation.email == email,
+        OrgInvitation.accepted_at == None,
+    ).delete()
+    db.commit()
+
+    token = secrets.token_urlsafe(32)
+    db.add(OrgInvitation(
+        org_id=org_id, email=email, role=role, token=token,
+        invited_by=current_user.id,
+        expires_at=datetime.utcnow() + timedelta(days=7),
+    ))
+    db.commit()
+
+    from ..services.email import send_invite
+    background_tasks.add_task(send_invite, email, org.name, current_user.username, role, token)
+    audit_log(db, org_id, current_user, "superadmin_invite", entity_type="org_invitation",
+              detail=f"Super-admin invited {email} to '{org.name}' as {role}")
+    return {"message": f"Invitation sent to {email}"}
 
 
 

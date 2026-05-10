@@ -19,6 +19,17 @@ function app() {
     // ── Audit log ─────────────────────────────────────────────────
     auditLog: [], auditTotal: 0, auditPage: 1, auditLoading: false,
 
+    // ── Super Admin UI ────────────────────────────────────────────
+    showCreateOrgModal: false,
+    createOrgForm: { name: '', owner_username: '', plan: 'starter' },
+    createOrgLoading: false, createOrgError: '',
+    showOrgMembersModal: false,
+    orgMembersList: [],
+    selectedOrgForAdmin: null,
+    showSuperAdminInviteModal: false,
+    saInviteEmail: '', saInviteRole: 'editor',
+    saInviteLoading: false, saInviteMsg: '', saInviteErr: false,
+
     // ── Org invite UI ─────────────────────────────────────────────
     showInvitePanel: false,
     inviteForm: { email: '', role: 'editor' },
@@ -2153,6 +2164,58 @@ function app() {
         this.auditPage = page;
       } catch(e) { this.auditLog = []; }
       finally { this.auditLoading = false; }
+    },
+
+    // ── Super Admin functions ─────────────────────────────────────
+    async superAdminCreateOrg() {
+      this.createOrgLoading = true; this.createOrgError = '';
+      try {
+        await this.post('/api/org/admin/create', this.createOrgForm);
+        this.showCreateOrgModal = false;
+        this.createOrgForm = { name: '', owner_username: '', plan: 'starter' };
+        await this.loadAllOrgs();
+      } catch(e) { this.createOrgError = e.message; }
+      finally { this.createOrgLoading = false; }
+    },
+    async superAdminChangePlan(orgId, plan) {
+      try {
+        await fetch('/api/org/admin/' + orgId + '/plan', {
+          method: 'PUT',
+          headers: { ...this._headers(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan }),
+        });
+        const o = this.allOrgsList.find(x => x.id === orgId);
+        if (o) o.plan = plan;
+      } catch(e) { alert('Failed to update plan: ' + e.message); }
+    },
+    async superAdminViewMembers(org) {
+      this.selectedOrgForAdmin = org;
+      this.orgMembersList = [];
+      this.showOrgMembersModal = true;
+      try {
+        const data = await fetch('/api/org/admin/' + org.id + '/members', { headers: this._headers() });
+        this.orgMembersList = await data.json();
+      } catch(e) { this.orgMembersList = []; }
+    },
+    superAdminSendInvite(org) {
+      this.selectedOrgForAdmin = org;
+      this.saInviteEmail = ''; this.saInviteRole = 'editor';
+      this.saInviteMsg = ''; this.saInviteErr = false;
+      this.showSuperAdminInviteModal = true;
+    },
+    async superAdminDoInvite() {
+      this.saInviteLoading = true; this.saInviteMsg = ''; this.saInviteErr = false;
+      try {
+        const r = await fetch('/api/org/admin/' + this.selectedOrgForAdmin.id + '/invite', {
+          method: 'POST',
+          headers: { ...this._headers(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: this.saInviteEmail, role: this.saInviteRole }),
+        });
+        const d = await r.json();
+        if (!r.ok) { this.saInviteErr = true; this.saInviteMsg = d.detail || 'Failed'; }
+        else { this.saInviteMsg = d.message || 'Invitation sent!'; }
+      } catch(e) { this.saInviteErr = true; this.saInviteMsg = e.message; }
+      finally { this.saInviteLoading = false; }
     },
 
     // ── Org invitations ───────────────────────────────────────────

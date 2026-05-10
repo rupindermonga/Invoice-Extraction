@@ -4548,22 +4548,27 @@
       </div>
 
       <!-- ── SUPER-ADMIN ─────────────────────────────────────────────── -->
-      <div x-show="view==='superadmin'" class="p-6">
+      <div x-show="view==='superadmin'" class="p-6 max-w-7xl">
         <div class="flex items-center justify-between mb-5">
           <div>
             <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-shield-halved mr-2 text-red-600"></i>Super Admin — All Organizations</h2>
-            <p class="text-sm text-gray-500">Manage all tenants on this instance.</p>
+            <p class="text-sm text-gray-500">You are the platform owner. Create orgs, manage plans, and control access.</p>
           </div>
-          <button @click="loadAllOrgs()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-100 rounded-lg hover:bg-gray-200 transition">
-            <i class="fa-solid fa-rotate-right"></i> Refresh
-          </button>
+          <div class="flex gap-2">
+            <button @click="showCreateOrgModal=true" class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold">
+              <i class="fa-solid fa-plus"></i> Create Org
+            </button>
+            <button @click="loadAllOrgs()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-100 rounded-lg hover:bg-gray-200 transition">
+              <i class="fa-solid fa-rotate-right"></i> Refresh
+            </button>
+          </div>
         </div>
 
         <!-- Stats strip -->
-        <div class="grid grid-cols-3 gap-4 mb-5">
+        <div class="grid grid-cols-4 gap-4 mb-5">
           <div class="bg-white border rounded-xl p-4 text-center">
             <div class="text-2xl font-bold text-gray-800" x-text="allOrgsList.length"></div>
-            <div class="text-xs text-gray-400 mt-1">Total Organizations</div>
+            <div class="text-xs text-gray-400 mt-1">Total Orgs</div>
           </div>
           <div class="bg-white border rounded-xl p-4 text-center">
             <div class="text-2xl font-bold text-green-600" x-text="allOrgsList.filter(o=>o.is_active).length"></div>
@@ -4573,42 +4578,146 @@
             <div class="text-2xl font-bold text-blue-600" x-text="allOrgsList.reduce((s,o)=>s+(o.project_count||0),0)"></div>
             <div class="text-xs text-gray-400 mt-1">Total Projects</div>
           </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-purple-600" x-text="allOrgsList.reduce((s,o)=>s+(o.member_count||0),0)"></div>
+            <div class="text-xs text-gray-400 mt-1">Total Members</div>
+          </div>
         </div>
 
         <!-- Org table -->
-        <div class="bg-white border rounded-xl overflow-hidden mobile-scroll">
-          <div class="grid text-xs font-semibold text-gray-500 uppercase tracking-wide px-5 py-3 bg-gray-50 border-b"
-               style="grid-template-columns: 1fr 100px 80px 70px 70px 70px 80px 80px">
-            <div>Organization</div><div>Slug</div><div>Plan</div><div class="text-right">Members</div><div class="text-right">Projects</div><div class="text-right">Invoices</div><div class="text-center">Status</div><div class="text-center">Actions</div>
-          </div>
-          <template x-for="o in allOrgsList" :key="o.id">
-            <div class="grid px-5 py-3 border-b items-center hover:bg-gray-50 text-sm"
-                 style="grid-template-columns: 1fr 100px 80px 70px 70px 70px 80px 80px"
-                 :class="!o.is_active?'bg-red-50':''">
-              <div>
-                <div class="font-semibold text-gray-800" x-text="o.name"></div>
-                <div class="text-xs text-gray-400" x-text="'Created '+o.created_at?.slice(0,10)"></div>
-              </div>
-              <div class="text-xs font-mono text-gray-500" x-text="o.slug"></div>
-              <div>
-                <span class="text-xs px-2 py-0.5 rounded font-medium" :class="o.plan==='enterprise'?'bg-purple-100 text-purple-700':o.plan==='pro'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-600'" x-text="o.plan"></span>
-              </div>
-              <div class="text-right text-gray-700 font-medium" x-text="o.member_count||0"></div>
-              <div class="text-right text-gray-700 font-medium" x-text="o.project_count||0"></div>
-              <div class="text-right text-gray-700 font-medium" x-text="o.invoice_count||0"></div>
-              <div class="text-center">
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full" :class="o.is_active?'bg-green-100 text-green-700':'bg-red-100 text-red-600'" x-text="o.is_active?'Active':'Suspended'"></span>
-              </div>
-              <div class="text-center">
-                <button @click="toggleOrgActive(o.id)"
-                        class="text-xs px-2 py-1 rounded transition"
-                        :class="o.is_active?'bg-red-50 text-red-600 hover:bg-red-100':'bg-green-50 text-green-600 hover:bg-green-100'"
-                        x-text="o.is_active?'Suspend':'Activate'"></button>
-              </div>
-            </div>
-          </template>
-          <div x-show="allOrgsList.length===0" class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading…</div>
+        <div class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b">
+              <tr>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Organization</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Slug</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Plan</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Members</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Projects</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Invoices</th>
+                <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+                <th class="px-4 py-2.5 text-xs font-semibold text-gray-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              <template x-for="o in allOrgsList" :key="o.id">
+                <tr :class="!o.is_active?'bg-red-50':'hover:bg-gray-50'">
+                  <td class="px-4 py-3">
+                    <div class="font-semibold text-gray-800" x-text="o.name"></div>
+                    <div class="text-xs text-gray-400" x-text="'Created '+o.created_at?.slice(0,10)"></div>
+                  </td>
+                  <td class="px-4 py-3 text-xs font-mono text-gray-500" x-text="o.slug"></td>
+                  <td class="px-4 py-3">
+                    <!-- Plan dropdown -->
+                    <select @change="superAdminChangePlan(o.id, $event.target.value)"
+                            class="text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            :class="o.plan==='enterprise'?'bg-purple-50 text-purple-700 border-purple-200':o.plan==='pro'?'bg-blue-50 text-blue-700 border-blue-200':o.plan==='free'?'bg-green-50 text-green-700 border-green-200':'bg-gray-50 text-gray-600'">
+                      <option value="starter" :selected="o.plan==='starter'">Starter</option>
+                      <option value="pro"     :selected="o.plan==='pro'">Pro</option>
+                      <option value="enterprise" :selected="o.plan==='enterprise'">Enterprise</option>
+                      <option value="free"    :selected="o.plan==='free'">Free (Comp)</option>
+                    </select>
+                  </td>
+                  <td class="px-4 py-3 text-right font-medium text-gray-700" x-text="o.member_count||0"></td>
+                  <td class="px-4 py-3 text-right font-medium text-gray-700" x-text="o.project_count||0"></td>
+                  <td class="px-4 py-3 text-right font-medium text-gray-700" x-text="o.invoice_count||0"></td>
+                  <td class="px-4 py-3 text-center">
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                          :class="o.is_active?'bg-green-100 text-green-700':'bg-red-100 text-red-600'"
+                          x-text="o.is_active?'Active':'Suspended'"></span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <button @click="superAdminViewMembers(o)"
+                              class="text-xs px-2 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
+                        <i class="fa-solid fa-users mr-1"></i>Members
+                      </button>
+                      <button @click="superAdminSendInvite(o)"
+                              class="text-xs px-2 py-1 rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">
+                        <i class="fa-solid fa-envelope mr-1"></i>Invite
+                      </button>
+                      <button @click="toggleOrgActive(o.id)"
+                              class="text-xs px-2 py-1 rounded transition"
+                              :class="o.is_active?'bg-red-50 text-red-600 hover:bg-red-100':'bg-green-50 text-green-600 hover:bg-green-100'"
+                              x-text="o.is_active?'Suspend':'Activate'"></button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="allOrgsList.length===0">
+                <td colspan="8" class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Loading…</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+
+        <!-- Plan legend -->
+        <div class="mt-4 flex flex-wrap gap-3 text-xs text-gray-500">
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-400"></span> Starter — free, limited</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Pro — $99/mo, unlimited</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> Enterprise — custom</span>
+          <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> Free (Comp) — complimentary Pro access, no charge</span>
+        </div>
+
+        <!-- Org Members modal -->
+        <div x-show="showOrgMembersModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showOrgMembersModal=false">
+          <div class="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-gray-800" x-text="'Members — '+(selectedOrgForAdmin?.name||'')"></h3>
+              <button @click="showOrgMembersModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="overflow-y-auto flex-1">
+              <template x-if="orgMembersList.length===0">
+                <p class="text-gray-400 text-sm text-center py-6">No members found</p>
+              </template>
+              <template x-for="m in orgMembersList" :key="m.id">
+                <div class="flex items-center justify-between py-2.5 border-b last:border-0">
+                  <div>
+                    <div class="font-medium text-gray-800 text-sm" x-text="m.username"></div>
+                    <div class="text-xs text-gray-400" x-text="m.email"></div>
+                  </div>
+                  <span class="text-xs px-2 py-0.5 rounded-full font-medium"
+                        :class="m.role==='owner'?'bg-purple-100 text-purple-700':m.role==='admin'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-600'"
+                        x-text="m.role"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Super-admin Invite modal -->
+        <div x-show="showSuperAdminInviteModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showSuperAdminInviteModal=false">
+          <div class="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-md">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold text-gray-800">Invite to <span x-text="selectedOrgForAdmin?.name"></span></h3>
+              <button @click="showSuperAdminInviteModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Send an email invitation for this organisation. The recipient sets their own password.</p>
+            <div class="mb-3">
+              <label class="block text-xs font-medium text-gray-600 mb-1">Email</label>
+              <input x-model="saInviteEmail" type="email" placeholder="employee@company.com" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div class="mb-4">
+              <label class="block text-xs font-medium text-gray-600 mb-1">Role</label>
+              <select x-model="saInviteRole" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="viewer">Viewer (read-only)</option>
+                <option value="editor" selected>Editor</option>
+                <option value="admin">Admin</option>
+                <option value="owner">Owner</option>
+              </select>
+            </div>
+            <p x-show="saInviteMsg" x-cloak class="text-sm mb-3" :class="saInviteErr?'text-red-600':'text-green-600'" x-text="saInviteMsg"></p>
+            <div class="flex gap-2">
+              <button @click="showSuperAdminInviteModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button @click="superAdminDoInvite()" :disabled="saInviteLoading"
+                      class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50">
+                <span x-show="!saInviteLoading">Send Invite</span>
+                <span x-show="saInviteLoading" x-cloak><i class="fa-solid fa-spinner fa-spin mr-1"></i>Sending...</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- ── SETTINGS ───────────────────────────────────────────────── -->
@@ -5738,6 +5847,45 @@
   ══════════════════════════════════════════════════════════════ -->
 
   <script src="/static/js/app-2.js?v=2"></script>
+
+<!-- Create Org modal (Super Admin) -->
+<div x-show="showCreateOrgModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showCreateOrgModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-md">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-building mr-2 text-red-600"></i>Create Organisation</h3>
+      <button @click="showCreateOrgModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Organisation Name <span class="text-red-500">*</span></label>
+        <input x-model="createOrgForm.name" type="text" placeholder="Acme Construction Ltd." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Owner (username or email)</label>
+        <input x-model="createOrgForm.owner_username" type="text" placeholder="Leave blank if no user yet" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+        <p class="text-xs text-gray-400 mt-1">User must already exist. Leave blank to create the org without an owner — you can invite them after.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Plan</label>
+        <select x-model="createOrgForm.plan" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
+          <option value="starter">Starter (free)</option>
+          <option value="pro">Pro ($99/mo)</option>
+          <option value="enterprise">Enterprise (custom)</option>
+          <option value="free">Free (Complimentary Pro)</option>
+        </select>
+      </div>
+      <div x-show="createOrgError" x-cloak class="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2" x-text="createOrgError"></div>
+      <div class="flex gap-2 pt-1">
+        <button @click="showCreateOrgModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+        <button @click="superAdminCreateOrg()" :disabled="createOrgLoading"
+                class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
+          <span x-show="!createOrgLoading">Create</span>
+          <span x-show="createOrgLoading" x-cloak><i class="fa-solid fa-spinner fa-spin mr-1"></i>Creating...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- SidePanel — landing page only. Matches books.finel.ai right-side nav card. -->
 <div x-show="view === 'landing'" x-cloak
