@@ -884,3 +884,159 @@ def export_xero(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=Xero_Bills_Import.csv"},
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SAGE 300 CRE / FOUNDATION / JONAS EXPORT
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/export/sage300")
+def export_sage300(
+    project_id: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    org_ctx: Tuple = Depends(get_current_org),
+    db: Session = Depends(get_db),
+):
+    """Export invoices in Sage 300 CRE AP Invoice Import format."""
+    org, mem = org_ctx
+    if mem.role not in {"owner","admin","finance_admin","editor"}:
+        raise HTTPException(403, "Finance export requires finance role")
+
+    q = db.query(Invoice).filter(Invoice.org_id == org.id, Invoice.status == "processed")
+    if project_id:
+        q = q.filter(Invoice.project_id == project_id)
+    if start_date:
+        q = q.filter(Invoice.invoice_date >= start_date)
+    if end_date:
+        q = q.filter(Invoice.invoice_date <= end_date)
+    invoices = q.all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    # Sage 300 CRE AP format
+    writer.writerow([
+        "INVOICE_NO", "VENDOR_ID", "VENDOR_NAME", "INVOICE_DATE", "DUE_DATE",
+        "AMOUNT", "TAX_AMOUNT", "CURRENCY", "DESCRIPTION", "JOB_NO",
+        "COST_CODE", "CATEGORY", "GL_ACCOUNT", "PO_NUMBER",
+    ])
+    for inv in invoices:
+        proj = db.query(Project).filter(Project.id == inv.project_id).first() if inv.project_id else None
+        writer.writerow([
+            inv.invoice_number or "",
+            (inv.vendor_name or "")[:10].replace(" ", ""),  # Sage vendor ID (truncated)
+            inv.vendor_name or "",
+            inv.invoice_date or "",
+            inv.due_date or "",
+            round(inv.total_due or 0, 2),
+            round(inv.tax_total or 0, 2),
+            inv.currency or "CAD",
+            f"INV {inv.invoice_number or inv.id}",
+            proj.code or str(proj.id) if proj else "",
+            "",  # cost code — user maps
+            "",  # category
+            "2000",  # default AP account
+            "",  # PO
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=Sage300_AP_Import.csv"},
+    )
+
+
+@router.get("/export/foundation")
+def export_foundation(
+    project_id: Optional[int] = None,
+    org_ctx: Tuple = Depends(get_current_org),
+    db: Session = Depends(get_db),
+):
+    """Export invoices in Foundation Software AP import format."""
+    org, mem = org_ctx
+    if mem.role not in {"owner","admin","finance_admin","editor"}:
+        raise HTTPException(403)
+
+    q = db.query(Invoice).filter(Invoice.org_id == org.id, Invoice.status == "processed")
+    if project_id:
+        q = q.filter(Invoice.project_id == project_id)
+    invoices = q.all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "InvoiceNumber", "VendorCode", "VendorName", "InvoiceDate", "DueDate",
+        "InvoiceAmount", "TaxAmount", "JobNumber", "PhaseCode", "CostType",
+        "Description", "GLAccount",
+    ])
+    for inv in invoices:
+        proj = db.query(Project).filter(Project.id == inv.project_id).first() if inv.project_id else None
+        writer.writerow([
+            inv.invoice_number or f"INV-{inv.id}",
+            "",  # vendor code
+            inv.vendor_name or "",
+            inv.invoice_date or "",
+            inv.due_date or "",
+            round(inv.total_due or 0, 2),
+            round(inv.tax_total or 0, 2),
+            proj.code or "" if proj else "",
+            "",  # phase
+            "M",  # Material default
+            f"Invoice from {inv.vendor_name or ''}",
+            "2000",
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=Foundation_AP_Import.csv"},
+    )
+
+
+@router.get("/export/jonas")
+def export_jonas(
+    project_id: Optional[int] = None,
+    org_ctx: Tuple = Depends(get_current_org),
+    db: Session = Depends(get_db),
+):
+    """Export invoices in Jonas Construction Software AP format."""
+    org, mem = org_ctx
+    if mem.role not in {"owner","admin","finance_admin","editor"}:
+        raise HTTPException(403)
+
+    q = db.query(Invoice).filter(Invoice.org_id == org.id, Invoice.status == "processed")
+    if project_id:
+        q = q.filter(Invoice.project_id == project_id)
+    invoices = q.all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "TxnType", "InvoiceNo", "Date", "DueDate", "VendorName",
+        "Amount", "TaxAmt", "ProjectNo", "CostCategory",
+        "Notes", "Currency",
+    ])
+    for inv in invoices:
+        proj = db.query(Project).filter(Project.id == inv.project_id).first() if inv.project_id else None
+        writer.writerow([
+            "AP",
+            inv.invoice_number or f"INV-{inv.id}",
+            inv.invoice_date or "",
+            inv.due_date or "",
+            inv.vendor_name or "",
+            round(inv.total_due or 0, 2),
+            round(inv.tax_total or 0, 2),
+            proj.code or str(proj.id) if proj else "",
+            "",
+            f"Imported from Finel AI {dt.utcnow().strftime('%Y-%m-%d')}",
+            inv.currency or "CAD",
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=Jonas_AP_Import.csv"},
+    )

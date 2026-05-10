@@ -162,6 +162,21 @@ function app() {
     showBondModal: false, bondEditId: null,
     bondForm: { vendor_name:'', bond_type:'performance', bond_number:'', surety_company:'', bond_amount:'', effective_date:'', expiry_date:'', status:'active', notes:'' },
 
+    // ── Bid Management ─────────────────────────────────────────────
+    bidPackages: [], bidPkgsLoading: false,
+    showBidPkgModal: false, bidPkgEditId: null,
+    bidPkgForm: { title:'', trade_category:'', issue_date:'', due_date:'', estimated_value:'', status:'draft', description:'', notes:'' },
+    activeBidPackage: null,
+    bidResponses: [], bidLeveling: null,
+    showBidRespModal: false, bidRespEditId: null,
+    bidRespForm: { vendor_name:'', contact_email:'', total_amount:'', inclusions:'', exclusions:'', qualifications:'', status:'invited', notes:'' },
+
+    // ── Portfolio Risk ─────────────────────────────────────────────
+    portfolioRisk: null, portfolioRiskLoading: false,
+
+    // ── AI Risk Score ──────────────────────────────────────────────
+    aiRiskData: null, aiRiskLoading: false,
+
     // ── Super Admin UI ────────────────────────────────────────────
     showCreateOrgModal: false,
     createOrgForm: { name: '', owner_username: '', plan: 'starter' },
@@ -3092,6 +3107,91 @@ function app() {
     async deleteBond(id) {
       if (!confirm('Delete this bond record?')) return;
       try { await this.delete(`/api/project/${this.currentProject.id}/bonds/${id}`); await this.loadBonds(); } catch(e) {}
+    },
+
+    // ── Bid Management ──────────────────────────────────────────────
+    async loadBidPackages() {
+      if (!this.currentProject) return;
+      this.bidPkgsLoading = true;
+      try { this.bidPackages = await this.get(`/api/project/${this.currentProject.id}/bid-packages`); } catch(e) { this.bidPackages = []; }
+      finally { this.bidPkgsLoading = false; }
+    },
+    editBidPackage(p) {
+      this.bidPkgEditId = p.id;
+      this.bidPkgForm = { title:p.title, trade_category:p.trade_category||'', issue_date:p.issue_date||'', due_date:p.due_date||'', estimated_value:p.estimated_value||'', status:p.status, description:p.description||'', notes:p.notes||'' };
+      this.showBidPkgModal = true;
+    },
+    async saveBidPackage() {
+      if (!this.currentProject || !this.bidPkgForm.title.trim()) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.bidPkgEditId) await this.put(`/api/project/${pid}/bid-packages/${this.bidPkgEditId}`, this.bidPkgForm);
+        else await this.post(`/api/project/${pid}/bid-packages`, this.bidPkgForm);
+        this.showBidPkgModal = false; this.bidPkgEditId = null;
+        await this.loadBidPackages();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async openBidPackage(pkg) {
+      this.activeBidPackage = pkg;
+      this.view = 'bid-detail';
+      try {
+        const [responses, leveling] = await Promise.all([
+          this.get(`/api/project/${this.currentProject.id}/bid-packages/${pkg.id}/responses`),
+          this.get(`/api/project/${this.currentProject.id}/bid-packages/${pkg.id}/leveling`),
+        ]);
+        this.bidResponses = responses;
+        this.bidLeveling = leveling;
+      } catch(e) { this.bidResponses = []; this.bidLeveling = null; }
+    },
+    editBidResponse(r) {
+      this.bidRespEditId = r.id;
+      this.bidRespForm = { vendor_name:r.vendor_name, contact_email:r.contact_email||'', total_amount:r.total_amount||'', inclusions:r.inclusions||'', exclusions:r.exclusions||'', qualifications:r.qualifications||'', status:r.status, notes:r.notes||'' };
+      this.showBidRespModal = true;
+    },
+    async saveBidResponse() {
+      if (!this.activeBidPackage) return;
+      const pid = this.currentProject.id;
+      const pkgId = this.activeBidPackage.id;
+      try {
+        if (this.bidRespEditId) await this.put(`/api/project/${pid}/bid-packages/${pkgId}/responses/${this.bidRespEditId}`, this.bidRespForm);
+        else await this.post(`/api/project/${pid}/bid-packages/${pkgId}/responses`, this.bidRespForm);
+        this.showBidRespModal = false; this.bidRespEditId = null;
+        await this.openBidPackage(this.activeBidPackage);
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteBidResponse(id) {
+      if (!confirm('Delete this bid response?')) return;
+      try {
+        await this.delete(`/api/project/${this.currentProject.id}/bid-packages/${this.activeBidPackage.id}/responses/${id}`);
+        await this.openBidPackage(this.activeBidPackage);
+      } catch(e) {}
+    },
+
+    // ── Portfolio Risk ───────────────────────────────────────────────
+    async loadPortfolioRisk() {
+      this.portfolioRiskLoading = true;
+      try { this.portfolioRisk = await this.get('/api/portfolio/risk-dashboard'); } catch(e) { this.portfolioRisk = null; }
+      finally { this.portfolioRiskLoading = false; }
+    },
+    async switchToProject(p) {
+      const proj = this.projects.find(x => x.id === p.id);
+      if (proj) { await this.selectProject(proj); this.view = 'dashboard'; }
+    },
+
+    // ── AI Risk Score ────────────────────────────────────────────────
+    async loadAIRiskScore() {
+      if (!this.currentProject) return;
+      this.aiRiskLoading = true;
+      try { this.aiRiskData = await this.get(`/api/project/${this.currentProject.id}/ai-risk-score`); } catch(e) { this.aiRiskData = null; }
+      finally { this.aiRiskLoading = false; }
+    },
+
+    // ── ERP Exports ──────────────────────────────────────────────────
+    downloadExport(format) {
+      const pid = this.currentProject ? `?project_id=${this.currentProject.id}` : '';
+      const url = `/api/compliance/export/${format}${pid}`;
+      const a = document.createElement('a'); a.href = url; a.download = '';
+      a.style.display = 'none'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
     },
 
   };

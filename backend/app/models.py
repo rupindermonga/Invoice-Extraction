@@ -1186,3 +1186,75 @@ class Timecard(Base):
 
     creator  = relationship("User")
     category = relationship("CostCategory")
+
+
+# ─── Bid Management / Preconstruction ────────────────────────────────────────
+
+class BidPackage(Base):
+    """A bid solicitation package — sent to subs to price a scope of work."""
+    __tablename__ = "bid_packages"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id      = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    package_number  = Column(String, nullable=False)   # e.g. BP-001
+    title           = Column(String, nullable=False)
+    description     = Column(Text, nullable=True)
+    trade_category  = Column(String, nullable=True)    # Framing, Electrical, Plumbing, etc.
+    issue_date      = Column(String, nullable=True)    # YYYY-MM-DD
+    due_date        = Column(String, nullable=True)    # YYYY-MM-DD
+    estimated_value = Column(Float, nullable=True)     # internal estimate
+    status          = Column(String, default="draft")  # draft | issued | receiving | leveled | awarded | cancelled
+    notes           = Column(Text, nullable=True)
+    created_by      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    creator   = relationship("User")
+    responses = relationship("BidResponse", back_populates="package", cascade="all, delete-orphan")
+
+
+class BidResponse(Base):
+    """A subcontractor's bid response to a bid package."""
+    __tablename__ = "bid_responses"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    package_id      = Column(Integer, ForeignKey("bid_packages.id"), nullable=False, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id      = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    vendor_id       = Column(Integer, ForeignKey("org_vendors.id"), nullable=True)
+    vendor_name     = Column(String, nullable=False)
+    contact_email   = Column(String, nullable=True)
+    submitted_date  = Column(String, nullable=True)   # YYYY-MM-DD
+    total_amount    = Column(Float, nullable=True)
+    inclusions      = Column(Text, nullable=True)     # what's included in their price
+    exclusions      = Column(Text, nullable=True)     # what's excluded
+    qualifications  = Column(Text, nullable=True)     # bid qualifications / clarifications
+    status          = Column(String, default="invited")  # invited | submitted | shortlisted | awarded | rejected
+    invite_token    = Column(String, nullable=True, index=True)  # token for self-serve bid portal
+    notes           = Column(Text, nullable=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    package = relationship("BidPackage", back_populates="responses")
+
+
+# ─── Change Order Client Approval ────────────────────────────────────────────
+
+class COApprovalToken(Base):
+    """Client-facing change order approval link — no login required."""
+    __tablename__ = "co_approval_tokens"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id  = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    co_id       = Column(Integer, ForeignKey("change_orders.id"), nullable=False, index=True)
+    token       = Column(String, unique=True, nullable=False, index=True)
+    client_name = Column(String, nullable=True)
+    client_email = Column(String, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    rejected_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    expires_at  = Column(DateTime, nullable=True)
+    created_by  = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")

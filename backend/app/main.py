@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval
 
 
 def _run_migrations():
@@ -585,6 +585,57 @@ def _run_migrations():
             "CREATE INDEX IF NOT EXISTS ix_safety_incidents_project ON safety_incidents(project_id)",
             "CREATE INDEX IF NOT EXISTS ix_permits_project ON permits(project_id)",
             "CREATE INDEX IF NOT EXISTS ix_lender_covenants_project ON lender_covenants(project_id)",
+            # Bid Management
+            """CREATE TABLE IF NOT EXISTS bid_packages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                package_number TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                trade_category TEXT,
+                issue_date TEXT, due_date TEXT,
+                estimated_value REAL,
+                status TEXT DEFAULT 'draft',
+                notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS bid_responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                package_id INTEGER NOT NULL REFERENCES bid_packages(id) ON DELETE CASCADE,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                vendor_id INTEGER REFERENCES org_vendors(id),
+                vendor_name TEXT NOT NULL,
+                contact_email TEXT,
+                submitted_date TEXT,
+                total_amount REAL,
+                inclusions TEXT, exclusions TEXT, qualifications TEXT,
+                status TEXT DEFAULT 'invited',
+                invite_token TEXT UNIQUE,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_bid_packages_project ON bid_packages(project_id)",
+            "CREATE INDEX IF NOT EXISTS ix_bid_responses_token ON bid_responses(invite_token)",
+            # CO Approval Tokens
+            """CREATE TABLE IF NOT EXISTS co_approval_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                co_id INTEGER NOT NULL REFERENCES change_orders(id),
+                token TEXT UNIQUE NOT NULL,
+                client_name TEXT,
+                client_email TEXT,
+                approved_at DATETIME,
+                rejected_at DATETIME,
+                rejection_reason TEXT,
+                expires_at DATETIME,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_co_approval_token ON co_approval_tokens(token)",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -717,6 +768,12 @@ app.include_router(lender_risk.router)
 app.include_router(permits.router)
 app.include_router(safety.router)
 app.include_router(labour.router)
+app.include_router(bid.router)
+app.include_router(bid._bid_portal_router)
+app.include_router(ai_risk.router)
+app.include_router(ai_risk._portfolio_router)
+app.include_router(co_approval.router)
+app.include_router(co_approval._public_router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -753,7 +810,7 @@ async def report_view():
 @app.get("/", include_in_schema=False)
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa(full_path: str = ""):
-    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/", "report"}
+    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/", "report", "bid/", "co-approval/"}
     if any(full_path.startswith(b) or full_path == b for b in _blocked):
         from fastapi import HTTPException
         raise HTTPException(status_code=404)
