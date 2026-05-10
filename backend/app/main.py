@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release
 
 
 def _run_migrations():
@@ -636,6 +636,105 @@ def _run_migrations():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )""",
             "CREATE INDEX IF NOT EXISTS ix_co_approval_token ON co_approval_tokens(token)",
+            # Client Selections
+            """CREATE TABLE IF NOT EXISTS client_selection_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                name TEXT NOT NULL,
+                display_order INTEGER DEFAULT 100,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS client_selections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                category_id INTEGER REFERENCES client_selection_categories(id) ON DELETE SET NULL,
+                item_name TEXT NOT NULL,
+                description TEXT,
+                standard_option TEXT, client_choice TEXT,
+                allowance_amount REAL, actual_cost REAL, upgrade_amount REAL,
+                status TEXT DEFAULT 'pending',
+                due_date TEXT, notes TEXT,
+                client_approved_at DATETIME,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS client_selection_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                token TEXT UNIQUE NOT NULL,
+                client_name TEXT, client_email TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Equipment
+            """CREATE TABLE IF NOT EXISTS equipment (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                equipment_code TEXT,
+                name TEXT NOT NULL,
+                equipment_type TEXT, make TEXT, model TEXT, year INTEGER,
+                serial_number TEXT,
+                ownership TEXT DEFAULT 'owned',
+                daily_rate REAL, hourly_rate REAL,
+                status TEXT DEFAULT 'available',
+                current_project_id INTEGER REFERENCES projects(id),
+                operator_name TEXT,
+                next_service_date TEXT, insurance_expiry TEXT,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS equipment_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                equipment_id INTEGER NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER REFERENCES projects(id),
+                log_date TEXT NOT NULL,
+                log_type TEXT DEFAULT 'usage',
+                hours_used REAL DEFAULT 0,
+                fuel_litres REAL, operator_name TEXT,
+                work_description TEXT, cost REAL, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_equipment_org ON equipment(org_id)",
+            "CREATE INDEX IF NOT EXISTS ix_equipment_logs_eq ON equipment_logs(equipment_id, log_date)",
+            # Lien Releases
+            """CREATE TABLE IF NOT EXISTS lien_releases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                draw_id INTEGER REFERENCES draws(id),
+                release_type TEXT NOT NULL,
+                vendor_id INTEGER REFERENCES org_vendors(id),
+                vendor_name TEXT,
+                holdback_amount REAL,
+                lien_expiry_date TEXT, release_date TEXT, payment_date TEXT,
+                status TEXT DEFAULT 'pending',
+                statutory_declaration_received INTEGER DEFAULT 0,
+                notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_lien_releases_project ON lien_releases(project_id)",
+            # Vendor Scores
+            """CREATE TABLE IF NOT EXISTS vendor_scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                vendor_id INTEGER REFERENCES org_vendors(id),
+                vendor_name TEXT NOT NULL,
+                period TEXT,
+                quality INTEGER, timeliness INTEGER,
+                safety_score INTEGER, communication INTEGER, value INTEGER,
+                would_rehire INTEGER,
+                comments TEXT,
+                rated_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -774,6 +873,11 @@ app.include_router(ai_risk.router)
 app.include_router(ai_risk._portfolio_router)
 app.include_router(co_approval.router)
 app.include_router(co_approval._public_router)
+app.include_router(selections.router)
+app.include_router(selections._public_router)
+app.include_router(equipment.router)
+app.include_router(notifications.router)
+app.include_router(lien_release.router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -810,7 +914,7 @@ async def report_view():
 @app.get("/", include_in_schema=False)
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa(full_path: str = ""):
-    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/", "report", "bid/", "co-approval/"}
+    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/", "report", "bid/", "co-approval/", "selections/"}
     if any(full_path.startswith(b) or full_path == b for b in _blocked):
         from fastapi import HTTPException
         raise HTTPException(status_code=404)

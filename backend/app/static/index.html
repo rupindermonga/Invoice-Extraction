@@ -952,6 +952,16 @@
             <button @click="view='timecards'; loadTimecards(); sidebarOpen=false" :class="view==='timecards'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-clock w-4"></i> Labour / Timecards
             </button>
+            <button @click="view='lien-releases'; loadLienReleases(); sidebarOpen=false" :class="view==='lien-releases'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-hand-holding-dollar w-4"></i>
+              <span class="flex-1 text-left">Lien Releases</span>
+            </button>
+            <button @click="view='vendor-scorecard'; loadVendorScores(); sidebarOpen=false" :class="view==='vendor-scorecard'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-star w-4"></i> Vendor Scorecard
+            </button>
+            <button @click="view='client-selections'; loadSelections(); sidebarOpen=false" :class="view==='client-selections'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-palette w-4"></i> Client Selections
+            </button>
             <button x-show="canAccessFinance" @click="view='subcontractors'; loadSubcontractors(); sidebarOpen=false" :class="view==='subcontractors'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-hard-hat w-4"></i> Subcontractors
             </button>
@@ -982,6 +992,14 @@
           </button>
           <button @click="view='accounting-exports'; sidebarOpen=false" :class="view==='accounting-exports'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
             <i class="fa-solid fa-file-export w-4"></i> ERP Exports
+          </button>
+          <button @click="view='notifications-center'; loadNotifications(); sidebarOpen=false" :class="view==='notifications-center'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+            <i class="fa-solid fa-bell w-4"></i>
+            <span class="flex-1 text-left">Notifications</span>
+            <span x-show="(notifData?.counts?.critical||0)>0" x-text="notifData?.counts?.critical" class="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold"></span>
+          </button>
+          <button @click="view='equipment'; loadEquipment(); sidebarOpen=false" :class="view==='equipment'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+            <i class="fa-solid fa-truck-pickup w-4"></i> Equipment
           </button>
           <button @click="view='org-settings'; loadOrgMembers(); sidebarOpen=false" :class="view==='org-settings'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
             <i class="fa-solid fa-building w-4"></i> Organization
@@ -6210,6 +6228,270 @@
         </div>
       </div><!-- /accounting-exports -->
 
+      <!-- ── NOTIFICATIONS CENTER ───────────────────────────────────── -->
+      <div x-show="view==='notifications-center'" class="p-6 max-w-3xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-bell mr-2 text-blue-600"></i>Notification Center</h2>
+            <p class="text-sm text-gray-500">Active alerts across compliance, permits, bonds, safety, and finance</p>
+          </div>
+          <button @click="loadNotifications()" :disabled="notifLoading" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50 transition font-semibold">
+            <i class="fa-solid" :class="notifLoading?'fa-spinner fa-spin':'fa-rotate-right'"></i> Refresh
+          </button>
+        </div>
+        <div x-show="notifLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="notifData && !notifLoading" x-cloak>
+          <div class="grid grid-cols-3 gap-3 mb-5">
+            <div class="bg-red-50 border border-red-100 rounded-xl p-3 text-center"><div class="text-2xl font-bold text-red-600" x-text="notifData?.counts?.critical||0"></div><div class="text-xs text-red-500">Critical</div></div>
+            <div class="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center"><div class="text-2xl font-bold text-amber-600" x-text="notifData?.counts?.warning||0"></div><div class="text-xs text-amber-500">Warnings</div></div>
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center"><div class="text-2xl font-bold text-blue-600" x-text="notifData?.counts?.total||0"></div><div class="text-xs text-blue-500">Total Alerts</div></div>
+          </div>
+          <div class="space-y-2">
+            <template x-for="alert in notifData?.alerts||[]" :key="alert.title+alert.detail">
+              <div class="bg-white border rounded-xl p-4 flex items-start gap-3 cursor-pointer hover:border-blue-200 transition"
+                   :class="alert.severity==='critical'?'border-l-4 border-l-red-500':alert.severity==='warning'?'border-l-4 border-l-amber-400':''"
+                   @click="view=alert.action; sidebarOpen=false">
+                <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+                     :class="alert.severity==='critical'?'bg-red-100 text-red-600':alert.severity==='warning'?'bg-amber-100 text-amber-600':'bg-blue-100 text-blue-600'">
+                  <i class="fa-solid text-sm" :class="alert.icon"></i>
+                </div>
+                <div class="flex-1">
+                  <div class="text-sm font-semibold text-gray-800" x-text="alert.title"></div>
+                  <div class="text-xs text-gray-400 mt-0.5" x-text="alert.detail"></div>
+                </div>
+                <span class="text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0"
+                      :class="alert.severity==='critical'?'bg-red-100 text-red-700':alert.severity==='warning'?'bg-amber-100 text-amber-700':'bg-blue-100 text-blue-700'"
+                      x-text="alert.severity.toUpperCase()"></span>
+              </div>
+            </template>
+            <div x-show="!(notifData?.alerts?.length)" class="text-center text-gray-400 text-sm py-8"><i class="fa-solid fa-circle-check text-green-400 text-3xl mb-2"></i><br>No active alerts. All systems green.</div>
+          </div>
+        </div>
+      </div><!-- /notifications-center -->
+
+      <!-- ── EQUIPMENT ───────────────────────────────────────────────── -->
+      <div x-show="view==='equipment'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-truck-pickup mr-2 text-gray-700"></i>Equipment Register</h2>
+            <p class="text-sm text-gray-500">Owned, rented, and leased plant and machinery</p>
+          </div>
+          <div class="flex gap-2">
+            <button @click="loadEquipmentUtilization()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-chart-bar mr-1"></i>Utilization</button>
+            <button @click="equipForm={name:'',equipment_type:'',make:'',model:'',year:'',ownership:'owned',daily_rate:'',hourly_rate:'',status:'available',notes:''}; equipEditId=null; showEquipModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 text-white text-xs rounded-lg hover:bg-gray-900 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Equipment</button>
+          </div>
+        </div>
+        <!-- Utilization summary -->
+        <div x-show="equipUtilization" x-cloak class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-gray-800" x-text="equipUtilization?.summary?.total_units||0"></div><div class="text-xs text-gray-400">Units</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-blue-600" x-text="equipUtilization?.summary?.in_use||0"></div><div class="text-xs text-gray-400">In Use</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-amber-600" x-text="equipUtilization?.summary?.in_maintenance||0"></div><div class="text-xs text-gray-400">In Maintenance</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-gray-700" x-text="'$'+(equipUtilization?.summary?.total_maintenance_cost||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div><div class="text-xs text-gray-400">Maintenance Cost</div></div>
+        </div>
+        <div x-show="equipLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!equipLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Equipment</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Type</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Ownership</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Hrs Logged</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Next Service</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="e in equipList" :key="e.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-gray-800" x-text="e.name"></div>
+                    <div class="text-xs text-gray-400" x-text="[e.make, e.model, e.year].filter(Boolean).join(' ')"></div>
+                  </td>
+                  <td class="px-4 py-3 text-xs capitalize text-gray-500" x-text="e.equipment_type||'—'"></td>
+                  <td class="px-4 py-3 text-xs capitalize" x-text="e.ownership"></td>
+                  <td class="px-4 py-3 text-right text-xs font-semibold" x-text="e.total_hours+'h'"></td>
+                  <td class="px-4 py-3 text-xs" :class="e.service_overdue?'text-red-600 font-semibold':''">
+                    <span x-text="e.next_service_date||'—'"></span>
+                    <span x-show="e.service_overdue" class="ml-1 text-red-500 text-xs">⚠</span>
+                  </td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="e.status==='in_use'?'bg-blue-100 text-blue-700':e.status==='maintenance'?'bg-amber-100 text-amber-700':e.status==='retired'?'bg-gray-100 text-gray-500':'bg-green-100 text-green-700'"
+                    x-text="e.status.replace('_',' ').toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="openEquipLogs(e)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Logs</button>
+                    <button @click="editEquip(e)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteEquip(e.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="equipList.length===0"><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">No equipment registered.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /equipment -->
+
+      <!-- ── LIEN RELEASES ───────────────────────────────────────────── -->
+      <div x-show="view==='lien-releases'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-hand-holding-dollar mr-2 text-blue-600"></i>Holdback / Lien Release Tracker</h2>
+            <p class="text-sm text-gray-500" x-text="'Province: '+(currentProject?.province||'ON')+' · '+(lienSummary?.act||'')"></p>
+          </div>
+          <button @click="lienReleaseForm={release_type:'progressive',vendor_name:'',holdback_amount:'',last_supply_date:'',lien_expiry_date:'',status:'lien_period_running',statutory_declaration_received:false,notes:''}; showLienReleaseModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Release</button>
+        </div>
+        <!-- Summary -->
+        <div x-show="lienSummary" x-cloak class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-gray-800" x-text="'$'+(lienSummary?.total_holdback_tracked||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div><div class="text-xs text-gray-400">Holdback Tracked</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-amber-600" x-text="'$'+(lienSummary?.pending_release||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div><div class="text-xs text-gray-400">Pending Release</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-green-600" x-text="'$'+(lienSummary?.total_released||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div><div class="text-xs text-gray-400">Released</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-blue-600" x-text="lienSummary?.lien_period_days+' days'"></div><div class="text-xs text-gray-400">Lien Period</div></div>
+        </div>
+        <div x-show="lienReleasesLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!lienReleasesLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Type</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Vendor</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Holdback</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Lien Expiry</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Stat Decl</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="r in lienReleases" :key="r.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-xs capitalize" x-text="r.release_type.replace('_',' ')"></td>
+                  <td class="px-4 py-3 text-xs font-medium" x-text="r.vendor_name||'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs font-semibold" x-text="r.holdback_amount?'$'+r.holdback_amount.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-xs">
+                    <span x-text="r.lien_expiry_date||'—'"></span>
+                    <span x-show="r.days_until_clear!=null" class="ml-1 text-xs" :class="r.days_until_clear<0?'text-green-600':(r.days_until_clear<14?'text-amber-600':'text-gray-400')" x-text="r.days_until_clear>=0?'('+r.days_until_clear+'d)':'(cleared)'"></span>
+                  </td>
+                  <td class="px-4 py-3 text-center text-lg" x-text="r.statutory_declaration_received?'✓':'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="r.status==='released'?'bg-green-100 text-green-700':r.status==='cleared'?'bg-blue-100 text-blue-700':r.status==='disputed'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-700'"
+                    x-text="r.status.replace('_',' ').toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editLienRelease(r)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteLienRelease(r.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="lienReleases.length===0"><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">No lien releases tracked. Add holdback amounts as lien periods start running.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /lien-releases -->
+
+      <!-- ── VENDOR SCORECARD ────────────────────────────────────────── -->
+      <div x-show="view==='vendor-scorecard'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-star mr-2 text-amber-500"></i>Vendor Scorecard</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <button @click="vendorScoreForm={vendor_name:'',period:'',quality:null,timeliness:null,safety:null,communication:null,value:null,would_rehire:null,comments:''}; vendorScoreEditId=null; showVendorScoreModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Rate Vendor</button>
+        </div>
+        <div x-show="vendorScoresLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!vendorScoresLoading" class="space-y-3">
+          <template x-for="s in vendorScores" :key="s.id">
+            <div class="bg-white border rounded-xl p-5">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <div class="font-semibold text-gray-800" x-text="s.vendor_name"></div>
+                  <div class="text-xs text-gray-400" x-text="s.period||''"></div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div x-show="s.average" class="text-lg font-bold text-amber-500" x-text="s.average+'/5'"></div>
+                  <span x-show="s.would_rehire===true" class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-semibold">Would Rehire</span>
+                  <span x-show="s.would_rehire===false" class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-semibold">Would Not Rehire</span>
+                </div>
+              </div>
+              <div class="grid grid-cols-5 gap-2 text-center text-xs">
+                <div><div class="font-bold text-gray-700" x-text="s.quality??'—'"></div><div class="text-gray-400">Quality</div></div>
+                <div><div class="font-bold text-gray-700" x-text="s.timeliness??'—'"></div><div class="text-gray-400">Timeliness</div></div>
+                <div><div class="font-bold text-gray-700" x-text="s.safety??'—'"></div><div class="text-gray-400">Safety</div></div>
+                <div><div class="font-bold text-gray-700" x-text="s.communication??'—'"></div><div class="text-gray-400">Comms</div></div>
+                <div><div class="font-bold text-gray-700" x-text="s.value??'—'"></div><div class="text-gray-400">Value</div></div>
+              </div>
+              <div x-show="s.comments" class="text-xs text-gray-500 mt-2 bg-gray-50 rounded-lg p-2" x-text="s.comments"></div>
+              <div class="flex gap-3 mt-2">
+                <button @click="editVendorScore(s)" class="text-xs text-blue-500 hover:text-blue-700">Edit</button>
+                <button @click="deleteVendorScore(s.id)" class="text-xs text-red-400 hover:text-red-600">Delete</button>
+              </div>
+            </div>
+          </template>
+          <div x-show="vendorScores.length===0" class="text-center text-gray-400 text-sm py-8">No ratings yet. Rate your subcontractors after each project phase.</div>
+        </div>
+      </div><!-- /vendor-scorecard -->
+
+      <!-- ── CLIENT SELECTIONS ───────────────────────────────────────── -->
+      <div x-show="view==='client-selections'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-palette mr-2 text-purple-600"></i>Client Selections</h2>
+            <p class="text-sm text-gray-500">Finish selections, allowances, upgrades — track and share with client</p>
+          </div>
+          <div class="flex gap-2">
+            <button @click="loadSelTokens()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-share-nodes mr-1"></i>Client Portal</button>
+            <button @click="selForm={item_name:'',category_id:'',standard_option:'',allowance_amount:'',status:'pending',due_date:'',notes:''}; selEditId=null; showSelModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Item</button>
+          </div>
+        </div>
+        <!-- Summary cards -->
+        <div x-show="selSummary" x-cloak class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-gray-800" x-text="selSummary?.total_items||0"></div><div class="text-xs text-gray-400">Total Items</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-amber-600" x-text="selSummary?.pending||0"></div><div class="text-xs text-gray-400">Pending</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-green-600" x-text="selSummary?.confirmed||0"></div><div class="text-xs text-gray-400">Confirmed</div></div>
+          <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold" :class="(selSummary?.total_upgrades||0)>0?'text-red-600':'text-green-600'" x-text="'$'+(selSummary?.total_upgrades||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div><div class="text-xs text-gray-400">Upgrade Amount</div></div>
+        </div>
+        <div x-show="selectionsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!selectionsLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Item</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Standard</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Client Choice</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Allowance</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Upgrade</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="s in selectionItems" :key="s.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-sm font-medium" x-text="s.item_name"></td>
+                  <td class="px-4 py-3 text-xs text-gray-400" x-text="s.standard_option||'—'"></td>
+                  <td class="px-4 py-3 text-xs font-medium text-purple-700" x-text="s.client_choice||'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs" x-text="s.allowance_amount?'$'+s.allowance_amount.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs" :class="(s.upgrade_amount||0)>0?'text-red-600 font-semibold':''"><span x-text="s.upgrade_amount?'$'+s.upgrade_amount.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></span></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="s.status==='confirmed'||s.status==='installed'?'bg-green-100 text-green-700':s.status==='selected'?'bg-blue-100 text-blue-700':s.status==='ordered'?'bg-purple-100 text-purple-700':'bg-gray-100 text-gray-600'"
+                    x-text="s.status.toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editSelection(s)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteSelection(s.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="selectionItems.length===0"><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">No selections. Add items like Kitchen Countertop, Flooring, etc.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Client portal tokens -->
+        <div x-show="selTokens.length>0" x-cloak class="mt-4 bg-purple-50 border border-purple-100 rounded-xl p-4">
+          <div class="text-sm font-semibold text-purple-800 mb-2">Client Portal Links</div>
+          <div class="space-y-1">
+            <template x-for="t in selTokens" :key="t.id">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-purple-700" x-text="t.client_name||'Client'"></span>
+                <button @click="navigator.clipboard.writeText(window.location.origin+t.portal_url)" class="text-purple-600 hover:text-purple-800 font-semibold">Copy Link</button>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div><!-- /client-selections -->
+
       <!-- ── AI CONSTRUCTION ACCOUNTANT ────────────────────────────── -->
       <div x-show="view==='health-check'" class="p-6 max-w-4xl">
         <div class="flex items-center justify-between mb-6">
@@ -8625,6 +8907,198 @@
     <div class="flex gap-2 mt-5">
       <button @click="showBidRespModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
       <button @click="saveBidResponse()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save Response</button>
+    </div>
+  </div>
+</div>
+
+<!-- Equipment Modal -->
+<div x-show="showEquipModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showEquipModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-truck-pickup mr-2 text-gray-700"></i><span x-text="equipEditId?'Edit Equipment':'Add Equipment'"></span></h3>
+      <button @click="showEquipModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Name *</label><input x-model="equipForm.name" type="text" placeholder="Excavator CAT 320..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Type</label><input x-model="equipForm.equipment_type" type="text" placeholder="excavator, crane, truck..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Make</label><input x-model="equipForm.make" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Model</label><input x-model="equipForm.model" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Year</label><input x-model="equipForm.year" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Ownership</label>
+          <select x-model="equipForm.ownership" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400">
+            <option value="owned">Owned</option><option value="rented">Rented</option><option value="leased">Leased</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Daily Rate ($)</label><input x-model="equipForm.daily_rate" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Hourly Rate ($)</label><input x-model="equipForm.hourly_rate" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select x-model="equipForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400">
+            <option value="available">Available</option><option value="in_use">In Use</option><option value="maintenance">Maintenance</option><option value="retired">Retired</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Next Service Date</label><input x-model="equipForm.next_service_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showEquipModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveEquip()" class="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Equipment Logs Modal -->
+<div x-show="showEquipLogModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showEquipLogModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-clock-rotate-left mr-2 text-gray-700"></i>Equipment Logs — <span x-text="activeEquip?.name"></span></h3>
+      <button @click="showEquipLogModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-2 mb-4 max-h-48 overflow-y-auto">
+      <template x-for="l in equipLogs" :key="l.id">
+        <div class="border rounded-lg p-3 flex items-start justify-between">
+          <div>
+            <div class="text-sm font-medium" x-text="l.log_date+' — '+l.log_type"></div>
+            <div class="text-xs text-gray-400 mt-0.5">
+              <span x-show="l.hours_used"><span x-text="l.hours_used"></span>h</span>
+              <span x-show="l.operator_name" class="ml-2" x-text="l.operator_name"></span>
+              <span x-show="l.cost" class="ml-2 text-amber-600" x-text="'$'+l.cost"></span>
+            </div>
+            <div x-show="l.work_description" class="text-xs text-gray-500" x-text="l.work_description"></div>
+          </div>
+          <button @click="deleteEquipLog(l.id)" class="text-xs text-red-400 hover:text-red-600 ml-2">Del</button>
+        </div>
+      </template>
+      <div x-show="!equipLogs.length" class="text-center text-gray-400 text-xs py-2">No logs yet.</div>
+    </div>
+    <div class="border-t pt-4">
+      <h4 class="text-sm font-semibold text-gray-700 mb-2">Add Log Entry</h4>
+      <div class="space-y-2">
+        <div class="grid grid-cols-2 gap-2">
+          <div><label class="text-xs text-gray-500 mb-1 block">Date</label><input x-model="equipLogForm.log_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1" /></div>
+          <div><label class="text-xs text-gray-500 mb-1 block">Type</label>
+            <select x-model="equipLogForm.log_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1">
+              <option value="usage">Usage</option><option value="maintenance">Maintenance</option><option value="inspection">Inspection</option><option value="repair">Repair</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div><label class="text-xs text-gray-500 mb-1 block">Hours</label><input x-model="equipLogForm.hours_used" type="number" step="0.5" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1" /></div>
+          <div><label class="text-xs text-gray-500 mb-1 block">Fuel (L)</label><input x-model="equipLogForm.fuel_litres" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1" /></div>
+          <div><label class="text-xs text-gray-500 mb-1 block">Cost ($)</label><input x-model="equipLogForm.cost" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1" /></div>
+        </div>
+        <div><label class="text-xs text-gray-500 mb-1 block">Operator / Description</label><input x-model="equipLogForm.work_description" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1" /></div>
+      </div>
+      <button @click="saveEquipLog()" class="w-full mt-3 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900">Add Log</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lien Release Modal -->
+<div x-show="showLienReleaseModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showLienReleaseModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-hand-holding-dollar mr-2 text-blue-600"></i><span x-text="lienReleaseEditId?'Edit Lien Release':'Add Lien Release'"></span></h3>
+      <button @click="showLienReleaseModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Release Type</label>
+          <select x-model="lienReleaseForm.release_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="progressive">Progressive</option><option value="annual">Annual</option><option value="final">Final</option><option value="substantial_completion">Substantial Completion</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select x-model="lienReleaseForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="pending">Pending</option><option value="lien_period_running">Lien Period Running</option><option value="cleared">Cleared</option><option value="released">Released</option><option value="disputed">Disputed</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Vendor / Trade</label><input x-model="lienReleaseForm.vendor_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Holdback Amount ($)</label><input x-model="lienReleaseForm.holdback_amount" type="number" step="100" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Last Supply Date (auto-calc lien expiry)</label><input x-model="lienReleaseForm.last_supply_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Lien Expiry Date (override)</label><input x-model="lienReleaseForm.lien_expiry_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="lienReleaseForm.statutory_declaration_received" class="rounded" /><span>Statutory Declaration Received</span></label>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Notes</label><textarea x-model="lienReleaseForm.notes" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showLienReleaseModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveLienRelease()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Vendor Score Modal -->
+<div x-show="showVendorScoreModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showVendorScoreModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-star mr-2 text-amber-500"></i><span x-text="vendorScoreEditId?'Edit Rating':'Rate Vendor'"></span></h3>
+      <button @click="showVendorScoreModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Vendor / Trade Name *</label><input x-model="vendorScoreForm.vendor_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Period</label><input x-model="vendorScoreForm.period" type="text" placeholder="2026-Q1 or Phase 1" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
+      </div>
+      <p class="text-xs text-gray-400">Rate 1–5 (5 = excellent). Leave blank to skip a category.</p>
+      <div class="grid grid-cols-5 gap-2">
+        <div class="text-center"><label class="block text-xs text-gray-500 mb-1">Quality</label><input x-model="vendorScoreForm.quality" type="number" min="1" max="5" class="w-full border rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
+        <div class="text-center"><label class="block text-xs text-gray-500 mb-1">Timing</label><input x-model="vendorScoreForm.timeliness" type="number" min="1" max="5" class="w-full border rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
+        <div class="text-center"><label class="block text-xs text-gray-500 mb-1">Safety</label><input x-model="vendorScoreForm.safety" type="number" min="1" max="5" class="w-full border rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
+        <div class="text-center"><label class="block text-xs text-gray-500 mb-1">Comms</label><input x-model="vendorScoreForm.communication" type="number" min="1" max="5" class="w-full border rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
+        <div class="text-center"><label class="block text-xs text-gray-500 mb-1">Value</label><input x-model="vendorScoreForm.value" type="number" min="1" max="5" class="w-full border rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Would Rehire?</label>
+        <select x-model="vendorScoreForm.would_rehire" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+          <option :value="null">Not specified</option><option :value="true">Yes — Would Rehire</option><option :value="false">No — Would Not Rehire</option>
+        </select>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Comments</label><textarea x-model="vendorScoreForm.comments" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"></textarea></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showVendorScoreModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveVendorScore()" class="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700">Save Rating</button>
+    </div>
+  </div>
+</div>
+
+<!-- Client Selection Item Modal -->
+<div x-show="showSelModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showSelModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-palette mr-2 text-purple-600"></i><span x-text="selEditId?'Edit Selection':'Add Selection Item'"></span></h3>
+      <button @click="showSelModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Item Name *</label><input x-model="selForm.item_name" type="text" placeholder="Kitchen Countertop, Master Bath Tile..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select x-model="selForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+            <option value="pending">Pending</option><option value="selected">Selected</option><option value="confirmed">Confirmed</option><option value="ordered">Ordered</option><option value="installed">Installed</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Due Date</label><input x-model="selForm.due_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Standard Option (included in base price)</label><input x-model="selForm.standard_option" type="text" placeholder="Builder standard tile" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Client Choice</label><input x-model="selForm.client_choice" type="text" placeholder="What the client selected..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" /></div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Allowance ($)</label><input x-model="selForm.allowance_amount" type="number" step="100" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Actual Cost ($)</label><input x-model="selForm.actual_cost" type="number" step="100" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Upgrade Amount ($)</label><input x-model="selForm.upgrade_amount" type="number" step="100" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Notes</label><textarea x-model="selForm.notes" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"></textarea></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showSelModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveSelection()" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700">Save</button>
     </div>
   </div>
 </div>

@@ -177,6 +177,34 @@ function app() {
     // ── AI Risk Score ──────────────────────────────────────────────
     aiRiskData: null, aiRiskLoading: false,
 
+    // ── Notifications ──────────────────────────────────────────────
+    notifData: null, notifLoading: false,
+
+    // ── Equipment ──────────────────────────────────────────────────
+    equipList: [], equipLoading: false,
+    equipUtilization: null,
+    showEquipModal: false, equipEditId: null,
+    equipForm: { name:'', equipment_type:'', make:'', model:'', year:'', ownership:'owned', daily_rate:'', hourly_rate:'', status:'available', notes:'' },
+    showEquipLogModal: false, activeEquip: null, equipLogs: [],
+    equipLogForm: { log_date:'', log_type:'usage', hours_used:0, fuel_litres:'', operator_name:'', work_description:'', cost:'', notes:'' },
+
+    // ── Lien Releases ──────────────────────────────────────────────
+    lienReleases: [], lienReleasesLoading: false,
+    lienSummary: null,
+    showLienReleaseModal: false, lienReleaseEditId: null,
+    lienReleaseForm: { release_type:'progressive', vendor_name:'', holdback_amount:'', last_supply_date:'', lien_expiry_date:'', status:'lien_period_running', statutory_declaration_received:false, notes:'' },
+
+    // ── Vendor Scorecard ───────────────────────────────────────────
+    vendorScores: [], vendorScoresLoading: false,
+    showVendorScoreModal: false, vendorScoreEditId: null,
+    vendorScoreForm: { vendor_name:'', period:'', quality:null, timeliness:null, safety:null, communication:null, value:null, would_rehire:null, comments:'' },
+
+    // ── Client Selections ──────────────────────────────────────────
+    selectionItems: [], selectionsLoading: false,
+    selSummary: null, selTokens: [],
+    showSelModal: false, selEditId: null,
+    selForm: { item_name:'', category_id:'', standard_option:'', client_choice:'', allowance_amount:'', actual_cost:'', upgrade_amount:'', status:'pending', due_date:'', notes:'' },
+
     // ── Super Admin UI ────────────────────────────────────────────
     showCreateOrgModal: false,
     createOrgForm: { name: '', owner_username: '', plan: 'starter' },
@@ -3192,6 +3220,165 @@ function app() {
       const url = `/api/compliance/export/${format}${pid}`;
       const a = document.createElement('a'); a.href = url; a.download = '';
       a.style.display = 'none'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    },
+
+    // ── Notifications ────────────────────────────────────────────────
+    async loadNotifications() {
+      this.notifLoading = true;
+      try { this.notifData = await this.get('/api/notifications'); } catch(e) { this.notifData = null; }
+      finally { this.notifLoading = false; }
+    },
+
+    // ── Equipment ────────────────────────────────────────────────────
+    async loadEquipment() {
+      this.equipLoading = true;
+      try { this.equipList = await this.get('/api/equipment'); } catch(e) { this.equipList = []; }
+      finally { this.equipLoading = false; }
+    },
+    async loadEquipmentUtilization() {
+      try { this.equipUtilization = await this.get('/api/equipment/utilization-report'); } catch(e) {}
+    },
+    editEquip(e) {
+      this.equipEditId = e.id;
+      this.equipForm = { name:e.name, equipment_type:e.equipment_type||'', make:e.make||'', model:e.model||'', year:e.year||'', ownership:e.ownership, daily_rate:e.daily_rate||'', hourly_rate:e.hourly_rate||'', status:e.status, notes:e.notes||'' };
+      this.showEquipModal = true;
+    },
+    async saveEquip() {
+      try {
+        if (this.equipEditId) await this.put(`/api/equipment/${this.equipEditId}`, this.equipForm);
+        else await this.post('/api/equipment', this.equipForm);
+        this.showEquipModal = false; this.equipEditId = null;
+        await this.loadEquipment();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteEquip(id) {
+      if (!confirm('Delete this equipment?')) return;
+      try { await this.delete(`/api/equipment/${id}`); await this.loadEquipment(); } catch(e) {}
+    },
+    async openEquipLogs(e) {
+      this.activeEquip = e;
+      this.equipLogForm = { log_date:'', log_type:'usage', hours_used:0, fuel_litres:'', operator_name:'', work_description:'', cost:'', notes:'' };
+      try { this.equipLogs = await this.get(`/api/equipment/${e.id}/logs`); } catch(e) { this.equipLogs = []; }
+      this.showEquipLogModal = true;
+    },
+    async saveEquipLog() {
+      if (!this.activeEquip) return;
+      try {
+        await this.post(`/api/equipment/${this.activeEquip.id}/logs`, this.equipLogForm);
+        this.equipLogs = await this.get(`/api/equipment/${this.activeEquip.id}/logs`);
+        this.equipLogForm = { log_date:'', log_type:'usage', hours_used:0, fuel_litres:'', operator_name:'', work_description:'', cost:'', notes:'' };
+        await this.loadEquipment();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteEquipLog(id) {
+      if (!this.activeEquip) return;
+      try { await this.delete(`/api/equipment/${this.activeEquip.id}/logs/${id}`); this.equipLogs = await this.get(`/api/equipment/${this.activeEquip.id}/logs`); } catch(e) {}
+    },
+
+    // ── Lien Releases ────────────────────────────────────────────────
+    async loadLienReleases() {
+      if (!this.currentProject) return;
+      this.lienReleasesLoading = true;
+      try {
+        const [releases, summary] = await Promise.all([
+          this.get(`/api/project/${this.currentProject.id}/lien-releases`),
+          this.get(`/api/project/${this.currentProject.id}/lien-releases/summary`),
+        ]);
+        this.lienReleases = releases; this.lienSummary = summary;
+      } catch(e) { this.lienReleases = []; }
+      finally { this.lienReleasesLoading = false; }
+    },
+    editLienRelease(r) {
+      this.lienReleaseEditId = r.id;
+      this.lienReleaseForm = { release_type:r.release_type, vendor_name:r.vendor_name||'', holdback_amount:r.holdback_amount||'', last_supply_date:'', lien_expiry_date:r.lien_expiry_date||'', status:r.status, statutory_declaration_received:r.statutory_declaration_received, notes:r.notes||'' };
+      this.showLienReleaseModal = true;
+    },
+    async saveLienRelease() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.lienReleaseEditId) await this.put(`/api/project/${pid}/lien-releases/${this.lienReleaseEditId}`, this.lienReleaseForm);
+        else await this.post(`/api/project/${pid}/lien-releases`, this.lienReleaseForm);
+        this.showLienReleaseModal = false; this.lienReleaseEditId = null;
+        await this.loadLienReleases();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteLienRelease(id) {
+      if (!confirm('Delete this release record?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/lien-releases/${id}`); await this.loadLienReleases(); } catch(e) {}
+    },
+
+    // ── Vendor Scorecard ─────────────────────────────────────────────
+    async loadVendorScores() {
+      if (!this.currentProject) return;
+      this.vendorScoresLoading = true;
+      try { this.vendorScores = await this.get(`/api/project/${this.currentProject.id}/vendor-scores`); } catch(e) { this.vendorScores = []; }
+      finally { this.vendorScoresLoading = false; }
+    },
+    editVendorScore(s) {
+      this.vendorScoreEditId = s.id;
+      this.vendorScoreForm = { vendor_name:s.vendor_name, period:s.period||'', quality:s.quality, timeliness:s.timeliness, safety:s.safety, communication:s.communication, value:s.value, would_rehire:s.would_rehire, comments:s.comments||'' };
+      this.showVendorScoreModal = true;
+    },
+    async saveVendorScore() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.vendorScoreEditId) await this.put(`/api/project/${pid}/vendor-scores/${this.vendorScoreEditId}`, this.vendorScoreForm);
+        else await this.post(`/api/project/${pid}/vendor-scores`, this.vendorScoreForm);
+        this.showVendorScoreModal = false; this.vendorScoreEditId = null;
+        await this.loadVendorScores();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteVendorScore(id) {
+      if (!confirm('Delete this score?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/vendor-scores/${id}`); await this.loadVendorScores(); } catch(e) {}
+    },
+
+    // ── Client Selections ────────────────────────────────────────────
+    async loadSelections() {
+      if (!this.currentProject) return;
+      this.selectionsLoading = true;
+      try {
+        const [items, summary] = await Promise.all([
+          this.get(`/api/project/${this.currentProject.id}/selections`),
+          this.get(`/api/project/${this.currentProject.id}/selections/summary`),
+        ]);
+        this.selectionItems = items; this.selSummary = summary;
+      } catch(e) { this.selectionItems = []; }
+      finally { this.selectionsLoading = false; }
+    },
+    async loadSelTokens() {
+      if (!this.currentProject) return;
+      try { this.selTokens = await this.get(`/api/project/${this.currentProject.id}/selections/tokens`); } catch(e) { this.selTokens = []; }
+      if (!this.selTokens.length) {
+        if (confirm('Create a client portal link for this project?')) {
+          const name = prompt('Client name (optional):') || '';
+          try {
+            await this.post(`/api/project/${this.currentProject.id}/selections/tokens`, { client_name: name });
+            await this.loadSelTokens();
+          } catch(e) {}
+        }
+      }
+    },
+    editSelection(s) {
+      this.selEditId = s.id;
+      this.selForm = { item_name:s.item_name, category_id:s.category_id||'', standard_option:s.standard_option||'', client_choice:s.client_choice||'', allowance_amount:s.allowance_amount||'', actual_cost:s.actual_cost||'', upgrade_amount:s.upgrade_amount||'', status:s.status, due_date:s.due_date||'', notes:s.notes||'' };
+      this.showSelModal = true;
+    },
+    async saveSelection() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.selEditId) await this.put(`/api/project/${pid}/selections/${this.selEditId}`, this.selForm);
+        else await this.post(`/api/project/${pid}/selections`, this.selForm);
+        this.showSelModal = false; this.selEditId = null;
+        await this.loadSelections();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteSelection(id) {
+      if (!confirm('Delete this selection item?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/selections/${id}`); await this.loadSelections(); } catch(e) {}
     },
 
   };

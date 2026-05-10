@@ -1258,3 +1258,166 @@ class COApprovalToken(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
 
     creator = relationship("User")
+
+
+# ─── Client Selections Portal ────────────────────────────────────────────────
+
+class ClientSelectionCategory(Base):
+    """Category of finish selections (Kitchen, Bathrooms, Flooring, etc.)"""
+    __tablename__ = "client_selection_categories"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    org_id     = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    name       = Column(String, nullable=False)
+    display_order = Column(Integer, default=100)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    items = relationship("ClientSelection", back_populates="category", cascade="all, delete-orphan")
+
+
+class ClientSelection(Base):
+    """A single finish selection item — what the client picks."""
+    __tablename__ = "client_selections"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    category_id      = Column(Integer, ForeignKey("client_selection_categories.id"), nullable=True)
+    item_name        = Column(String, nullable=False)
+    description      = Column(Text, nullable=True)
+    standard_option  = Column(String, nullable=True)
+    client_choice    = Column(String, nullable=True)
+    allowance_amount = Column(Float, nullable=True)
+    actual_cost      = Column(Float, nullable=True)
+    upgrade_amount   = Column(Float, nullable=True)
+    status           = Column(String, default="pending")  # pending | selected | confirmed | ordered | installed
+    due_date         = Column(String, nullable=True)
+    notes            = Column(Text, nullable=True)
+    client_approved_at = Column(DateTime, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+    category = relationship("ClientSelectionCategory", back_populates="items")
+    sel_creator = relationship("User", foreign_keys=[created_by])
+
+
+class ClientSelectionToken(Base):
+    """Public token for client to view and approve their selections."""
+    __tablename__ = "client_selection_tokens"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id   = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    token        = Column(String, unique=True, nullable=False, index=True)
+    client_name  = Column(String, nullable=True)
+    client_email = Column(String, nullable=True)
+    is_active    = Column(Boolean, default=True)
+    created_by   = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+    sel_token_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Equipment Management ─────────────────────────────────────────────────────
+
+class Equipment(Base):
+    """Equipment register — owned or rented plant and machinery."""
+    __tablename__ = "equipment"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    org_id             = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    equipment_code     = Column(String, nullable=True)
+    name               = Column(String, nullable=False)
+    equipment_type     = Column(String, nullable=True)
+    make               = Column(String, nullable=True)
+    model              = Column(String, nullable=True)
+    year               = Column(Integer, nullable=True)
+    serial_number      = Column(String, nullable=True)
+    ownership          = Column(String, default="owned")   # owned | rented | leased
+    daily_rate         = Column(Float, nullable=True)
+    hourly_rate        = Column(Float, nullable=True)
+    status             = Column(String, default="available")  # available | in_use | maintenance | retired
+    current_project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    operator_name      = Column(String, nullable=True)
+    next_service_date  = Column(String, nullable=True)
+    insurance_expiry   = Column(String, nullable=True)
+    notes              = Column(Text, nullable=True)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+
+    current_project = relationship("Project", foreign_keys=[current_project_id])
+    usage_logs      = relationship("EquipmentLog", back_populates="equipment", cascade="all, delete-orphan")
+
+
+class EquipmentLog(Base):
+    """Daily equipment usage or maintenance entry."""
+    __tablename__ = "equipment_logs"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    equipment_id     = Column(Integer, ForeignKey("equipment.id"), nullable=False, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    log_date         = Column(String, nullable=False, index=True)
+    log_type         = Column(String, default="usage")    # usage | maintenance | inspection | repair
+    hours_used       = Column(Float, default=0.0)
+    fuel_litres      = Column(Float, nullable=True)
+    operator_name    = Column(String, nullable=True)
+    work_description = Column(String, nullable=True)
+    cost             = Column(Float, nullable=True)
+    notes            = Column(Text, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+    equipment     = relationship("Equipment", back_populates="usage_logs")
+    eq_log_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Lien Release Tracking ────────────────────────────────────────────────────
+
+class LienRelease(Base):
+    """Formal holdback/lien release record — progressive or annual per Construction Act."""
+    __tablename__ = "lien_releases"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    draw_id          = Column(Integer, ForeignKey("draws.id"), nullable=True)
+    release_type     = Column(String, nullable=False)   # progressive | annual | final | substantial_completion
+    vendor_id        = Column(Integer, ForeignKey("org_vendors.id"), nullable=True)
+    vendor_name      = Column(String, nullable=True)
+    holdback_amount  = Column(Float, nullable=True)
+    lien_expiry_date = Column(String, nullable=True)    # YYYY-MM-DD
+    release_date     = Column(String, nullable=True)
+    payment_date     = Column(String, nullable=True)
+    status           = Column(String, default="pending")  # pending | lien_period_running | cleared | released | disputed
+    statutory_declaration_received = Column(Boolean, default=False)
+    notes            = Column(Text, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+    lien_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Vendor Scorecard ─────────────────────────────────────────────────────────
+
+class VendorScore(Base):
+    """Vendor/subcontractor performance rating per project."""
+    __tablename__ = "vendor_scores"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    org_id        = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id    = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    vendor_id     = Column(Integer, ForeignKey("org_vendors.id"), nullable=True)
+    vendor_name   = Column(String, nullable=False)
+    period        = Column(String, nullable=True)
+    quality       = Column(Integer, nullable=True)        # 1-5
+    timeliness    = Column(Integer, nullable=True)
+    safety_score  = Column(Integer, nullable=True)
+    communication = Column(Integer, nullable=True)
+    value         = Column(Integer, nullable=True)
+    would_rehire  = Column(Boolean, nullable=True)
+    comments      = Column(Text, nullable=True)
+    rated_by      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at    = Column(DateTime, default=datetime.utcnow)
+
+    rater = relationship("User", foreign_keys=[rated_by])

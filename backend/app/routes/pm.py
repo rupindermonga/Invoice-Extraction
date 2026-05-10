@@ -558,6 +558,38 @@ Return only the JSON array, no markdown, no explanation."""
         raise HTTPException(500, f"AI extraction failed: {str(e)}")
 
 
+@router.post("/daily-logs/{log_id}/ai-summarize")
+def ai_summarize_daily_log(log_id: int, org_ctx: Tuple = Depends(_pm_write),
+                           db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Use Gemini to rewrite raw daily log notes into a professional superintendent's report."""
+    import os, json
+    org, _ = org_ctx
+    log = db.query(DailyLog).filter(DailyLog.id == log_id, DailyLog.org_id == org.id).first()
+    if not log: raise HTTPException(404)
+    raw = f"Date: {log.log_date}\nWeather: {log.weather or ''} {log.temperature or ''}\nCrew: {log.crew_count}\n"
+    raw += f"Work: {log.work_summary or ''}\nIssues: {log.issues or ''}\nDelays: {log.delays or ''}\nVisitors: {log.visitors or ''}"
+    import google.generativeai as genai
+    from ..models import GeminiApiKey
+    keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    for k in keys:
+        if k.key_value: api_key = k.key_value; break
+    if not api_key: raise HTTPException(503, "No Gemini API key configured")
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
+    prompt = f"""Rewrite this construction site daily log as a concise, professional superintendent's report.
+Use third-person, past tense. Fix grammar. Keep factual content. Add a brief 1-sentence executive summary at the top.
+Format as plain text, no markdown. Maximum 200 words.
+
+Raw log:
+{raw}"""
+    try:
+        resp = model.generate_content(prompt)
+        return {"summary": resp.text.strip(), "log_id": log_id}
+    except Exception as e:
+        raise HTTPException(500, f"AI summary failed: {str(e)}")
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  PHOTO LOGS
 # ══════════════════════════════════════════════════════════════════════════════
