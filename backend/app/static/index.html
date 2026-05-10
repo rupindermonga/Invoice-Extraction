@@ -876,6 +876,14 @@
           <div class="text-sm font-medium truncate" x-text="user?.username"></div>
           <span x-show="user?.is_admin" class="text-xs bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded font-bold">Admin</span>
         </div>
+        <!-- Plan badge + upgrade CTA for starter orgs -->
+        <div class="mt-2 flex items-center gap-2">
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                :class="currentOrg?.plan==='enterprise'?'bg-purple-500/20 text-purple-200':currentOrg?.plan==='pro'?'bg-blue-500/20 text-blue-200':currentOrg?.plan==='free'?'bg-green-500/20 text-green-200':'bg-white/10 text-white/50'"
+                x-text="(currentOrg?.plan||'starter').toUpperCase()"></span>
+          <a x-show="currentOrg?.plan==='starter'" href="https://finel.ai/pricing" target="_blank"
+             class="text-xs text-amber-300 hover:text-amber-200 underline underline-offset-2 transition">Upgrade →</a>
+        </div>
         <button @click="logout()" class="mt-2 text-xs text-blue-300 hover:text-white transition">
           <i class="fa-solid fa-right-from-bracket mr-1"></i> Sign out
         </button>
