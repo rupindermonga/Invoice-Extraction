@@ -288,3 +288,150 @@ def import_generated_schedule(project_id: int, body: dict,
         created.append(task)
     db.commit()
     return {"imported": len(created), "ok": True}
+
+
+# ── AI Spec Q&A ─────────────────────────────────────────────────────────────────
+
+@router.post("/{project_id}/spec-qa")
+async def spec_qa(project_id: int, body: dict,
+                  db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Ask a question about a specification. Gemini answers using spec context."""
+    import google.generativeai as genai
+    p = _proj(project_id, user, db)
+    keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    for k in keys:
+        if k.key_value: api_key = k.key_value; break
+    if not api_key: raise HTTPException(503, "No Gemini API key configured")
+    question = body.get("question", "").strip()
+    spec_context = body.get("spec_context", "")  # Optional spec text pasted by user
+    if not question: raise HTTPException(400, "Question is required")
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
+    prompt = f"""You are a Canadian construction specification expert. Answer this question about construction specifications.
+Be specific, cite section types/formats, and reference Canadian standards (NBC, NBCC, CSA, CCDC) where applicable.
+Project: {p.name} (Province: {p.province or 'ON'})
+{f'Spec Context:{chr(10)}{spec_context[:3000]}' if spec_context else ''}
+Question: {question}
+Provide a clear, practical answer in 2-4 paragraphs. Include any cautions or Canadian-specific notes."""
+    try:
+        resp = model.generate_content(prompt)
+        return {"question": question, "answer": resp.text.strip(), "project": p.name}
+    except Exception as e:
+        raise HTTPException(500, f"Q&A failed: {str(e)}")
+
+
+# ── AI RFI Generator ─────────────────────────────────────────────────────────────
+
+@router.post("/{project_id}/generate-rfi")
+async def generate_rfi(project_id: int, body: dict,
+                       db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Generate a professional RFI from a drawing conflict or spec ambiguity description."""
+    import google.generativeai as genai
+    p = _proj(project_id, user, db)
+    keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    for k in keys:
+        if k.key_value: api_key = k.key_value; break
+    if not api_key: raise HTTPException(503, "No Gemini API key configured")
+    issue = body.get("issue", "").strip()
+    if not issue: raise HTTPException(400, "Issue description is required")
+    from ..models import RFI
+    last = db.query(RFI).filter(RFI.project_id == project_id).order_by(RFI.id.desc()).first()
+    next_num = f"RFI-{((int(last.rfi_number.split('-')[1]) if last and last.rfi_number else 0) + 1):03d}"
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
+    prompt = f"""You are a construction project manager. Draft a professional RFI (Request for Information) for a Canadian construction project.
+Project: {p.name}
+Issue Description: {issue}
+Format as JSON:
+{{"rfi_number": "{next_num}", "subject": "concise subject line", "description": "formal RFI description referencing applicable spec sections, drawing numbers, or contract clauses (2-3 sentences)", "priority": "high|medium|low", "suggested_response_direction": "suggested answer or clarification needed"}}
+Be specific and professional. Reference CSI division numbers and CCDC/Canadian standards where applicable. Return only valid JSON."""
+    try:
+        resp = model.generate_content(prompt)
+        text = resp.text.strip()
+        if text.startswith("```"): text = "\n".join(text.split("\n")[1:]).rsplit("```",1)[0].strip()
+        rfi_data = json.loads(text)
+        return {"rfi": rfi_data, "ready_to_import": True}
+    except Exception as e:
+        raise HTTPException(500, f"RFI generation failed: {str(e)}")
+
+
+@router.post("/{project_id}/generate-rfi/import")
+def import_rfi(project_id: int, body: dict, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Import an AI-generated RFI into the PM RFI module."""
+    from ..models import RFI
+    p = _proj(project_id, user, db)
+    require_org_member(db, p.org_id, user.id, FINANCE_WRITE_ROLES)
+    rfi_data = body.get("rfi", {})
+    r = RFI(
+        org_id=p.org_id, project_id=project_id,
+        rfi_number=rfi_data.get("rfi_number", "RFI-001"),
+        subject=rfi_data.get("subject", "AI Generated RFI"),
+        description=rfi_data.get("description"),
+        priority=rfi_data.get("priority", "medium"),
+        status="open", created_by=user.id,
+    )
+    db.add(r); db.commit(); db.refresh(r)
+    return {"id": r.id, "rfi_number": r.rfi_number, "ok": True}
+
+
+# ── AI Submittal Log Generator ───────────────────────────────────────────────────
+
+@router.post("/{project_id}/generate-submittal-log")
+async def generate_submittal_log(project_id: int, file: UploadFile = File(None),
+                                  body_text: str = None,
+                                  db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Upload a spec PDF or paste spec text — Gemini generates a complete submittal log."""
+    import google.generativeai as genai
+    from google.generativeai import types as genai_types
+    p = _proj(project_id, user, db)
+    keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    for k in keys:
+        if k.key_value: api_key = k.key_value; break
+    if not api_key: raise HTTPException(503, "No Gemini API key configured")
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
+    prompt = """You are a Canadian construction project manager. Generate a complete submittal log from this specification document.
+Return ONLY a JSON array of submittal objects:
+[{"submittal_number":"SUB-001","title":"concise submittal name","spec_section":"e.g. 03 30 00","description":"what needs to be submitted","submittal_type":"shop_drawing|sample|data|certificate|test_report|warranty","review_duration_days":14,"priority":"high|medium|low"}]
+Include ALL submittals required by the spec (shop drawings, product data, samples, test reports, certifications, warranties).
+Use Canadian CSI MasterFormat section numbering. Return only the JSON array."""
+    try:
+        if file:
+            contents = await file.read()
+            mime = file.content_type or "application/pdf"
+            part = genai_types.Part.from_bytes(data=contents, mime_type=mime)
+            resp = model.generate_content([prompt, part])
+        else:
+            spec_text = body_text or ""
+            resp = model.generate_content(f"{prompt}\n\nSpec text:\n{spec_text[:8000]}")
+        text = resp.text.strip()
+        if text.startswith("```"): text = "\n".join(text.split("\n")[1:]).rsplit("```",1)[0].strip()
+        submittals = json.loads(text)
+        return {"submittals": submittals, "count": len(submittals), "ready_to_import": True}
+    except Exception as e:
+        raise HTTPException(500, f"Submittal log generation failed: {str(e)}")
+
+
+@router.post("/{project_id}/generate-submittal-log/import")
+def import_submittal_log(project_id: int, body: dict, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Import AI-generated submittals into the PM Submittals module."""
+    from ..models import Submittal
+    p = _proj(project_id, user, db)
+    require_org_member(db, p.org_id, user.id, FINANCE_WRITE_ROLES)
+    submittals = body.get("submittals", [])
+    created = []
+    for s in submittals:
+        sub = Submittal(
+            org_id=p.org_id, project_id=project_id,
+            submittal_number=s.get("submittal_number", "SUB-001"),
+            title=s.get("title", "Submittal"),
+            description=s.get("description"),
+            spec_section=s.get("spec_section"),
+            status="draft", created_by=user.id,
+        )
+        db.add(sub); created.append(sub)
+    db.commit()
+    return {"imported": len(created), "ok": True}

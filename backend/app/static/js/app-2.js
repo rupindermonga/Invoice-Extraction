@@ -225,6 +225,56 @@ function app() {
     // ── AI Schedule Generation ─────────────────────────────────────
     generatedSchedule: null, aiSchedLoading: false,
 
+    // ── CRM ────────────────────────────────────────────────────────
+    crmLeads: [], crmLoading: false, crmPipeline: null, crmStatusFilter: null,
+    showLeadModal: false, leadEditId: null,
+    leadForm: { company_name:'', contact_name:'', contact_email:'', contact_phone:'', project_type:'commercial', estimated_value:'', location:'', status:'prospect', source:'referral', probability_pct:25, expected_close_date:'', next_action:'', notes:'' },
+    allProposals: [], proposalsLoading: false,
+
+    // ── Cost Assemblies ────────────────────────────────────────────
+    assemblies: [], assembliesLoading: false,
+    showAssemblyModal: false,
+    assemblyForm: { name:'', description:'', trade_category:'', unit:'' },
+    activeAssembly: null, assemblyItems: [],
+    showAssemblyItemModal: false,
+    asmItemForm: { division:'', description:'', quantity:'', unit:'', unit_cost:'', total_cost:'' },
+
+    // ── Procurement ─────────────────────────────────────────────────
+    procurementItems: [], procurementLoading: false,
+    showProcurementModal: false, procEditId: null,
+    procForm: { item_name:'', vendor_name:'', category:'other', lead_time_weeks:'', order_date:'', required_on_site_date:'', total_cost:'', status:'to_order', notes:'' },
+
+    // ── VE Log ──────────────────────────────────────────────────────
+    veItems: [], veLoading: false, veSummary: null,
+    showVEModal: false, veEditId: null,
+    veForm: { description:'', original_spec:'', proposed_alternate:'', original_cost:'', alternate_cost:'', status:'proposed', notes:'' },
+
+    // ── CCDC ────────────────────────────────────────────────────────
+    ccdcContracts: [], ccdcLoading: false,
+    showCCDCModal: false, ccdcEditId: null,
+    ccdcForm: { ccdc_type:'CCDC2', title:'', contract_value:'', contractor_name:'', owner_name:'', execution_date:'', holdback_pct:10, insurance_required:true, bond_required:false, status:'draft', notes:'' },
+
+    // ── Units ────────────────────────────────────────────────────────
+    unitData: null, unitsLoading: false,
+    showUnitModal: false, unitEditId: null,
+    unitForm: { unit_number:'', unit_type:'2br', floor_area_sf:'', floor_number:'', list_price:'', status:'available', notes:'' },
+
+    // ── Client Payments ─────────────────────────────────────────────
+    clientPayments: [], clientPaymentsLoading: false,
+    showCPModal: false, cpEditId: null,
+    cpForm: { milestone_name:'', amount:'', percentage_of_contract:'', due_date:'', status:'pending', notes:'' },
+
+    // ── AI Spec Tools ───────────────────────────────────────────────
+    specToolTab: 'qa',
+    specQAQuestion: '', specQAContext: '', specQAResult: null, specQALoading: false,
+    rfiGenerateIssue: '', rfiGenerateResult: null, rfiGenerateLoading: false,
+    submittalGenResult: null, submittalGenLoading: false,
+
+    // ── Advanced Reports ────────────────────────────────────────────
+    advReportView: 'tax-reference',
+    advReportData: null, advReportLoading: false,
+    cashForecastData: null, forecastAccuracyData: null,
+
     // ── CFO Reports ────────────────────────────────────────────────
     cfoReportView: 'backlog',
     cfoData: null, cfoLoading: false,
@@ -3483,6 +3533,275 @@ function app() {
     },
     async deleteCloseoutItem(id) {
       try { await this.delete(`/api/project/${this.currentProject.id}/closeout/${id}`); await this.loadCloseout(); } catch(e) {}
+    },
+
+    // ── CRM ──────────────────────────────────────────────────────────
+    async loadCRMLeads() {
+      this.crmLoading = true;
+      try {
+        const [leads, pipeline] = await Promise.all([
+          this.get('/api/crm/leads'), this.get('/api/crm/pipeline'),
+        ]);
+        this.crmLeads = leads; this.crmPipeline = pipeline;
+      } catch(e) { this.crmLeads = []; }
+      finally { this.crmLoading = false; }
+    },
+    async saveLead() {
+      try {
+        if (this.leadEditId) await this.put(`/api/crm/leads/${this.leadEditId}`, this.leadForm);
+        else await this.post('/api/crm/leads', this.leadForm);
+        this.showLeadModal = false; this.leadEditId = null;
+        await this.loadCRMLeads();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    editLead(l) {
+      this.leadEditId = l.id;
+      this.leadForm = { company_name:l.company_name, contact_name:l.contact_name||'', contact_email:l.contact_email||'', contact_phone:l.contact_phone||'', project_type:l.project_type||'commercial', estimated_value:l.estimated_value||'', location:l.location||'', status:l.status, source:l.source, probability_pct:l.probability_pct, expected_close_date:l.expected_close_date||'', next_action:l.next_action||'', notes:l.notes||'' };
+      this.showLeadModal = true;
+    },
+    async deleteLead(id) {
+      if (!confirm('Delete this lead?')) return;
+      try { await this.delete(`/api/crm/leads/${id}`); await this.loadCRMLeads(); } catch(e) {}
+    },
+    async loadAllProposals() {
+      this.proposalsLoading = true;
+      try { this.allProposals = await this.get('/api/crm/proposals'); } catch(e) { this.allProposals = []; }
+      finally { this.proposalsLoading = false; }
+    },
+    copyProposalLink(url) {
+      if (url) navigator.clipboard.writeText(window.location.origin + url).then(() => alert('Proposal link copied!')).catch(() => prompt('Copy:', window.location.origin + url));
+    },
+
+    // ── Cost Assemblies ────────────────────────────────────────────────
+    async loadAssemblies() {
+      this.assembliesLoading = true;
+      try { this.assemblies = await this.get('/api/assemblies'); } catch(e) { this.assemblies = []; }
+      finally { this.assembliesLoading = false; }
+    },
+    async saveAssembly() {
+      try {
+        const r = await this.post('/api/assemblies', this.assemblyForm);
+        this.showAssemblyModal = false;
+        await this.loadAssemblies();
+        const asm = this.assemblies.find(a => a.id === r.id);
+        if (asm) await this.openAssembly(asm);
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async openAssembly(asm) {
+      this.activeAssembly = asm;
+      try { const data = await this.get(`/api/assemblies/${asm.id}/items`); this.assemblyItems = data.items; } catch(e) { this.assemblyItems = []; }
+    },
+    async saveAssemblyItem() {
+      if (!this.activeAssembly) return;
+      try {
+        await this.post(`/api/assemblies/${this.activeAssembly.id}/items`, this.asmItemForm);
+        this.showAssemblyItemModal = false;
+        await this.openAssembly(this.activeAssembly);
+        await this.loadAssemblies();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async applyAssemblyToEstimate() {
+      if (!this.activeAssembly || !this.activeEstimate) return;
+      const multiplier = parseFloat(prompt(`Multiplier for "${this.activeAssembly.name}" (e.g. 1.5 for 1.5x quantities):`) || '1');
+      if (isNaN(multiplier) || multiplier <= 0) return;
+      try {
+        const r = await this.post(`/api/assemblies/${this.activeAssembly.id}/apply-to-estimate/${this.activeEstimate.id}`, { multiplier });
+        alert(`✓ Added ${r.added} line items to estimate.`);
+        await this.openEstimate(this.activeEstimate);
+      } catch(e) { alert(e.message||'Failed'); }
+    },
+
+    // ── Procurement ────────────────────────────────────────────────────
+    async loadProcurement() {
+      if (!this.currentProject) return;
+      this.procurementLoading = true;
+      try { this.procurementItems = await this.get(`/api/project/${this.currentProject.id}/procurement`); } catch(e) { this.procurementItems = []; }
+      finally { this.procurementLoading = false; }
+    },
+    async saveProcurement() {
+      if (!this.currentProject || !this.procForm.item_name.trim()) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.procEditId) await this.put(`/api/project/${pid}/procurement/${this.procEditId}`, this.procForm);
+        else await this.post(`/api/project/${pid}/procurement`, this.procForm);
+        this.showProcurementModal = false; this.procEditId = null;
+        await this.loadProcurement();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    editProcurement(i) {
+      this.procEditId = i.id;
+      this.procForm = { item_name:i.item_name, vendor_name:i.vendor_name||'', category:i.category, lead_time_weeks:i.lead_time_weeks||'', order_date:i.order_date||'', required_on_site_date:i.required_on_site_date||'', total_cost:i.total_cost||'', status:i.status, notes:i.notes||'' };
+      this.showProcurementModal = true;
+    },
+    async deleteProcurement(id) {
+      if (!confirm('Delete this item?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/procurement/${id}`); await this.loadProcurement(); } catch(e) {}
+    },
+
+    // ── VE Log ────────────────────────────────────────────────────────
+    async loadVELog() {
+      if (!this.currentProject) return;
+      this.veLoading = true;
+      try { const data = await this.get(`/api/project/${this.currentProject.id}/ve-log`); this.veItems = data.items; this.veSummary = data.summary; } catch(e) { this.veItems = []; }
+      finally { this.veLoading = false; }
+    },
+    async saveVE() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.veEditId) await this.put(`/api/project/${pid}/ve-log/${this.veEditId}`, this.veForm);
+        else await this.post(`/api/project/${pid}/ve-log`, this.veForm);
+        this.showVEModal = false; this.veEditId = null;
+        await this.loadVELog();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    editVE(i) {
+      this.veEditId = i.id;
+      this.veForm = { description:i.description, original_spec:i.original_spec||'', proposed_alternate:i.proposed_alternate||'', original_cost:i.original_cost||'', alternate_cost:i.alternate_cost||'', status:i.status, notes:i.notes||'' };
+      this.showVEModal = true;
+    },
+    async deleteVE(id) {
+      if (!confirm('Delete this VE item?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/ve-log/${id}`); await this.loadVELog(); } catch(e) {}
+    },
+
+    // ── CCDC Contracts ─────────────────────────────────────────────────
+    async loadCCDCContracts() {
+      if (!this.currentProject) return;
+      this.ccdcLoading = true;
+      try { this.ccdcContracts = await this.get(`/api/project/${this.currentProject.id}/ccdc-contracts`); } catch(e) { this.ccdcContracts = []; }
+      finally { this.ccdcLoading = false; }
+    },
+    async saveCCDC() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.ccdcEditId) await this.put(`/api/project/${pid}/ccdc-contracts/${this.ccdcEditId}`, this.ccdcForm);
+        else await this.post(`/api/project/${pid}/ccdc-contracts`, this.ccdcForm);
+        this.showCCDCModal = false; this.ccdcEditId = null;
+        await this.loadCCDCContracts();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteCCDC(id) {
+      if (!confirm('Delete this contract?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/ccdc-contracts/${id}`); await this.loadCCDCContracts(); } catch(e) {}
+    },
+
+    // ── Units ──────────────────────────────────────────────────────────
+    async loadUnits() {
+      if (!this.currentProject) return;
+      this.unitsLoading = true;
+      try { this.unitData = await this.get(`/api/project/${this.currentProject.id}/units`); } catch(e) { this.unitData = null; }
+      finally { this.unitsLoading = false; }
+    },
+    async saveUnit() {
+      if (!this.currentProject || !this.unitForm.unit_number.trim()) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.unitEditId) await this.put(`/api/project/${pid}/units/${this.unitEditId}`, this.unitForm);
+        else await this.post(`/api/project/${pid}/units`, this.unitForm);
+        this.showUnitModal = false; this.unitEditId = null;
+        await this.loadUnits();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    editUnit(u) {
+      this.unitEditId = u.id;
+      this.unitForm = { unit_number:u.unit_number, unit_type:u.unit_type||'2br', floor_area_sf:u.floor_area_sf||'', floor_number:u.floor_number||'', list_price:u.list_price||'', sale_price:u.sale_price||'', buyer_name:u.buyer_name||'', status:u.status, notes:u.notes||'' };
+      this.showUnitModal = true;
+    },
+    async deleteUnit(id) {
+      if (!confirm('Delete this unit?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/units/${id}`); await this.loadUnits(); } catch(e) {}
+    },
+
+    // ── Client Payments ────────────────────────────────────────────────
+    async loadClientPayments() {
+      if (!this.currentProject) return;
+      this.clientPaymentsLoading = true;
+      try { this.clientPayments = await this.get(`/api/project/${this.currentProject.id}/client-payments`); } catch(e) { this.clientPayments = []; }
+      finally { this.clientPaymentsLoading = false; }
+    },
+    async saveClientPayment() {
+      if (!this.currentProject || !this.cpForm.milestone_name.trim()) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.cpEditId) await this.put(`/api/project/${pid}/client-payments/${this.cpEditId}`, this.cpForm);
+        else await this.post(`/api/project/${pid}/client-payments`, this.cpForm);
+        this.showCPModal = false; this.cpEditId = null;
+        await this.loadClientPayments();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    editClientPayment(i) {
+      this.cpEditId = i.id;
+      this.cpForm = { milestone_name:i.milestone_name, amount:i.amount||'', percentage_of_contract:i.percentage_of_contract||'', due_date:i.due_date||'', status:i.status, notes:i.notes||'' };
+      this.showCPModal = true;
+    },
+    async deleteClientPayment(id) {
+      try { await this.delete(`/api/project/${this.currentProject.id}/client-payments/${id}`); await this.loadClientPayments(); } catch(e) {}
+    },
+
+    // ── AI Spec Tools ──────────────────────────────────────────────────
+    async askSpecQA() {
+      if (!this.currentProject || !this.specQAQuestion.trim()) return;
+      this.specQALoading = true; this.specQAResult = null;
+      try {
+        this.specQAResult = await this.post(`/api/project/${this.currentProject.id}/spec-qa`, { question: this.specQAQuestion, spec_context: this.specQAContext });
+      } catch(e) { alert(e.message||'Q&A failed'); }
+      finally { this.specQALoading = false; }
+    },
+    async generateRFI() {
+      if (!this.currentProject || !this.rfiGenerateIssue.trim()) return;
+      this.rfiGenerateLoading = true; this.rfiGenerateResult = null;
+      try { this.rfiGenerateResult = await this.post(`/api/project/${this.currentProject.id}/generate-rfi`, { issue: this.rfiGenerateIssue }); } catch(e) { alert(e.message||'RFI generation failed'); }
+      finally { this.rfiGenerateLoading = false; }
+    },
+    async importGeneratedRFI() {
+      if (!this.rfiGenerateResult) return;
+      try { const r = await this.post(`/api/project/${this.currentProject.id}/generate-rfi/import`, { rfi: this.rfiGenerateResult.rfi }); alert(`✓ RFI ${r.rfi_number} imported to RFI module.`); this.rfiGenerateResult = null; } catch(e) { alert(e.message||'Import failed'); }
+    },
+    async generateSubmittalLog(file) {
+      if (!file || !this.currentProject) return;
+      this.submittalGenLoading = true; this.submittalGenResult = null;
+      const fd = new FormData(); fd.append('file', file);
+      try {
+        const r = await fetch(`/api/project/${this.currentProject.id}/generate-submittal-log`, { method:'POST', headers:{Authorization:'Bearer '+this.token}, body:fd });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail||'Failed');
+        this.submittalGenResult = data;
+      } catch(e) { alert(e.message||'Submittal generation failed'); }
+      finally { this.submittalGenLoading = false; }
+    },
+    async importSubmittalLog() {
+      if (!this.submittalGenResult) return;
+      try { const r = await this.post(`/api/project/${this.currentProject.id}/generate-submittal-log/import`, { submittals: this.submittalGenResult.submittals }); alert(`✓ ${r.imported} submittals imported.`); this.view = 'pm-submittals'; await this.loadSubmittals(); } catch(e) { alert(e.message); }
+    },
+
+    // ── Advanced Reports ───────────────────────────────────────────────
+    async loadAdvancedReport(report) {
+      this.advReportView = report; this.advReportData = null; this.advReportLoading = true;
+      const pid = this.currentProject?.id;
+      try {
+        if (report === 'cash-forecast' && pid) {
+          this.cashForecastData = await this.get(`/api/reports/cash-forecast?project_id=${pid}&weeks_ahead=12`);
+        } else if (report === 'forecast-accuracy' && pid) {
+          this.forecastAccuracyData = await this.get(`/api/reports/forecast-accuracy/${pid}`);
+        } else if (report === 'tax-reference') {
+          this.advReportData = await this.get('/api/reports/tax-reference');
+        } else if (report === 'sub-tier' && pid) {
+          this.advReportData = await this.get(`/api/reports/sub-tier-payments/${pid}`);
+        }
+      } catch(e) { this.advReportData = null; }
+      finally { this.advReportLoading = false; }
+    },
+    downloadWIPExcel() {
+      const pid = this.currentProject?.id;
+      const qs = pid ? `?project_id=${pid}` : '';
+      window.open(`/api/reports/wip-schedule-excel${qs}`, '_blank');
+    },
+    downloadGLExport() {
+      const pid = this.currentProject?.id;
+      const qs = pid ? `?project_id=${pid}` : '';
+      window.open(`/api/reports/gl-export${qs}`, '_blank');
     },
 
     // ── CFO Reports ──────────────────────────────────────────────────

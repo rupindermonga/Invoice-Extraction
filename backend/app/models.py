@@ -1876,3 +1876,297 @@ class VisitorLog(Base):
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     vl_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── CRM / Lead Pipeline ──────────────────────────────────────────────────────
+
+class CRMLead(Base):
+    """Sales pipeline lead — prospect to project conversion."""
+    __tablename__ = "crm_leads"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    org_id            = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    company_name      = Column(String, nullable=False)
+    contact_name      = Column(String, nullable=True)
+    contact_email     = Column(String, nullable=True)
+    contact_phone     = Column(String, nullable=True)
+    project_type      = Column(String, nullable=True)    # residential | commercial | industrial | civil
+    estimated_value   = Column(Float, nullable=True)
+    location          = Column(String, nullable=True)
+    status            = Column(String, default="prospect")  # prospect | qualified | proposal | won | lost | on_hold
+    source            = Column(String, default="referral")  # referral | website | cold_outreach | repeat | tender | other
+    probability_pct   = Column(Integer, default=25)
+    expected_close_date = Column(String, nullable=True)
+    notes             = Column(Text, nullable=True)
+    next_action       = Column(String, nullable=True)
+    next_action_date  = Column(String, nullable=True)
+    assigned_to       = Column(Integer, ForeignKey("users.id"), nullable=True)
+    converted_project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    created_by        = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at        = Column(DateTime, default=datetime.utcnow)
+    updated_at        = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    crm_creator = relationship("User", foreign_keys=[created_by])
+    assignee    = relationship("User", foreign_keys=[assigned_to])
+    proposals   = relationship("ProposalPackage", back_populates="lead", cascade="all, delete-orphan")
+
+
+class ProposalPackage(Base):
+    """Client-facing proposal with scope, pricing, e-signature."""
+    __tablename__ = "proposal_packages"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    lead_id         = Column(Integer, ForeignKey("crm_leads.id"), nullable=True, index=True)
+    project_id      = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    proposal_number = Column(String, nullable=True)
+    title           = Column(String, nullable=False)
+    client_name     = Column(String, nullable=True)
+    client_email    = Column(String, nullable=True)
+    client_address  = Column(Text, nullable=True)
+    valid_until     = Column(String, nullable=True)     # YYYY-MM-DD
+    total_amount    = Column(Float, nullable=True)
+    scope_of_work   = Column(Text, nullable=True)
+    inclusions      = Column(Text, nullable=True)
+    exclusions      = Column(Text, nullable=True)
+    payment_terms   = Column(Text, nullable=True)
+    warranty_period = Column(String, nullable=True)
+    notes           = Column(Text, nullable=True)
+    status          = Column(String, default="draft")   # draft | sent | accepted | rejected | expired
+    sign_token      = Column(String, nullable=True, unique=True, index=True)
+    signed_at       = Column(DateTime, nullable=True)
+    signed_by_name  = Column(String, nullable=True)
+    created_by      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    lead        = relationship("CRMLead", back_populates="proposals")
+    prop_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Cost Catalog / Assemblies ────────────────────────────────────────────────
+
+class CostAssembly(Base):
+    """Reusable cost assembly / template for estimating."""
+    __tablename__ = "cost_assemblies"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    org_id         = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    name           = Column(String, nullable=False)
+    description    = Column(Text, nullable=True)
+    trade_category = Column(String, nullable=True)
+    unit           = Column(String, nullable=True)      # unit of the assembly (e.g. "per SF")
+    usage_count    = Column(Integer, default=0)
+    created_by     = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
+    asm_creator = relationship("User", foreign_keys=[created_by])
+    items       = relationship("CostAssemblyItem", back_populates="assembly", cascade="all, delete-orphan")
+
+
+class CostAssemblyItem(Base):
+    """Line item in a cost assembly."""
+    __tablename__ = "cost_assembly_items"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    assembly_id   = Column(Integer, ForeignKey("cost_assemblies.id"), nullable=False, index=True)
+    division      = Column(String, nullable=True)
+    description   = Column(String, nullable=False)
+    quantity      = Column(Float, nullable=True)
+    unit          = Column(String, nullable=True)
+    unit_cost     = Column(Float, nullable=True)
+    total_cost    = Column(Float, nullable=True)
+    notes         = Column(String, nullable=True)
+    display_order = Column(Integer, default=100)
+
+    assembly = relationship("CostAssembly", back_populates="items")
+
+
+# ─── Procurement Schedule ─────────────────────────────────────────────────────
+
+class ProcurementItem(Base):
+    """Long-lead item tracker — connects to cash flow and schedule."""
+    __tablename__ = "procurement_items"
+
+    id                    = Column(Integer, primary_key=True, index=True)
+    org_id                = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id            = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    item_name             = Column(String, nullable=False)
+    vendor_name           = Column(String, nullable=True)
+    description           = Column(Text, nullable=True)
+    category              = Column(String, default="other")  # structural | mechanical | electrical | specialty | other
+    lead_time_weeks       = Column(Integer, nullable=True)
+    order_date            = Column(String, nullable=True)    # YYYY-MM-DD
+    required_on_site_date = Column(String, nullable=True)   # YYYY-MM-DD
+    delivery_date         = Column(String, nullable=True)   # YYYY-MM-DD (actual)
+    quantity              = Column(Float, nullable=True)
+    unit                  = Column(String, nullable=True)
+    unit_cost             = Column(Float, nullable=True)
+    total_cost            = Column(Float, nullable=True)
+    purchase_order_number = Column(String, nullable=True)
+    status                = Column(String, default="to_order")  # to_order | ordered | in_transit | delivered | delayed | cancelled
+    delay_reason          = Column(String, nullable=True)
+    notes                 = Column(Text, nullable=True)
+    created_by            = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at            = Column(DateTime, default=datetime.utcnow)
+
+    proc_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Value Engineering Log ────────────────────────────────────────────────────
+
+class ValueEngineeringItem(Base):
+    """VE alternate tracking — accepted/rejected savings."""
+    __tablename__ = "ve_items"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    org_id            = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id        = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    item_number       = Column(String, nullable=True)
+    description       = Column(String, nullable=False)
+    original_spec     = Column(Text, nullable=True)
+    proposed_alternate = Column(Text, nullable=True)
+    original_cost     = Column(Float, nullable=True)
+    alternate_cost    = Column(Float, nullable=True)
+    potential_savings = Column(Float, nullable=True)   # computed: original - alternate
+    status            = Column(String, default="proposed")  # proposed | under_review | accepted | rejected
+    accepted_by       = Column(String, nullable=True)
+    decision_date     = Column(String, nullable=True)
+    owner_approved    = Column(Boolean, default=False)
+    notes             = Column(Text, nullable=True)
+    created_by        = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at        = Column(DateTime, default=datetime.utcnow)
+
+    ve_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── CCDC Contract Library ────────────────────────────────────────────────────
+
+class CCDCContract(Base):
+    """CCDC contract library — tracks contract type, value, key dates."""
+    __tablename__ = "ccdc_contracts"
+
+    id                          = Column(Integer, primary_key=True, index=True)
+    org_id                      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id                  = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    ccdc_type                   = Column(String, nullable=False)  # CCDC2|CCDC4|CCDC5A|CCDC5B|CCDC14|CCDC17|CCDC30|CCDC40|CCDC41|other
+    title                       = Column(String, nullable=True)
+    contract_value              = Column(Float, nullable=True)
+    contractor_name             = Column(String, nullable=True)
+    owner_name                  = Column(String, nullable=True)
+    execution_date              = Column(String, nullable=True)
+    substantial_performance_date = Column(String, nullable=True)
+    final_completion_date        = Column(String, nullable=True)
+    holdback_pct                = Column(Float, default=10.0)
+    insurance_required          = Column(Boolean, default=True)
+    bond_required               = Column(Boolean, default=False)
+    supplementary_conditions    = Column(Text, nullable=True)
+    status                      = Column(String, default="draft")  # draft | executed | completed | terminated
+    notes                       = Column(Text, nullable=True)
+    created_by                  = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at                  = Column(DateTime, default=datetime.utcnow)
+
+    ccdc_creator = relationship("User", foreign_keys=[created_by])
+    stat_decls_9a9b = relationship("StatutoryDeclaration9A9B", back_populates="ccdc_contract", cascade="all, delete-orphan")
+
+
+class StatutoryDeclaration9A9B(Base):
+    """CCDC 9A/9B statutory declaration — officer signing and commissioner/notary workflow."""
+    __tablename__ = "statutory_declarations_9a9b"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    org_id             = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id         = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    ccdc_contract_id   = Column(Integer, ForeignKey("ccdc_contracts.id"), nullable=True)
+    form_type          = Column(String, nullable=False)   # 9A (GC declares payment to subs) | 9B (sub declares payment)
+    declarant_name     = Column(String, nullable=True)
+    declarant_title    = Column(String, nullable=True)
+    declarant_company  = Column(String, nullable=True)
+    declaration_date   = Column(String, nullable=True)   # YYYY-MM-DD
+    period_covered     = Column(String, nullable=True)   # e.g. "Jan 1 – Mar 31, 2026"
+    amount_declared    = Column(Float, nullable=True)
+    all_subs_paid      = Column(Boolean, nullable=True)  # 9A: confirms all subs/suppliers paid
+    outstanding_claims = Column(Text, nullable=True)     # description of any outstanding claims
+    commissioner_name  = Column(String, nullable=True)
+    commissioner_date  = Column(String, nullable=True)   # date sworn before commissioner
+    status             = Column(String, default="pending")  # pending | sworn | filed | accepted
+    notes              = Column(Text, nullable=True)
+    created_by         = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+
+    ccdc_contract = relationship("CCDCContract", back_populates="stat_decls_9a9b")
+    decl_creator  = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Unit Release / Sales Absorption ─────────────────────────────────────────
+
+class UnitRelease(Base):
+    """Condo/townhome unit sales absorption tracking — presales, deposits, closings."""
+    __tablename__ = "unit_releases"
+
+    id                    = Column(Integer, primary_key=True, index=True)
+    org_id                = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id            = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    unit_number           = Column(String, nullable=False)
+    unit_type             = Column(String, nullable=True)   # studio | 1br | 2br | 3br | townhome | penthouse | commercial
+    floor_area_sf         = Column(Float, nullable=True)
+    floor_number          = Column(Integer, nullable=True)
+    list_price            = Column(Float, nullable=True)
+    sale_price            = Column(Float, nullable=True)
+    buyer_name            = Column(String, nullable=True)
+    deposit_amount        = Column(Float, nullable=True)
+    deposit_received_date = Column(String, nullable=True)
+    purchase_agreement_date = Column(String, nullable=True)
+    closing_date          = Column(String, nullable=True)
+    status                = Column(String, default="available")  # available | reserved | sold | closed | cancelled
+    incentives            = Column(String, nullable=True)    # e.g. "Parking included"
+    notes                 = Column(Text, nullable=True)
+    created_at            = Column(DateTime, default=datetime.utcnow)
+
+
+# ─── Client Payment Schedule ──────────────────────────────────────────────────
+
+class ClientPaymentSchedule(Base):
+    """Milestone-based client payment schedule — deposits, progress, final."""
+    __tablename__ = "client_payment_schedules"
+
+    id                    = Column(Integer, primary_key=True, index=True)
+    org_id                = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id            = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    milestone_name        = Column(String, nullable=False)
+    description           = Column(Text, nullable=True)
+    amount                = Column(Float, nullable=True)
+    percentage_of_contract = Column(Float, nullable=True)
+    due_date              = Column(String, nullable=True)
+    invoice_date          = Column(String, nullable=True)
+    paid_date             = Column(String, nullable=True)
+    status                = Column(String, default="pending")  # pending | invoiced | paid | overdue
+    notes                 = Column(Text, nullable=True)
+    display_order         = Column(Integer, default=100)
+    created_by            = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at            = Column(DateTime, default=datetime.utcnow)
+
+    cps_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── CMHC / Indigenous / Specialized Checklists ───────────────────────────────
+
+class SpecializedChecklistItem(Base):
+    """Reusable checklist for CMHC financing, Indigenous consultation, etc."""
+    __tablename__ = "specialized_checklist_items"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id      = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    checklist_type  = Column(String, nullable=False)  # cmhc | indigenous | environmental | other
+    category        = Column(String, nullable=True)
+    item_name       = Column(String, nullable=False)
+    description     = Column(Text, nullable=True)
+    responsible_party = Column(String, nullable=True)
+    due_date        = Column(String, nullable=True)
+    status          = Column(String, default="pending")  # pending | in_progress | complete | n_a | waived
+    notes           = Column(Text, nullable=True)
+    completed_at    = Column(DateTime, nullable=True)
+    created_by      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    spec_creator = relationship("User", foreign_keys=[created_by])

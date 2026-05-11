@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release, spec_review, prequalification, client_hub, syndicate, erp_integration, cfo_reports, subcontract, canadian_legal, quality
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release, spec_review, prequalification, client_hub, syndicate, erp_integration, cfo_reports, subcontract, canadian_legal, quality, crm, assemblies, advanced_reports
 
 
 def _run_migrations():
@@ -973,6 +973,150 @@ def _run_migrations():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )""",
             "CREATE INDEX IF NOT EXISTS ix_visitor_logs_project ON visitor_logs(project_id, visit_date)",
+            # CRM
+            """CREATE TABLE IF NOT EXISTS crm_leads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                company_name TEXT NOT NULL, contact_name TEXT, contact_email TEXT, contact_phone TEXT,
+                project_type TEXT, estimated_value REAL, location TEXT,
+                status TEXT DEFAULT 'prospect', source TEXT DEFAULT 'referral',
+                probability_pct INTEGER DEFAULT 25, expected_close_date TEXT,
+                notes TEXT, next_action TEXT, next_action_date TEXT,
+                assigned_to INTEGER REFERENCES users(id),
+                converted_project_id INTEGER REFERENCES projects(id),
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS proposal_packages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                lead_id INTEGER REFERENCES crm_leads(id) ON DELETE SET NULL,
+                project_id INTEGER REFERENCES projects(id),
+                proposal_number TEXT, title TEXT NOT NULL,
+                client_name TEXT, client_email TEXT, client_address TEXT,
+                valid_until TEXT, total_amount REAL,
+                scope_of_work TEXT, inclusions TEXT, exclusions TEXT,
+                payment_terms TEXT, warranty_period TEXT, notes TEXT,
+                status TEXT DEFAULT 'draft',
+                sign_token TEXT UNIQUE, signed_at DATETIME, signed_by_name TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_crm_leads_org ON crm_leads(org_id, status)",
+            "CREATE INDEX IF NOT EXISTS ix_proposal_token ON proposal_packages(sign_token)",
+            # Cost Assemblies
+            """CREATE TABLE IF NOT EXISTS cost_assemblies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                name TEXT NOT NULL, description TEXT, trade_category TEXT, unit TEXT,
+                usage_count INTEGER DEFAULT 0,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS cost_assembly_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assembly_id INTEGER NOT NULL REFERENCES cost_assemblies(id) ON DELETE CASCADE,
+                division TEXT, description TEXT NOT NULL,
+                quantity REAL, unit TEXT, unit_cost REAL, total_cost REAL,
+                notes TEXT, display_order INTEGER DEFAULT 100
+            )""",
+            # Procurement
+            """CREATE TABLE IF NOT EXISTS procurement_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                item_name TEXT NOT NULL, vendor_name TEXT, description TEXT,
+                category TEXT DEFAULT 'other', lead_time_weeks INTEGER,
+                order_date TEXT, required_on_site_date TEXT, delivery_date TEXT,
+                quantity REAL, unit TEXT, unit_cost REAL, total_cost REAL,
+                purchase_order_number TEXT,
+                status TEXT DEFAULT 'to_order', delay_reason TEXT, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_procurement_project ON procurement_items(project_id, required_on_site_date)",
+            # VE Log
+            """CREATE TABLE IF NOT EXISTS ve_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                item_number TEXT, description TEXT NOT NULL,
+                original_spec TEXT, proposed_alternate TEXT,
+                original_cost REAL, alternate_cost REAL, potential_savings REAL,
+                status TEXT DEFAULT 'proposed',
+                accepted_by TEXT, decision_date TEXT,
+                owner_approved INTEGER DEFAULT 0, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # CCDC Contracts
+            """CREATE TABLE IF NOT EXISTS ccdc_contracts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                ccdc_type TEXT NOT NULL, title TEXT, contract_value REAL,
+                contractor_name TEXT, owner_name TEXT,
+                execution_date TEXT, substantial_performance_date TEXT, final_completion_date TEXT,
+                holdback_pct REAL DEFAULT 10, insurance_required INTEGER DEFAULT 1,
+                bond_required INTEGER DEFAULT 0, supplementary_conditions TEXT,
+                status TEXT DEFAULT 'draft', notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS statutory_declarations_9a9b (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                ccdc_contract_id INTEGER REFERENCES ccdc_contracts(id) ON DELETE SET NULL,
+                form_type TEXT NOT NULL,
+                declarant_name TEXT, declarant_title TEXT, declarant_company TEXT,
+                declaration_date TEXT, period_covered TEXT, amount_declared REAL,
+                all_subs_paid INTEGER, outstanding_claims TEXT,
+                commissioner_name TEXT, commissioner_date TEXT,
+                status TEXT DEFAULT 'pending', notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Unit Releases
+            """CREATE TABLE IF NOT EXISTS unit_releases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                unit_number TEXT NOT NULL, unit_type TEXT,
+                floor_area_sf REAL, floor_number INTEGER,
+                list_price REAL, sale_price REAL, buyer_name TEXT,
+                deposit_amount REAL, deposit_received_date TEXT,
+                purchase_agreement_date TEXT, closing_date TEXT,
+                status TEXT DEFAULT 'available', incentives TEXT, notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Client Payment Schedules
+            """CREATE TABLE IF NOT EXISTS client_payment_schedules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                milestone_name TEXT NOT NULL, description TEXT,
+                amount REAL, percentage_of_contract REAL,
+                due_date TEXT, invoice_date TEXT, paid_date TEXT,
+                status TEXT DEFAULT 'pending', notes TEXT, display_order INTEGER DEFAULT 100,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Specialized Checklists
+            """CREATE TABLE IF NOT EXISTS specialized_checklist_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                checklist_type TEXT NOT NULL, category TEXT, item_name TEXT NOT NULL,
+                description TEXT, responsible_party TEXT, due_date TEXT,
+                status TEXT DEFAULT 'pending', notes TEXT, completed_at DATETIME,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_unit_releases_project ON unit_releases(project_id)",
+            "CREATE INDEX IF NOT EXISTS ix_ccdc_contracts_project ON ccdc_contracts(project_id)",
+            "CREATE INDEX IF NOT EXISTS ix_specialized_checklist_project ON specialized_checklist_items(project_id, checklist_type)",
             # Vendor Scores
             """CREATE TABLE IF NOT EXISTS vendor_scores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1145,6 +1289,10 @@ app.include_router(subcontract.router)
 app.include_router(subcontract._public_router)
 app.include_router(canadian_legal.router)
 app.include_router(quality.router)
+app.include_router(crm.router)
+app.include_router(crm._public_router)
+app.include_router(assemblies.router)
+app.include_router(advanced_reports.router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -1181,7 +1329,7 @@ async def report_view():
 @app.get("/", include_in_schema=False)
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa(full_path: str = ""):
-    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/", "report", "bid/", "co-approval/", "selections/", "prequal/", "subcontract/"}
+    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/", "report", "bid/", "co-approval/", "selections/", "prequal/", "subcontract/", "proposal/"}
     if any(full_path.startswith(b) or full_path == b for b in _blocked):
         from fastapi import HTTPException
         raise HTTPException(status_code=404)

@@ -911,6 +911,19 @@
                 <span class="flex-1 text-left">Sub Prequalification</span>
                 <span x-show="prequals.filter(p=>p.status==='submitted').length>0" x-text="prequals.filter(p=>p.status==='submitted').length" class="text-xs bg-blue-400 text-white px-1.5 py-0.5 rounded-full font-bold"></span>
               </button>
+              <button @click="view='crm'; loadCRMLeads(); sidebarOpen=false" :class="view==='crm'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-funnel w-4"></i>
+                <span class="flex-1 text-left">CRM Pipeline</span>
+              </button>
+              <button @click="view='proposals'; loadAllProposals(); sidebarOpen=false" :class="view==='proposals'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-envelope-open-text w-4"></i> Proposals
+              </button>
+              <button @click="view='assemblies'; loadAssemblies(); sidebarOpen=false" :class="view==='assemblies'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-puzzle-piece w-4"></i> Cost Catalog
+              </button>
+              <button @click="view='advanced-reports'; sidebarOpen=false" :class="view==='advanced-reports'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-table-columns w-4"></i> Advanced Reports
+              </button>
               <button @click="view='portfolio-risk'; loadPortfolioRisk(); sidebarOpen=false" :class="view==='portfolio-risk'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
                 <i class="fa-solid fa-chart-mixed w-4"></i>
                 <span class="flex-1 text-left">Portfolio Risk</span>
@@ -1014,6 +1027,26 @@
             </button>
             <button @click="view='visitors'; loadVisitors(); sidebarOpen=false" :class="view==='visitors'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-id-badge w-4"></i> Visitor Log
+            </button>
+            <button @click="view='procurement'; loadProcurement(); sidebarOpen=false" :class="view==='procurement'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-truck-fast w-4"></i>
+              <span class="flex-1 text-left">Procurement</span>
+              <span x-show="procurementItems.filter(i=>i.is_delayed).length>0" x-text="procurementItems.filter(i=>i.is_delayed).length" class="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold"></span>
+            </button>
+            <button @click="view='ve-log'; loadVELog(); sidebarOpen=false" :class="view==='ve-log'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-circle-minus w-4"></i> Value Engineering
+            </button>
+            <button @click="view='ccdc'; loadCCDCContracts(); sidebarOpen=false" :class="view==='ccdc'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-file-lines w-4"></i> CCDC Contracts
+            </button>
+            <button @click="view='units'; loadUnits(); sidebarOpen=false" :class="view==='units'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-building w-4"></i> Unit Sales
+            </button>
+            <button @click="view='client-payments'; loadClientPayments(); sidebarOpen=false" :class="view==='client-payments'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-money-bill-wave w-4"></i> Client Payments
+            </button>
+            <button @click="view='ai-spec-tools'; sidebarOpen=false" :class="view==='ai-spec-tools'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-robot w-4"></i> AI Spec Tools
             </button>
             <button @click="view='union'; loadUnions(); sidebarOpen=false" :class="view==='union'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-people-group w-4"></i> Union Compliance
@@ -7513,6 +7546,529 @@
         </div>
       </div><!-- /visitors -->
 
+      <!-- ── CRM PIPELINE ────────────────────────────────────────────── -->
+      <div x-show="view==='crm'" class="p-6 max-w-6xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-funnel mr-2 text-blue-600"></i>CRM Pipeline</h2>
+            <p class="text-sm text-gray-500" x-show="crmPipeline">
+              <span x-text="crmPipeline?.total_leads+' leads · '"></span>
+              <span x-text="'$'+(crmPipeline?.total_pipeline||0).toLocaleString('en-CA',{maximumFractionDigits:0})+' total pipeline · '"></span>
+              <span x-text="'$'+(crmPipeline?.weighted_pipeline||0).toLocaleString('en-CA',{maximumFractionDigits:0})+' weighted'"></span>
+            </p>
+          </div>
+          <div class="flex gap-2">
+            <button @click="view='proposals'; loadAllProposals()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-envelope-open-text mr-1"></i>Proposals</button>
+            <button @click="leadForm={company_name:'',contact_name:'',contact_email:'',contact_phone:'',project_type:'commercial',estimated_value:'',location:'',status:'prospect',source:'referral',probability_pct:25,expected_close_date:'',next_action:'',notes:''}; leadEditId=null; showLeadModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Lead</button>
+          </div>
+        </div>
+        <!-- Pipeline stage cards -->
+        <div x-show="crmPipeline" x-cloak class="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
+          <template x-for="[stage, data] in Object.entries(crmPipeline?.stages||{})" :key="stage">
+            <div class="bg-white border rounded-xl p-3 text-center cursor-pointer hover:border-blue-300" @click="crmStatusFilter=stage">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1" x-text="stage.replace('_',' ')"></div>
+              <div class="text-xl font-bold text-gray-800" x-text="data.count"></div>
+              <div class="text-xs text-gray-500" x-text="data.total_value?'$'+Math.round(data.total_value/1000)+'K':''"></div>
+            </div>
+          </template>
+        </div>
+        <div x-show="crmLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!crmLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Company</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Contact</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Type</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Value</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Prob%</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Next Action</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Stage</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="l in crmLeads" :key="l.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 font-medium" x-text="l.company_name"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="l.contact_name||'—'"></td>
+                  <td class="px-4 py-3 text-xs capitalize text-gray-400" x-text="l.project_type||'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs font-semibold" x-text="l.estimated_value?'$'+l.estimated_value.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs" x-text="l.probability_pct+'%'"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500 max-w-xs truncate" x-text="l.next_action||(l.next_action_date?'Due: '+l.next_action_date:'—')"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="l.status==='won'?'bg-green-100 text-green-700':l.status==='lost'?'bg-red-100 text-red-700':l.status==='proposal'?'bg-blue-100 text-blue-700':l.status==='qualified'?'bg-purple-100 text-purple-700':'bg-gray-100 text-gray-600'"
+                    x-text="l.status.replace('_',' ').toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editLead(l)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteLead(l.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="crmLeads.length===0"><td colspan="8" class="px-4 py-8 text-center text-gray-400 text-sm">No leads. Add your first prospect.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /crm -->
+
+      <!-- ── PROPOSALS ───────────────────────────────────────────────── -->
+      <div x-show="view==='proposals'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-envelope-open-text mr-2 text-blue-600"></i>Proposals</h2>
+            <p class="text-sm text-gray-500">Client-facing proposals with e-signature</p>
+          </div>
+          <button @click="view='crm'; loadCRMLeads()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-arrow-left mr-1"></i>Pipeline</button>
+        </div>
+        <div x-show="proposalsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!proposalsLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Proposal #</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Client</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Amount</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Valid Until</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="p in allProposals" :key="p.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 font-mono text-xs text-blue-700" x-text="p.proposal_number"></td>
+                  <td class="px-4 py-3 font-medium" x-text="p.client_name||'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs font-semibold" x-text="p.total_amount?'$'+p.total_amount.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-xs text-gray-400" x-text="p.valid_until||'—'"></td>
+                  <td class="px-4 py-3 text-center">
+                    <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                      :class="p.status==='accepted'?'bg-green-100 text-green-700':p.status==='sent'?'bg-blue-100 text-blue-700':p.status==='rejected'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-600'"
+                      x-text="p.status.toUpperCase()"></span>
+                    <span x-show="p.signed_by_name" class="ml-1 text-xs text-green-600" x-text="'✓ '+p.signed_by_name"></span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <button x-show="p.sign_url" @click="copyProposalLink(p.sign_url)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Copy Link</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="allProposals.length===0"><td colspan="6" class="px-4 py-8 text-center text-gray-400 text-sm">No proposals. Create from a CRM lead.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /proposals -->
+
+      <!-- ── COST CATALOG / ASSEMBLIES ───────────────────────────────── -->
+      <div x-show="view==='assemblies'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-puzzle-piece mr-2 text-blue-600"></i>Cost Catalog</h2>
+            <p class="text-sm text-gray-500">Reusable cost assemblies — apply to any estimate with a multiplier</p>
+          </div>
+          <div class="flex gap-2">
+            <button x-show="activeAssembly" @click="activeAssembly=null; assemblyItems=[]" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-arrow-left mr-1"></i>Back</button>
+            <button x-show="!activeAssembly" @click="assemblyForm={name:'',description:'',trade_category:'',unit:''}; showAssemblyModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> New Assembly</button>
+            <button x-show="activeAssembly && activeEstimate" @click="applyAssemblyToEstimate()" class="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-semibold"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Apply to Estimate</button>
+            <button x-show="activeAssembly" @click="asmItemForm={division:'',description:'',quantity:'',unit:'',unit_cost:'',total_cost:''}; showAssemblyItemModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Item</button>
+          </div>
+        </div>
+        <div x-show="assembliesLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <!-- Assembly list -->
+        <div x-show="!activeAssembly && !assembliesLoading" class="space-y-2">
+          <template x-for="asm in assemblies" :key="asm.id">
+            <div class="bg-white border rounded-xl p-4 flex items-center justify-between cursor-pointer hover:border-blue-300 transition" @click="openAssembly(asm)">
+              <div>
+                <div class="font-semibold text-gray-800" x-text="asm.name"></div>
+                <div class="text-xs text-gray-400 mt-0.5" x-text="(asm.trade_category||'')+' · '+asm.item_count+' items · Total: $'+asm.total_cost.toLocaleString('en-CA',{maximumFractionDigits:0})+(asm.unit?' per '+asm.unit:'')"></div>
+              </div>
+              <div class="flex items-center gap-2 text-gray-300"><span class="text-xs text-gray-400" x-text="asm.usage_count+' uses'"></span><i class="fa-solid fa-chevron-right"></i></div>
+            </div>
+          </template>
+          <div x-show="assemblies.length===0" class="text-center text-gray-400 text-sm py-8">No assemblies. Create reusable cost templates here.</div>
+        </div>
+        <!-- Assembly items detail -->
+        <div x-show="activeAssembly && !assembliesLoading" class="bg-white border rounded-xl overflow-hidden">
+          <div class="px-4 py-3 bg-blue-50 border-b flex items-center justify-between">
+            <div class="font-semibold text-blue-800" x-text="activeAssembly?.name"></div>
+            <div class="text-xs text-blue-600" x-text="'Total: $'+(assemblyItems.reduce((s,i)=>s+(i.total_cost||0),0)).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+          </div>
+          <table class="w-full text-sm"><thead class="bg-gray-50 border-b"><tr>
+            <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500">Division</th>
+            <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500">Description</th>
+            <th class="text-right px-4 py-2 text-xs font-semibold text-gray-500">Qty</th>
+            <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500">Unit</th>
+            <th class="text-right px-4 py-2 text-xs font-semibold text-gray-500">Unit Cost</th>
+            <th class="text-right px-4 py-2 text-xs font-semibold text-gray-500">Total</th>
+          </tr></thead>
+          <tbody class="divide-y">
+            <template x-for="i in assemblyItems" :key="i.id">
+              <tr><td class="px-4 py-2.5 text-xs text-gray-400" x-text="i.division||''"></td><td class="px-4 py-2.5 text-sm" x-text="i.description"></td><td class="px-4 py-2.5 text-right text-xs" x-text="i.quantity||'LS'"></td><td class="px-4 py-2.5 text-xs text-gray-400" x-text="i.unit||''"></td><td class="px-4 py-2.5 text-right text-xs" x-text="i.unit_cost?'$'+i.unit_cost.toLocaleString('en-CA',{minimumFractionDigits:2}):'—'"></td><td class="px-4 py-2.5 text-right text-xs font-bold" x-text="i.total_cost?'$'+i.total_cost.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td></tr>
+            </template>
+            <tr x-show="assemblyItems.length===0"><td colspan="6" class="px-4 py-4 text-center text-gray-400 text-xs">No items yet.</td></tr>
+          </tbody></table>
+        </div>
+      </div><!-- /assemblies -->
+
+      <!-- ── PROCUREMENT SCHEDULE ────────────────────────────────────── -->
+      <div x-show="view==='procurement'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-truck-fast mr-2 text-green-600"></i>Procurement Schedule</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <button @click="procForm={item_name:'',vendor_name:'',category:'other',lead_time_weeks:'',order_date:'',required_on_site_date:'',total_cost:'',status:'to_order',notes:''}; procEditId=null; showProcurementModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Item</button>
+        </div>
+        <div x-show="procurementLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!procurementLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Item</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Vendor</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Lead Time</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Must Order By</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Required On Site</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Cost</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="i in procurementItems" :key="i.id">
+                <tr class="hover:bg-gray-50" :class="i.is_delayed?'bg-red-50':''">
+                  <td class="px-4 py-3 font-medium">
+                    <span x-text="i.item_name"></span>
+                    <span x-show="i.is_delayed" class="ml-1 text-xs text-red-500">⚠ DELAYED</span>
+                  </td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="i.vendor_name||'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs" x-text="i.lead_time_weeks?i.lead_time_weeks+'w':'—'"></td>
+                  <td class="px-4 py-3 text-xs" :class="i.must_order_by && i.must_order_by < new Date().toISOString().slice(0,10) && i.status==='to_order'?'text-red-600 font-bold':''" x-text="i.must_order_by||'—'"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="i.required_on_site_date||'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs font-semibold" x-text="i.total_cost?'$'+i.total_cost.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="i.status==='delivered'?'bg-green-100 text-green-700':i.status==='delayed'?'bg-red-100 text-red-700':i.status==='ordered'?'bg-blue-100 text-blue-700':i.status==='in_transit'?'bg-purple-100 text-purple-700':'bg-gray-100 text-gray-600'"
+                    x-text="i.status.replace('_',' ').toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editProcurement(i)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteProcurement(i.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="procurementItems.length===0"><td colspan="8" class="px-4 py-8 text-center text-gray-400 text-sm">No long-lead items. Track structural steel, mechanical equipment, specialty materials.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /procurement -->
+
+      <!-- ── VALUE ENGINEERING LOG ───────────────────────────────────── -->
+      <div x-show="view==='ve-log'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-circle-minus mr-2 text-green-600"></i>Value Engineering Log</h2>
+            <p class="text-sm text-gray-500" x-show="veSummary" x-text="veSummary?.accepted+' accepted · $'+((veSummary?.total_savings_accepted||0).toLocaleString('en-CA',{maximumFractionDigits:0}))+' in confirmed savings'"></p>
+          </div>
+          <button @click="veForm={description:'',original_spec:'',proposed_alternate:'',original_cost:'',alternate_cost:'',status:'proposed',notes:''}; veEditId=null; showVEModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add VE Item</button>
+        </div>
+        <div x-show="veLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!veLoading" class="space-y-3">
+          <template x-for="i in veItems" :key="i.id">
+            <div class="bg-white border rounded-xl p-5" :class="i.status==='accepted'?'border-green-200':i.status==='rejected'?'border-red-100':''">
+              <div class="flex items-start justify-between mb-2">
+                <div>
+                  <div class="font-semibold text-gray-800" x-text="i.description"></div>
+                  <div class="text-xs text-gray-400 mt-0.5" x-text="i.item_number||''"></div>
+                </div>
+                <div class="flex items-center gap-2 ml-4">
+                  <div x-show="i.potential_savings" class="text-right">
+                    <div class="font-bold text-green-600" x-text="'$'+(i.potential_savings||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+                    <div class="text-xs text-gray-400">savings</div>
+                  </div>
+                  <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="i.status==='accepted'?'bg-green-100 text-green-700':i.status==='rejected'?'bg-red-100 text-red-700':i.status==='under_review'?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700'"
+                    x-text="i.status.replace('_',' ').toUpperCase()"></span>
+                  <button @click="editVE(i)" class="text-xs text-blue-500 hover:text-blue-700">Edit</button>
+                  <button @click="deleteVE(i.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                </div>
+              </div>
+              <div x-show="i.proposed_alternate" class="text-sm text-gray-600 mt-2">
+                <span class="text-xs text-gray-400">Alternate: </span><span x-text="i.proposed_alternate"></span>
+              </div>
+            </div>
+          </template>
+          <div x-show="veItems.length===0" class="text-center text-gray-400 text-sm py-8">No VE items. Track cost-saving alternates and owner decisions here.</div>
+        </div>
+      </div><!-- /ve-log -->
+
+      <!-- ── CCDC CONTRACTS ──────────────────────────────────────────── -->
+      <div x-show="view==='ccdc'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-file-lines mr-2 text-blue-600"></i>CCDC Contract Library</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <button @click="ccdcForm={ccdc_type:'CCDC2',title:'',contract_value:'',contractor_name:'',owner_name:'',execution_date:'',holdback_pct:10,insurance_required:true,bond_required:false,status:'draft',notes:''}; ccdcEditId=null; showCCDCModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Contract</button>
+        </div>
+        <div x-show="ccdcLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!ccdcLoading" class="space-y-3">
+          <template x-for="c in ccdcContracts" :key="c.id">
+            <div class="bg-white border rounded-xl p-5">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-mono font-bold" x-text="c.ccdc_type"></span>
+                    <span class="font-semibold text-gray-800" x-text="c.ccdc_name||c.ccdc_type"></span>
+                  </div>
+                  <div class="text-xs text-gray-400" x-text="c.contractor_name+(c.execution_date?' · Executed: '+c.execution_date:'')+(c.contract_value?' · $'+c.contract_value.toLocaleString('en-CA',{maximumFractionDigits:0}):'')"></div>
+                </div>
+                <div class="flex items-center gap-2 ml-4">
+                  <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="c.status==='executed'?'bg-green-100 text-green-700':c.status==='completed'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-600'"
+                    x-text="c.status.toUpperCase()"></span>
+                  <button @click="deleteCCDC(c.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                </div>
+              </div>
+            </div>
+          </template>
+          <div x-show="ccdcContracts.length===0" class="text-center text-gray-400 text-sm py-8">No CCDC contracts. Track CCDC 2, 4, 5A, 14, 17 and other contracts here.</div>
+        </div>
+      </div><!-- /ccdc -->
+
+      <!-- ── UNIT SALES ──────────────────────────────────────────────── -->
+      <div x-show="view==='units'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-building mr-2 text-blue-600"></i>Unit Sales &amp; Absorption</h2>
+            <p class="text-sm text-gray-500" x-show="unitData" x-text="unitData?.summary?.total+' units · '+unitData?.summary?.absorption_pct+'% absorbed · $'+(unitData?.summary?.total_revenue||0).toLocaleString('en-CA',{maximumFractionDigits:0})+' in sales'"></p>
+          </div>
+          <button @click="unitForm={unit_number:'',unit_type:'2br',floor_area_sf:'',floor_number:'',list_price:'',status:'available',notes:''}; unitEditId=null; showUnitModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Unit</button>
+        </div>
+        <div x-show="unitsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!unitsLoading && unitData" x-cloak class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Unit #</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Type</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">SF</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">List Price</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Sale Price</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Buyer</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Closing</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="u in unitData?.units||[]" :key="u.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 font-mono font-bold text-blue-700" x-text="u.unit_number"></td>
+                  <td class="px-4 py-3 text-xs capitalize" x-text="u.unit_type||'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs" x-text="u.floor_area_sf?u.floor_area_sf.toLocaleString()+'SF':'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs" x-text="u.list_price?'$'+u.list_price.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs font-semibold" x-text="u.sale_price?'$'+u.sale_price.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="u.buyer_name||'—'"></td>
+                  <td class="px-4 py-3 text-xs text-gray-400" x-text="u.closing_date||'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="u.status==='closed'?'bg-green-100 text-green-700':u.status==='sold'?'bg-blue-100 text-blue-700':u.status==='reserved'?'bg-amber-100 text-amber-700':u.status==='cancelled'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-500'"
+                    x-text="u.status.toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editUnit(u)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteUnit(u.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="!(unitData?.units?.length)"><td colspan="9" class="px-4 py-8 text-center text-gray-400 text-sm">No units. Track condo, townhome, or commercial unit presales here.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /units -->
+
+      <!-- ── CLIENT PAYMENTS ────────────────────────────────────────── -->
+      <div x-show="view==='client-payments'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-money-bill-wave mr-2 text-green-600"></i>Client Payment Schedule</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <button @click="cpForm={milestone_name:'',amount:'',percentage_of_contract:'',due_date:'',status:'pending',notes:''}; cpEditId=null; showCPModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Milestone</button>
+        </div>
+        <div x-show="clientPaymentsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!clientPaymentsLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Milestone</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Amount</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">%</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Due Date</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Paid Date</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="i in clientPayments" :key="i.id">
+                <tr class="hover:bg-gray-50" :class="i.status==='overdue'?'bg-red-50':''">
+                  <td class="px-4 py-3 font-medium" x-text="i.milestone_name"></td>
+                  <td class="px-4 py-3 text-right text-xs font-bold" x-text="i.amount?'$'+i.amount.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs text-gray-400" x-text="i.percentage_of_contract?i.percentage_of_contract+'%':''"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="i.due_date||'—'"></td>
+                  <td class="px-4 py-3 text-xs text-green-600" x-text="i.paid_date||'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="i.status==='paid'?'bg-green-100 text-green-700':i.status==='overdue'?'bg-red-100 text-red-700':i.status==='invoiced'?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-600'"
+                    x-text="i.status.toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editClientPayment(i)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteClientPayment(i.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="clientPayments.length===0"><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">No payment milestones. Track deposit, progress, and final payments here.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /client-payments -->
+
+      <!-- ── AI SPEC TOOLS ───────────────────────────────────────────── -->
+      <div x-show="view==='ai-spec-tools'" class="p-6 max-w-4xl">
+        <div class="mb-4">
+          <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-robot mr-2 text-green-600"></i>AI Spec Tools</h2>
+          <p class="text-sm text-gray-500">Spec Q&A · RFI Generator · Submittal Log Generator</p>
+        </div>
+        <!-- Tab selector -->
+        <div class="flex gap-2 mb-5">
+          <button @click="specToolTab='qa'" :class="specToolTab==='qa'?'bg-green-600 text-white':'bg-white border text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs font-semibold">Spec Q&amp;A</button>
+          <button @click="specToolTab='rfi'" :class="specToolTab==='rfi'?'bg-green-600 text-white':'bg-white border text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs font-semibold">AI RFI Generator</button>
+          <button @click="specToolTab='submittal'" :class="specToolTab==='submittal'?'bg-green-600 text-white':'bg-white border text-gray-700'" class="px-3 py-1.5 rounded-lg text-xs font-semibold">Submittal Log</button>
+        </div>
+        <!-- Spec Q&A -->
+        <div x-show="specToolTab==='qa'" x-cloak class="space-y-4">
+          <div class="bg-white border rounded-xl p-5">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Ask a Specification Question</label>
+            <input x-model="specQAQuestion" type="text" placeholder="e.g. What concrete compressive strength is required for foundations?" class="w-full border rounded-xl px-3 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-green-400" @keydown.enter="askSpecQA()" />
+            <label class="block text-xs text-gray-500 mb-1">Paste spec text for context (optional)</label>
+            <textarea x-model="specQAContext" rows="3" class="w-full border rounded-xl px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-1 focus:ring-green-300" placeholder="Paste relevant spec sections here..."></textarea>
+            <button @click="askSpecQA()" :disabled="specQALoading || !specQAQuestion" class="w-full py-2.5 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50">
+              <span x-text="specQALoading?'Searching spec knowledge…':'Ask Gemini'"></span>
+            </button>
+          </div>
+          <div x-show="specQAResult" x-cloak class="bg-white border rounded-xl p-5">
+            <div class="text-sm font-semibold text-gray-700 mb-2" x-text="'Q: '+specQAResult?.question"></div>
+            <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap" x-text="specQAResult?.answer"></div>
+          </div>
+        </div>
+        <!-- RFI Generator -->
+        <div x-show="specToolTab==='rfi'" x-cloak class="space-y-4">
+          <div class="bg-white border rounded-xl p-5">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Describe the Drawing Conflict or Spec Ambiguity</label>
+            <textarea x-model="rfiGenerateIssue" rows="4" placeholder="e.g. Drawing A-201 shows a 200mm concrete slab but spec section 03 30 00 specifies 150mm. Which governs?" class="w-full border rounded-xl px-3 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-green-400"></textarea>
+            <button @click="generateRFI()" :disabled="rfiGenerateLoading || !rfiGenerateIssue" class="w-full py-2.5 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 disabled:opacity-50">
+              <span x-text="rfiGenerateLoading?'Drafting RFI…':'Generate RFI'"></span>
+            </button>
+          </div>
+          <div x-show="rfiGenerateResult" x-cloak class="bg-white border rounded-xl p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-semibold" x-text="rfiGenerateResult?.rfi?.rfi_number+' — '+rfiGenerateResult?.rfi?.subject"></div>
+              <button @click="importGeneratedRFI()" class="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 font-semibold">Import to RFIs</button>
+            </div>
+            <p class="text-sm text-gray-700 mb-2" x-text="rfiGenerateResult?.rfi?.description"></p>
+            <p x-show="rfiGenerateResult?.rfi?.suggested_response_direction" class="text-xs text-blue-600"><i class="fa-solid fa-lightbulb mr-1"></i><span x-text="rfiGenerateResult?.rfi?.suggested_response_direction"></span></p>
+          </div>
+        </div>
+        <!-- Submittal Log Generator -->
+        <div x-show="specToolTab==='submittal'" x-cloak class="space-y-4">
+          <div class="bg-white border rounded-xl p-5">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Upload Spec PDF → AI generates complete submittal log</label>
+            <label class="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl p-8 cursor-pointer hover:border-green-400 transition" :class="submittalGenLoading?'opacity-50 pointer-events-none':''">
+              <i class="fa-solid text-3xl text-gray-300 mb-2" :class="submittalGenLoading?'fa-spinner fa-spin':'fa-cloud-arrow-up'"></i>
+              <span class="text-sm text-gray-500" x-text="submittalGenLoading?'Gemini is reading your spec…':'Click to upload spec PDF or image'"></span>
+              <input type="file" accept=".pdf,.txt,.jpg,.png" class="hidden" @change="generateSubmittalLog($event.target.files[0])" :disabled="submittalGenLoading" />
+            </label>
+          </div>
+          <div x-show="submittalGenResult" x-cloak class="bg-white border rounded-xl p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-semibold" x-text="(submittalGenResult?.count||0)+' submittals generated from '+submittalGenResult?.source_file?.split('/').pop()"></div>
+              <button @click="importSubmittalLog()" class="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 font-semibold">Import All to Submittals</button>
+            </div>
+            <div class="space-y-1.5 max-h-64 overflow-y-auto">
+              <template x-for="s in submittalGenResult?.submittals||[]" :key="s.submittal_number">
+                <div class="flex items-start gap-3 text-sm border rounded-lg p-2">
+                  <span class="font-mono text-xs text-blue-700 flex-shrink-0" x-text="s.submittal_number"></span>
+                  <div><span class="font-medium" x-text="s.title"></span><span class="text-xs text-gray-400 ml-2" x-text="s.spec_section"></span></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div><!-- /ai-spec-tools -->
+
+      <!-- ── ADVANCED REPORTS ────────────────────────────────────────── -->
+      <div x-show="view==='advanced-reports'" class="p-6 max-w-5xl">
+        <div class="mb-4">
+          <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-table-columns mr-2 text-blue-600"></i>Advanced Reports</h2>
+          <p class="text-sm text-gray-500">WIP Excel Export · GL Journal Entries · Cash Forecast · Tax Reference · Sub-tier · Forecast Accuracy</p>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <i class="fa-solid fa-file-excel text-2xl text-green-600 mb-2"></i>
+            <div class="text-sm font-semibold text-gray-800 mb-1">WIP Schedule</div>
+            <p class="text-xs text-gray-400 mb-3">GAAP-compliant WIP in Excel</p>
+            <button @click="downloadWIPExcel()" class="w-full py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 font-semibold">Download Excel</button>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <i class="fa-solid fa-book-open text-2xl text-blue-600 mb-2"></i>
+            <div class="text-sm font-semibold text-gray-800 mb-1">GL Journal Entries</div>
+            <p class="text-xs text-gray-400 mb-3">Debit/credit pairs for all invoices</p>
+            <button @click="downloadGLExport()" class="w-full py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 font-semibold">Download CSV</button>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <i class="fa-solid fa-calendar-days text-2xl text-indigo-600 mb-2"></i>
+            <div class="text-sm font-semibold text-gray-800 mb-1">Cash Forecast</div>
+            <p class="text-xs text-gray-400 mb-3">12-week funding requirement</p>
+            <button @click="loadAdvancedReport('cash-forecast')" class="w-full py-2 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 font-semibold">Load Forecast</button>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <i class="fa-solid fa-percent text-2xl text-amber-600 mb-2"></i>
+            <div class="text-sm font-semibold text-gray-800 mb-1">Tax Reference</div>
+            <p class="text-xs text-gray-400 mb-3">Canadian GST/HST/PST/QST rates</p>
+            <button @click="loadAdvancedReport('tax-reference')" class="w-full py-2 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 font-semibold">View Tax Rates</button>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <i class="fa-solid fa-sitemap text-2xl text-purple-600 mb-2"></i>
+            <div class="text-sm font-semibold text-gray-800 mb-1">Sub-tier Payments</div>
+            <p class="text-xs text-gray-400 mb-3">Supply chain payment transparency</p>
+            <button @click="loadAdvancedReport('sub-tier')" class="w-full py-2 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 font-semibold">View Report</button>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-center">
+            <i class="fa-solid fa-chart-area text-2xl text-gray-600 mb-2"></i>
+            <div class="text-sm font-semibold text-gray-800 mb-1">Forecast Accuracy</div>
+            <p class="text-xs text-gray-400 mb-3">EAC tracking vs actuals per draw</p>
+            <button @click="loadAdvancedReport('forecast-accuracy')" class="w-full py-2 bg-gray-700 text-white text-xs rounded-lg hover:bg-gray-800 font-semibold">Load Report</button>
+          </div>
+        </div>
+        <!-- Cash Forecast -->
+        <div x-show="advReportView==='cash-forecast' && cashForecastData" x-cloak class="bg-white border rounded-xl p-5">
+          <h3 class="font-semibold text-gray-700 mb-3" x-text="'12-Week Cash Forecast — '+cashForecastData?.project_name"></h3>
+          <div class="text-sm font-bold text-indigo-600 mb-3" x-text="'Total Required: $'+(cashForecastData?.total_required||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+          <div class="overflow-x-auto"><table class="w-full text-xs min-w-[500px]"><thead class="bg-gray-50 border-b"><tr><th class="text-left px-3 py-2">Week</th><th class="text-left px-3 py-2">Start</th><th class="text-right px-3 py-2">Invoices Due</th><th class="text-right px-3 py-2">Cumulative</th></tr></thead>
+          <tbody class="divide-y"><template x-for="w in cashForecastData?.weeks||[]" :key="w.week">
+            <tr :class="w.invoices_due>0?'bg-amber-50':''">
+              <td class="px-3 py-2 font-bold" x-text="'Week '+w.week"></td><td class="px-3 py-2 text-gray-400" x-text="w.start"></td>
+              <td class="px-3 py-2 text-right font-semibold" :class="w.invoices_due>0?'text-indigo-600':' text-gray-400'" x-text="w.invoices_due>0?'$'+w.invoices_due.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+              <td class="px-3 py-2 text-right text-gray-500" x-text="'$'+w.cumulative.toLocaleString('en-CA',{maximumFractionDigits:0})"></td>
+            </tr>
+          </template></tbody></table></div>
+        </div>
+        <!-- Tax Reference -->
+        <div x-show="advReportView==='tax-reference' && advReportData" x-cloak class="space-y-2">
+          <template x-for="[prov, data] in Object.entries(advReportData?.provinces||{})" :key="prov">
+            <div class="bg-white border rounded-xl p-4 flex items-start justify-between">
+              <div>
+                <div class="font-semibold text-gray-800" x-text="prov+' — '+data.name"></div>
+                <div class="text-xs text-gray-400 mt-0.5" x-text="data.notes"></div>
+              </div>
+              <div class="text-right ml-4 flex-shrink-0">
+                <div class="font-bold text-blue-600" x-text="data.tax_type"></div>
+                <div class="text-sm font-bold" x-text="(data.total||data.rate)+'%'"></div>
+              </div>
+            </div>
+          </template>
+        </div>
+        <!-- Sub-tier / Forecast Accuracy generic display -->
+        <div x-show="['sub-tier','forecast-accuracy'].includes(advReportView) && advReportData" x-cloak class="bg-white border rounded-xl p-5">
+          <pre class="text-xs text-gray-600 overflow-x-auto" x-text="JSON.stringify(advReportData, null, 2)"></pre>
+        </div>
+      </div><!-- /advanced-reports -->
+
       <!-- ── AI CONSTRUCTION ACCOUNTANT ────────────────────────────── -->
       <div x-show="view==='health-check'" class="p-6 max-w-4xl">
         <div class="flex items-center justify-between mb-6">
@@ -10564,6 +11120,146 @@
       <button @click="showSPModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
       <button @click="saveSPCert()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save Certificate</button>
     </div>
+  </div>
+</div>
+
+<!-- CRM Lead Modal -->
+<div x-show="showLeadModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showLeadModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-funnel mr-2 text-blue-600"></i><span x-text="leadEditId?'Edit Lead':'New Lead'"></span></h3><button @click="showLeadModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Company Name *</label><input x-model="leadForm.company_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Contact Name</label><input x-model="leadForm.contact_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Email</label><input x-model="leadForm.contact_email" type="email" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Phone</label><input x-model="leadForm.contact_phone" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Stage</label><select x-model="leadForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"><option value="prospect">Prospect</option><option value="qualified">Qualified</option><option value="proposal">Proposal</option><option value="won">Won</option><option value="lost">Lost</option><option value="on_hold">On Hold</option></select></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Est. Value ($)</label><input x-model="leadForm.estimated_value" type="number" step="10000" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Probability %</label><input x-model="leadForm.probability_pct" type="number" min="0" max="100" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Project Type</label><select x-model="leadForm.project_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"><option value="residential">Residential</option><option value="commercial">Commercial</option><option value="industrial">Industrial</option><option value="civil">Civil/Infrastructure</option><option value="renovation">Renovation</option></select></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Expected Close</label><input x-model="leadForm.expected_close_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Next Action</label><input x-model="leadForm.next_action" type="text" placeholder="Follow up call, send proposal..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+    </div>
+    <div class="flex gap-2 mt-5"><button @click="showLeadModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveLead()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save Lead</button></div>
+  </div>
+</div>
+
+<!-- Assembly Modal -->
+<div x-show="showAssemblyModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showAssemblyModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-puzzle-piece mr-2 text-blue-600"></i>New Assembly</h3><button @click="showAssemblyModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Assembly Name *</label><input x-model="assemblyForm.name" type="text" placeholder="Concrete Footing, Wood Frame Wall..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Trade Category</label><input x-model="assemblyForm.trade_category" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Unit of Assembly</label><input x-model="assemblyForm.unit" type="text" placeholder="per SF, per LF, per unit" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5"><button @click="showAssemblyModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveAssembly()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Create</button></div>
+  </div>
+</div>
+
+<!-- Assembly Item Modal -->
+<div x-show="showAssemblyItemModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showAssemblyItemModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-plus mr-2"></i>Add Assembly Item</h3><button @click="showAssemblyItemModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-600 mb-1">Division</label><input x-model="asmItemForm.division" type="text" placeholder="03 30 00" class="w-full border rounded-lg px-3 py-2 text-sm" /></div><div><label class="block text-xs font-medium text-gray-600 mb-1">Unit</label><input x-model="asmItemForm.unit" type="text" placeholder="SF, LF, EA" class="w-full border rounded-lg px-3 py-2 text-sm" /></div></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Description *</label><input x-model="asmItemForm.description" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div class="grid grid-cols-3 gap-2"><div><label class="block text-xs text-gray-500 mb-1">Quantity</label><input x-model="asmItemForm.quantity" type="number" step="0.01" class="w-full border rounded-lg px-2 py-2 text-sm" /></div><div><label class="block text-xs text-gray-500 mb-1">Unit Cost ($)</label><input x-model="asmItemForm.unit_cost" type="number" step="0.01" class="w-full border rounded-lg px-2 py-2 text-sm" /></div><div><label class="block text-xs text-gray-500 mb-1">Total ($)</label><input x-model="asmItemForm.total_cost" type="number" step="1" class="w-full border rounded-lg px-2 py-2 text-sm" /></div></div>
+    </div>
+    <div class="flex gap-2 mt-5"><button @click="showAssemblyItemModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveAssemblyItem()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Add</button></div>
+  </div>
+</div>
+
+<!-- Procurement Modal -->
+<div x-show="showProcurementModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showProcurementModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-truck-fast mr-2 text-green-600"></i><span x-text="procEditId?'Edit Item':'Add Procurement Item'"></span></h3><button @click="showProcurementModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-600 mb-1">Item Name *</label><input x-model="procForm.item_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm" /></div><div><label class="block text-xs font-medium text-gray-600 mb-1">Vendor</label><input x-model="procForm.vendor_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm" /></div></div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Lead Time (wks)</label><input x-model="procForm.lead_time_weeks" type="number" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Order Date</label><input x-model="procForm.order_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Required On Site</label><input x-model="procForm.required_on_site_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Total Cost ($)</label><input x-model="procForm.total_cost" type="number" step="100" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label><select x-model="procForm.status" class="w-full border rounded-lg px-3 py-2 text-sm"><option value="to_order">To Order</option><option value="ordered">Ordered</option><option value="in_transit">In Transit</option><option value="delivered">Delivered</option><option value="delayed">Delayed</option><option value="cancelled">Cancelled</option></select></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5"><button @click="showProcurementModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveProcurement()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700">Save</button></div>
+  </div>
+</div>
+
+<!-- VE Modal -->
+<div x-show="showVEModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showVEModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-circle-minus mr-2 text-green-600"></i><span x-text="veEditId?'Edit VE Item':'Add VE Item'"></span></h3><button @click="showVEModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Description *</label><input x-model="veForm.description" type="text" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Original Specification</label><textarea x-model="veForm.original_spec" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm"></textarea></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Proposed Alternate</label><textarea x-model="veForm.proposed_alternate" rows="2" class="w-full border rounded-lg px-3 py-2 text-sm"></textarea></div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Original Cost ($)</label><input x-model="veForm.original_cost" type="number" step="1000" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Alternate Cost ($)</label><input x-model="veForm.alternate_cost" type="number" step="1000" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label><select x-model="veForm.status" class="w-full border rounded-lg px-3 py-2 text-sm"><option value="proposed">Proposed</option><option value="under_review">Under Review</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option></select></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5"><button @click="showVEModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveVE()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700">Save</button></div>
+  </div>
+</div>
+
+<!-- CCDC Modal -->
+<div x-show="showCCDCModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showCCDCModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-file-lines mr-2 text-blue-600"></i>Add CCDC Contract</h3><button @click="showCCDCModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">CCDC Type *</label><select x-model="ccdcForm.ccdc_type" class="w-full border rounded-lg px-3 py-2 text-sm"><option value="CCDC2">CCDC 2 – Stipulated Price</option><option value="CCDC4">CCDC 4 – Unit Price</option><option value="CCDC5A">CCDC 5A – CM Services</option><option value="CCDC5B">CCDC 5B – CM Trade</option><option value="CCDC14">CCDC 14 – Design-Build</option><option value="CCDC17">CCDC 17 – Trade Subcontract</option><option value="CCDC30">CCDC 30 – Integrated</option><option value="other">Other</option></select></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Contract Value ($)</label><input x-model="ccdcForm.contract_value" type="number" step="10000" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-600 mb-1">Contractor Name</label><input x-model="ccdcForm.contractor_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm" /></div><div><label class="block text-xs font-medium text-gray-600 mb-1">Execution Date</label><input x-model="ccdcForm.execution_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm" /></div></div>
+      <div class="flex gap-4">
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="ccdcForm.insurance_required" class="rounded" /><span>Insurance Required</span></label>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="ccdcForm.bond_required" class="rounded" /><span>Bond Required</span></label>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5"><button @click="showCCDCModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveCCDC()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save</button></div>
+  </div>
+</div>
+
+<!-- Unit Modal -->
+<div x-show="showUnitModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showUnitModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-building mr-2 text-blue-600"></i><span x-text="unitEditId?'Edit Unit':'Add Unit'"></span></h3><button @click="showUnitModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-600 mb-1">Unit # *</label><input x-model="unitForm.unit_number" type="text" placeholder="101, 2A, PH-1..." class="w-full border rounded-lg px-3 py-2 text-sm" /></div><div><label class="block text-xs font-medium text-gray-600 mb-1">Type</label><select x-model="unitForm.unit_type" class="w-full border rounded-lg px-3 py-2 text-sm"><option value="studio">Studio</option><option value="1br">1 Bed</option><option value="2br">2 Bed</option><option value="3br">3 Bed</option><option value="townhome">Townhome</option><option value="penthouse">Penthouse</option><option value="commercial">Commercial</option></select></div></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-600 mb-1">Floor Area (SF)</label><input x-model="unitForm.floor_area_sf" type="number" class="w-full border rounded-lg px-3 py-2 text-sm" /></div><div><label class="block text-xs font-medium text-gray-600 mb-1">List Price ($)</label><input x-model="unitForm.list_price" type="number" step="1000" class="w-full border rounded-lg px-3 py-2 text-sm" /></div></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-600 mb-1">Sale Price ($)</label><input x-model="unitForm.sale_price" type="number" step="1000" class="w-full border rounded-lg px-3 py-2 text-sm" /></div><div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label><select x-model="unitForm.status" class="w-full border rounded-lg px-3 py-2 text-sm"><option value="available">Available</option><option value="reserved">Reserved</option><option value="sold">Sold</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option></select></div></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Buyer Name</label><input x-model="unitForm.buyer_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+    </div>
+    <div class="flex gap-2 mt-5"><button @click="showUnitModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveUnit()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save</button></div>
+  </div>
+</div>
+
+<!-- Client Payment Modal -->
+<div x-show="showCPModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showCPModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-money-bill-wave mr-2 text-green-600"></i><span x-text="cpEditId?'Edit Milestone':'Add Payment Milestone'"></span></h3><button @click="showCPModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Milestone Name *</label><input x-model="cpForm.milestone_name" type="text" placeholder="Deposit, Foundation Complete, Framing Complete..." class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-600 mb-1">Amount ($)</label><input x-model="cpForm.amount" type="number" step="1000" class="w-full border rounded-lg px-3 py-2 text-sm" /></div><div><label class="block text-xs font-medium text-gray-600 mb-1">% of Contract</label><input x-model="cpForm.percentage_of_contract" type="number" step="0.5" class="w-full border rounded-lg px-3 py-2 text-sm" /></div></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-600 mb-1">Due Date</label><input x-model="cpForm.due_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm" /></div><div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label><select x-model="cpForm.status" class="w-full border rounded-lg px-3 py-2 text-sm"><option value="pending">Pending</option><option value="invoiced">Invoiced</option><option value="paid">Paid</option></select></div></div>
+    </div>
+    <div class="flex gap-2 mt-5"><button @click="showCPModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveClientPayment()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700">Save</button></div>
   </div>
 </div>
 
