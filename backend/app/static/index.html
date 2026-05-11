@@ -51,9 +51,10 @@
   <script src="/static/js/flatpickr.min.js"></script>
   <link rel="stylesheet" href="/static/css/style.css?v=20260601" />
 
-  <!-- PWA -->
+  <!-- PWA + Offline -->
   <link rel="manifest" href="/static/manifest.json" />
   <meta name="theme-color" content="#0f172a" />
+  <script src="/static/js/offline.js" defer></script>
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Finel Finance" />
@@ -683,6 +684,15 @@
   ══════════════════════════════════════════════════════════════ -->
   <div x-show="!['login','landing','forgot-password','reset-password','signup','accept-invite'].includes(view)" class="flex flex-col h-screen overflow-hidden">
 
+    <!-- ── OFFLINE INDICATOR ─────────────────────────────────────── -->
+    <div x-data="{ online: navigator.onLine, queued: 0 }"
+         x-init="window.addEventListener('online',()=>{online=true}); window.addEventListener('offline',()=>{online=false}); window.FinelOffline?.on('queue_update',d=>{queued=d.count})"
+         x-show="!online || queued>0" x-cloak
+         class="bg-amber-500 text-amber-950 text-xs font-semibold px-4 py-1.5 flex items-center gap-2 justify-center">
+      <i class="fa-solid" :class="online?'fa-cloud-arrow-up':'fa-wifi-slash'"></i>
+      <span x-text="online?'Back online — syncing '+queued+' queued request'+(queued!==1?'s':'')+'…':'Offline mode — changes will sync when connection returns'"></span>
+    </div>
+
     <!-- ── MOBILE TOP BAR (hidden on lg+) ──────────────────────────── -->
     <div class="lg:hidden flex items-center h-14 px-3 bg-slate-900 text-white flex-shrink-0 z-40 gap-2 pt-safe">
       <button @click="sidebarOpen=!sidebarOpen" class="btn-icon-xs p-2.5 rounded-lg hover:bg-slate-700 transition text-white">
@@ -881,6 +891,9 @@
               <button @click="view='cash-flow-scurve'; loadScurve(); sidebarOpen=false" :class="view==='cash-flow-scurve'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
                 <i class="fa-solid fa-wave-square w-4"></i> Cash Flow S-Curve
               </button>
+              <button @click="view='syndicate'; loadSyndicates(); sidebarOpen=false" :class="view==='syndicate'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-building-columns w-4"></i> Loan Syndication
+              </button>
               <button @click="view='prequal'; loadPrequals(); sidebarOpen=false" :class="view==='prequal'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
                 <i class="fa-solid fa-user-check w-4"></i>
                 <span class="flex-1 text-left">Sub Prequalification</span>
@@ -979,6 +992,9 @@
             <button @click="view='spec-review'; loadSpecReviews(); sidebarOpen=false" :class="view==='spec-review'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-file-magnifying-glass w-4"></i> AI Spec Review
             </button>
+            <button @click="view='ai-schedule'; generatedSchedule=null; sidebarOpen=false" :class="view==='ai-schedule'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-calendar-days w-4"></i> AI Schedule Gen
+            </button>
             <button @click="view='union'; loadUnions(); sidebarOpen=false" :class="view==='union'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-people-group w-4"></i> Union Compliance
             </button>
@@ -1037,6 +1053,11 @@
           </button>
           <button x-show="['owner','admin','finance_admin','pm_admin'].includes(currentOrg?.role) || user?.is_admin" @click="view='audit-log'; loadAuditLog(); sidebarOpen=false" :class="view==='audit-log'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
             <i class="fa-solid fa-scroll w-4"></i> Audit Log
+          </button>
+          <button x-show="['owner','admin','finance_admin'].includes(currentOrg?.role) || user?.is_admin" @click="view='erp-integrations'; loadERPCredentials(); sidebarOpen=false" :class="view==='erp-integrations'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+            <i class="fa-solid fa-plug w-4"></i>
+            <span class="flex-1 text-left">ERP Integrations</span>
+            <span x-show="erpCredentials.filter(c=>c.is_active).length>0" x-text="erpCredentials.filter(c=>c.is_active).length" class="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded-full font-bold"></span>
           </button>
           <button @click="view='settings'; sidebarOpen=false" :class="view==='settings'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
             <i class="fa-solid fa-gear w-4"></i> Settings
@@ -6853,6 +6874,170 @@
         </div>
       </div><!-- /closeout -->
 
+      <!-- ── LOAN SYNDICATION ────────────────────────────────────────── -->
+      <div x-show="view==='syndicate'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-building-columns mr-2 text-blue-600"></i>Loan Syndication</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <button @click="syndicateForm={facility_name:'',total_commitment:'',currency:'CAD',lead_lender:'',closing_date:'',maturity_date:'',interest_rate:'',notes:''}; syndicateEditId=null; showSyndicateModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Facility</button>
+        </div>
+        <div x-show="syndicatesLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!syndicatesLoading" class="space-y-5">
+          <template x-for="syn in syndicates" :key="syn.id">
+            <div class="bg-white border rounded-xl p-5">
+              <div class="flex items-start justify-between mb-4">
+                <div>
+                  <div class="font-bold text-gray-800 text-lg" x-text="syn.facility_name"></div>
+                  <div class="text-xs text-gray-400 mt-0.5">
+                    <span x-show="syn.lead_lender">Lead: <span x-text="syn.lead_lender"></span> · </span>
+                    <span x-text="syn.currency+' '+syn.total_commitment.toLocaleString('en-CA',{maximumFractionDigits:0})"></span>
+                    <span x-show="syn.interest_rate"> · <span x-text="syn.interest_rate+'% p.a.'"></span></span>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <button @click="openDrawReport(syn)" class="text-xs text-blue-500 hover:text-blue-700 font-semibold">Draw Report</button>
+                  <button @click="editSyndicate(syn)" class="text-xs text-blue-500 hover:text-blue-700">Edit</button>
+                  <button @click="deleteSyndicate(syn.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                </div>
+              </div>
+              <!-- Participants table -->
+              <table class="w-full text-sm mb-3">
+                <thead class="bg-gray-50 border-b border-t"><tr>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Lender</th>
+                  <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Share %</th>
+                  <th class="text-right px-3 py-2 text-xs font-semibold text-gray-500">Commitment</th>
+                  <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Contact</th>
+                  <th class="px-3 py-2"></th>
+                </tr></thead>
+                <tbody class="divide-y">
+                  <template x-for="p in syn.participants" :key="p.id">
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-3 py-2 font-medium" x-text="p.lender_name"></td>
+                      <td class="px-3 py-2 text-right text-xs" x-text="p.participation_pct+'%'"></td>
+                      <td class="px-3 py-2 text-right text-xs font-semibold" x-text="'$'+p.commitment_amount.toLocaleString('en-CA',{maximumFractionDigits:0})"></td>
+                      <td class="px-3 py-2 text-xs text-gray-400" x-text="p.contact_email||p.contact_name||'—'"></td>
+                      <td class="px-3 py-2">
+                        <button @click="deleteSynParticipant(syn.id,p.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                      </td>
+                    </tr>
+                  </template>
+                  <tr x-show="!syn.participants.length"><td colspan="5" class="px-3 py-3 text-center text-gray-400 text-xs">No participants yet.</td></tr>
+                </tbody>
+              </table>
+              <div class="flex items-center justify-between text-xs">
+                <span :class="Math.abs(100-syn.total_pct_allocated)<0.1?'text-green-600':'text-amber-600'" x-text="syn.total_pct_allocated+'% allocated'+((100-syn.total_pct_allocated)>0.1?' ('+syn.unallocated_pct+'% unallocated)':'')"></span>
+                <button @click="addParticipantForm={syndicate_id:syn.id,lender_name:'',participation_pct:'',contact_email:'',reporting_email:''}; showParticipantModal=true" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">+ Add Lender</button>
+              </div>
+            </div>
+          </template>
+          <div x-show="syndicates.length===0" class="text-center text-gray-400 text-sm py-8">No syndicated facilities. Add a loan syndicate to track participant shares and draw allocations.</div>
+        </div>
+      </div><!-- /syndicate -->
+
+      <!-- ── ERP INTEGRATIONS ────────────────────────────────────────── -->
+      <div x-show="view==='erp-integrations'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-plug mr-2 text-blue-600"></i>ERP Integrations</h2>
+            <p class="text-sm text-gray-500">Connect to your accounting system — all connectors are built and ready for credentials</p>
+          </div>
+          <button @click="view='accounting-exports'" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-file-export mr-1"></i>CSV Exports</button>
+        </div>
+        <!-- Configured integrations -->
+        <div x-show="erpCredentials.length>0" class="space-y-3 mb-6">
+          <h3 class="font-semibold text-gray-700">Configured Integrations</h3>
+          <template x-for="cred in erpCredentials" :key="cred.id">
+            <div class="bg-white border rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <div class="font-semibold text-gray-800" x-text="cred.label"></div>
+                <div class="text-xs text-gray-400 mt-0.5" x-text="cred.erp_name"></div>
+                <div x-show="cred.last_sync" class="text-xs mt-0.5" :class="cred.last_sync_status==='success'?'text-green-600':'text-red-500'" x-text="cred.last_sync_status==='success'?'✓ Last sync: '+cred.last_sync?.slice(0,10):'⚠ Last sync failed: '+cred.sync_log?.slice(0,60)"></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-0.5 rounded-full font-semibold" :class="cred.is_active?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'" x-text="cred.is_active?'Active':'Not tested'"></span>
+                <button @click="testERPConnection(cred.id)" :disabled="erpTesting===cred.id" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg font-semibold">
+                  <span x-text="erpTesting===cred.id?'Testing…':'Test'"></span>
+                </button>
+                <button @click="syncERPInvoices(cred.id)" x-show="cred.is_active" class="text-xs px-2 py-1 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg font-semibold">Sync</button>
+                <button @click="deleteERPCredential(cred.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+              </div>
+            </div>
+          </template>
+        </div>
+        <!-- Available ERP types -->
+        <h3 class="font-semibold text-gray-700 mb-3">Add Integration</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <template x-for="erp in erpTypes" :key="erp.type">
+            <div class="bg-white border rounded-xl p-4 flex items-start gap-3">
+              <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid text-blue-600" :class="erp.logo_icon"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-semibold text-gray-800 text-sm" x-text="erp.name"></div>
+                <div class="text-xs text-gray-400 mt-0.5 truncate" x-text="erp.description"></div>
+              </div>
+              <button @click="openERPSetup(erp)" class="text-xs px-2 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex-shrink-0" x-text="erpCredentials.find(c=>c.erp_type===erp.type)?'Edit':'Connect'"></button>
+            </div>
+          </template>
+        </div>
+      </div><!-- /erp-integrations -->
+
+      <!-- ── AI SCHEDULE GENERATION ──────────────────────────────────── -->
+      <div x-show="view==='ai-schedule'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-calendar-days mr-2 text-green-600"></i>AI Schedule Generation</h2>
+            <p class="text-sm text-gray-500">Upload a drawing or spec PDF — Gemini generates a full construction schedule ready to import</p>
+          </div>
+          <label class="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer" :class="aiSchedLoading?'opacity-50 pointer-events-none':''">
+            <i class="fa-solid" :class="aiSchedLoading?'fa-spinner fa-spin':'fa-cloud-arrow-up'"></i>
+            <span x-text="aiSchedLoading?'Generating…':'Upload Drawing / Spec'"></span>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" class="hidden" @change="generateSchedule($event.target.files[0])" :disabled="aiSchedLoading" />
+          </label>
+        </div>
+        <div x-show="aiSchedLoading" class="bg-green-50 border border-green-100 rounded-xl p-6 text-center text-green-700 mb-4">
+          <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><br>
+          Gemini is analyzing the drawing and generating a construction schedule. This may take 30-60 seconds...
+        </div>
+        <div x-show="generatedSchedule && !aiSchedLoading" x-cloak>
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-sm text-gray-600"><span class="font-bold text-gray-800" x-text="generatedSchedule?.count"></span> tasks generated from <span x-text="generatedSchedule?.source_file"></span></div>
+            <button @click="importSchedule()" class="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition font-semibold"><i class="fa-solid fa-file-import mr-1"></i>Import All to Tasks</button>
+          </div>
+          <div class="bg-white border rounded-xl overflow-hidden">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 border-b"><tr>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">#</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Task</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Trade</th>
+                <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Duration</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Start</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">End</th>
+                <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Priority</th>
+              </tr></thead>
+              <tbody class="divide-y">
+                <template x-for="(t, i) in generatedSchedule?.tasks||[]" :key="i">
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2.5 text-xs text-gray-400" x-text="i+1"></td>
+                    <td class="px-4 py-2.5 text-sm font-medium" x-text="t.title"></td>
+                    <td class="px-4 py-2.5 text-xs text-gray-500" x-text="t.trade||'—'"></td>
+                    <td class="px-4 py-2.5 text-right text-xs" x-text="t.duration_days+'d'"></td>
+                    <td class="px-4 py-2.5 text-xs text-gray-400" x-text="t.start_date"></td>
+                    <td class="px-4 py-2.5 text-xs text-gray-400" x-text="t.end_date"></td>
+                    <td class="px-4 py-2.5"><span class="text-xs px-1.5 py-0.5 rounded font-semibold"
+                      :class="t.priority==='high'?'bg-red-100 text-red-700':t.priority==='low'?'bg-gray-100 text-gray-500':'bg-amber-100 text-amber-700'"
+                      x-text="t.priority||'medium'"></span></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div x-show="!generatedSchedule && !aiSchedLoading" class="text-center text-gray-400 py-12">Upload a drawing (image or PDF) to generate an AI-powered construction schedule.</div>
+      </div><!-- /ai-schedule -->
+
       <!-- ── AI CONSTRUCTION ACCOUNTANT ────────────────────────────── -->
       <div x-show="view==='health-check'" class="p-6 max-w-4xl">
         <div class="flex items-center justify-between mb-6">
@@ -9579,6 +9764,86 @@
     <div class="flex gap-2 mt-5">
       <button @click="showCloseoutModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
       <button @click="saveCloseoutItem()" class="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900">Add Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- Syndicate Modal -->
+<div x-show="showSyndicateModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showSyndicateModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-building-columns mr-2 text-blue-600"></i><span x-text="syndicateEditId?'Edit Facility':'Add Loan Facility'"></span></h3>
+      <button @click="showSyndicateModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Facility Name *</label><input x-model="syndicateForm.facility_name" type="text" placeholder="Construction Facility A" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Total Commitment ($) *</label><input x-model="syndicateForm.total_commitment" type="number" step="100000" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Lead Lender</label><input x-model="syndicateForm.lead_lender" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Interest Rate (%)</label><input x-model="syndicateForm.interest_rate" type="number" step="0.01" placeholder="7.5" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Closing Date</label><input x-model="syndicateForm.closing_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Maturity Date</label><input x-model="syndicateForm.maturity_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showSyndicateModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveSyndicate()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Participant Modal -->
+<div x-show="showParticipantModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showParticipantModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-plus mr-2 text-blue-600"></i>Add Lender Participant</h3>
+      <button @click="showParticipantModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Lender Name *</label><input x-model="addParticipantForm.lender_name" type="text" placeholder="TD Bank" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Participation % *</label><input x-model="addParticipantForm.participation_pct" type="number" step="0.1" max="100" placeholder="40" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Reporting Email</label><input x-model="addParticipantForm.reporting_email" type="email" placeholder="construction.finance@tdbank.com" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Contact Email</label><input x-model="addParticipantForm.contact_email" type="email" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showParticipantModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="addSynParticipant()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Add Lender</button>
+    </div>
+  </div>
+</div>
+
+<!-- ERP Setup Modal -->
+<div x-show="showERPSetupModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showERPSetupModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h3 class="text-lg font-bold text-gray-800" x-text="erpSetupType?.name"></h3>
+        <p class="text-xs text-gray-400 mt-0.5" x-text="erpSetupType?.description"></p>
+      </div>
+      <button @click="showERPSetupModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Label</label><input x-model="erpSetupForm.label" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      <template x-for="field in erpSetupType?.credential_fields||[]" :key="field.key">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1" x-text="field.label"></label>
+          <input
+            :type="field.type||'text'"
+            :placeholder="field.placeholder||''"
+            @input="field.key==='endpoint_url' ? erpSetupForm.endpoint_url=$event.target.value : erpSetupForm.credentials[field.key]=$event.target.value"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
+      </template>
+      <div x-show="erpSetupType?.docs_url" class="text-xs text-gray-400">
+        <a :href="erpSetupType?.docs_url" target="_blank" class="text-blue-500 hover:underline">View API documentation <i class="fa-solid fa-arrow-up-right-from-square ml-0.5"></i></a>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showERPSetupModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveERPCredential()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save Credentials</button>
     </div>
   </div>
 </div>

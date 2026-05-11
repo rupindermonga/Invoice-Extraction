@@ -208,6 +208,23 @@ function app() {
     // ── Cash Flow S-Curve ──────────────────────────────────────────
     scurveData: null, scurveLoading: false,
 
+    // ── Loan Syndication ───────────────────────────────────────────
+    syndicates: [], syndicatesLoading: false,
+    showSyndicateModal: false, syndicateEditId: null,
+    syndicateForm: { facility_name:'', total_commitment:'', currency:'CAD', lead_lender:'', closing_date:'', maturity_date:'', interest_rate:'', notes:'' },
+    showParticipantModal: false,
+    addParticipantForm: { syndicate_id:null, lender_name:'', participation_pct:'', contact_email:'', reporting_email:'' },
+    activeSyndicateDrawReport: null,
+
+    // ── ERP Integrations ───────────────────────────────────────────
+    erpTypes: [], erpCredentials: [],
+    erpTesting: null,
+    showERPSetupModal: false, erpSetupType: null,
+    erpSetupForm: { label:'', endpoint_url:'', credentials:{} },
+
+    // ── AI Schedule Generation ─────────────────────────────────────
+    generatedSchedule: null, aiSchedLoading: false,
+
     // ── Sub Prequalification ───────────────────────────────────────
     prequals: [], prequalsLoading: false,
 
@@ -3422,6 +3439,142 @@ function app() {
     },
     async deleteCloseoutItem(id) {
       try { await this.delete(`/api/project/${this.currentProject.id}/closeout/${id}`); await this.loadCloseout(); } catch(e) {}
+    },
+
+    // ── Loan Syndication ─────────────────────────────────────────────
+    async loadSyndicates() {
+      if (!this.currentProject) return;
+      this.syndicatesLoading = true;
+      try { this.syndicates = await this.get(`/api/project/${this.currentProject.id}/syndicates`); } catch(e) { this.syndicates = []; }
+      finally { this.syndicatesLoading = false; }
+    },
+    editSyndicate(s) {
+      this.syndicateEditId = s.id;
+      this.syndicateForm = { facility_name:s.facility_name, total_commitment:s.total_commitment, currency:s.currency, lead_lender:s.lead_lender||'', closing_date:s.closing_date||'', maturity_date:s.maturity_date||'', interest_rate:s.interest_rate||'', notes:s.notes||'' };
+      this.showSyndicateModal = true;
+    },
+    async saveSyndicate() {
+      if (!this.currentProject || !this.syndicateForm.facility_name.trim()) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.syndicateEditId) await this.put(`/api/project/${pid}/syndicates/${this.syndicateEditId}`, this.syndicateForm);
+        else await this.post(`/api/project/${pid}/syndicates`, this.syndicateForm);
+        this.showSyndicateModal = false; this.syndicateEditId = null;
+        await this.loadSyndicates();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteSyndicate(id) {
+      if (!confirm('Delete this loan facility?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/syndicates/${id}`); await this.loadSyndicates(); } catch(e) {}
+    },
+    async addSynParticipant() {
+      const f = this.addParticipantForm;
+      if (!f.lender_name.trim() || !f.participation_pct) return;
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/syndicates/${f.syndicate_id}/participants`, f);
+        this.showParticipantModal = false;
+        await this.loadSyndicates();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteSynParticipant(synId, partId) {
+      try { await this.delete(`/api/project/${this.currentProject.id}/syndicates/${synId}/participants/${partId}`); await this.loadSyndicates(); } catch(e) {}
+    },
+    async openDrawReport(syn) {
+      try {
+        const report = await this.get(`/api/project/${this.currentProject.id}/syndicates/${syn.id}/draw-report`);
+        const html = `<html><head><title>Draw Report — ${syn.facility_name}</title>
+<style>body{font-family:Arial;padding:24px}table{width:100%;border-collapse:collapse;margin-bottom:20px}th,td{border:1px solid #ddd;padding:8px 12px;text-align:left}th{background:#f5f5f5;font-size:12px}h2{font-size:18px}h3{font-size:14px;color:#666}</style></head><body>
+<h2>${report.facility.name}</h2><p>Lead: ${report.facility.lead_lender||'—'} · Total: $${report.facility.total_commitment?.toLocaleString('en-CA',{maximumFractionDigits:0})}</p>
+<h3>Cumulative Lender Positions</h3><table><tr><th>Lender</th><th>Share %</th><th>Total Approved Share</th><th>Commitment</th><th>Utilization</th></tr>
+${report.cumulative.map(c=>`<tr><td>${c.lender}</td><td>${c.pct}%</td><td>$${c.total_approved_share?.toLocaleString('en-CA',{maximumFractionDigits:0})}</td><td>$${c.commitment?.toLocaleString('en-CA',{maximumFractionDigits:0})}</td><td>${c.utilization_pct}%</td></tr>`).join('')}
+</table><h3>Draw-by-Draw Allocation</h3>
+${report.draws.map(d=>`<h4>Draw #${d.draw_number} (${d.status}) — Submitted: $${d.total_submitted?.toLocaleString('en-CA',{maximumFractionDigits:0})} | Approved: $${d.total_approved?.toLocaleString('en-CA',{maximumFractionDigits:0})}</h4>
+<table><tr><th>Lender</th><th>%</th><th>Submitted Share</th><th>Approved Share</th></tr>
+${d.participant_shares?.map(p=>`<tr><td>${p.lender}</td><td>${p.pct}%</td><td>$${p.submitted_share?.toLocaleString('en-CA',{maximumFractionDigits:0})}</td><td>$${p.approved_share?.toLocaleString('en-CA',{maximumFractionDigits:0})}</td></tr>`).join('')}
+</table>`).join('')}
+</body></html>`;
+        const blob = new Blob([html], {type:'text/html'});
+        window.open(URL.createObjectURL(blob), '_blank');
+      } catch(e) { alert('Could not load draw report: '+e.message); }
+    },
+
+    // ── ERP Integrations ─────────────────────────────────────────────
+    async loadERPTypes() {
+      try { this.erpTypes = await this.get('/api/erp/types'); } catch(e) { this.erpTypes = []; }
+    },
+    async loadERPCredentials() {
+      try {
+        this.erpCredentials = await this.get('/api/erp/credentials');
+        if (!this.erpTypes.length) await this.loadERPTypes();
+      } catch(e) { this.erpCredentials = []; }
+    },
+    openERPSetup(erp) {
+      this.erpSetupType = erp;
+      const existing = this.erpCredentials.find(c => c.erp_type === erp.type);
+      this.erpSetupForm = { label: existing?.label || erp.name, endpoint_url: existing?.endpoint_url || '', credentials: {} };
+      this.showERPSetupModal = true;
+    },
+    async saveERPCredential() {
+      if (!this.erpSetupType) return;
+      try {
+        await this.post('/api/erp/credentials', {
+          erp_type: this.erpSetupType.type,
+          label: this.erpSetupForm.label,
+          endpoint_url: this.erpSetupForm.endpoint_url,
+          credentials: this.erpSetupForm.credentials,
+        });
+        this.showERPSetupModal = false;
+        await this.loadERPCredentials();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async testERPConnection(credId) {
+      this.erpTesting = credId;
+      try {
+        const r = await this.post(`/api/erp/credentials/${credId}/test`, {});
+        alert(r.message);
+        await this.loadERPCredentials();
+      } catch(e) { alert(e.message||'Test failed'); }
+      finally { this.erpTesting = null; }
+    },
+    async syncERPInvoices(credId) {
+      const pid = this.currentProject?.id;
+      try {
+        const r = await this.post(`/api/erp/credentials/${credId}/sync/invoices`, { project_id: pid });
+        alert(r.message);
+        await this.loadERPCredentials();
+      } catch(e) { alert(e.message||'Sync failed'); }
+    },
+    async deleteERPCredential(id) {
+      if (!confirm('Remove this ERP integration?')) return;
+      try { await this.delete(`/api/erp/credentials/${id}`); await this.loadERPCredentials(); } catch(e) {}
+    },
+
+    // ── AI Schedule Generation ────────────────────────────────────────
+    async generateSchedule(file) {
+      if (!file || !this.currentProject) return;
+      this.aiSchedLoading = true;
+      this.generatedSchedule = null;
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const r = await fetch(`/api/project/${this.currentProject.id}/generate-schedule`, {
+          method: 'POST', headers: { Authorization: 'Bearer ' + this.token }, body: fd
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || 'Generation failed');
+        this.generatedSchedule = data;
+      } catch(e) { alert(e.message||'Schedule generation failed'); }
+      finally { this.aiSchedLoading = false; }
+    },
+    async importSchedule() {
+      if (!this.generatedSchedule || !this.currentProject) return;
+      try {
+        const r = await this.post(`/api/project/${this.currentProject.id}/generate-schedule/import`, { tasks: this.generatedSchedule.tasks });
+        alert(`✓ Imported ${r.imported} tasks into your project. Go to Tasks to review and adjust.`);
+        this.generatedSchedule = null;
+        this.view = 'pm-tasks';
+        await this.loadPMTasks();
+      } catch(e) { alert(e.message||'Import failed'); }
     },
 
     // ── ERP Exports ──────────────────────────────────────────────────

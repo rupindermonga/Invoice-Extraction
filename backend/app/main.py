@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release, spec_review, prequalification, client_hub
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release, spec_review, prequalification, client_hub, syndicate, erp_integration
 
 
 def _run_migrations():
@@ -802,6 +802,49 @@ def _run_migrations():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )""",
             "CREATE INDEX IF NOT EXISTS ix_closeout_project ON closeout_items(project_id)",
+            # Syndicated Loans
+            """CREATE TABLE IF NOT EXISTS loan_syndicates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                facility_name TEXT NOT NULL,
+                total_commitment REAL NOT NULL,
+                currency TEXT DEFAULT 'CAD',
+                lead_lender TEXT,
+                closing_date TEXT, maturity_date TEXT,
+                interest_rate REAL, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS syndicate_participants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                syndicate_id INTEGER NOT NULL REFERENCES loan_syndicates(id) ON DELETE CASCADE,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                lender_name TEXT NOT NULL,
+                participation_pct REAL NOT NULL,
+                commitment_amount REAL,
+                contact_name TEXT, contact_email TEXT, reporting_email TEXT,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_loan_syndicates_project ON loan_syndicates(project_id)",
+            # ERP Credentials
+            """CREATE TABLE IF NOT EXISTS erp_credentials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                erp_type TEXT NOT NULL,
+                label TEXT NOT NULL,
+                endpoint_url TEXT,
+                credentials JSON,
+                is_active INTEGER DEFAULT 0,
+                last_sync DATETIME,
+                last_sync_status TEXT,
+                sync_log TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_erp_credentials_org ON erp_credentials(org_id)",
             # Vendor Scores
             """CREATE TABLE IF NOT EXISTS vendor_scores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -967,6 +1010,8 @@ app.include_router(client_hub.router)
 app.include_router(client_hub._weather_router)
 app.include_router(client_hub._union_router)
 app.include_router(client_hub._closeout_router)
+app.include_router(syndicate.router)
+app.include_router(erp_integration.router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")

@@ -1577,3 +1577,70 @@ class CloseoutItem(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
 
     creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Syndicated Loan Servicing ────────────────────────────────────────────────
+
+class LoanSyndicate(Base):
+    """Syndicated loan — multiple lenders sharing a single construction facility."""
+    __tablename__ = "loan_syndicates"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    facility_name    = Column(String, nullable=False)
+    total_commitment = Column(Float, nullable=False)
+    currency         = Column(String, default="CAD")
+    lead_lender      = Column(String, nullable=True)
+    closing_date     = Column(String, nullable=True)
+    maturity_date    = Column(String, nullable=True)
+    interest_rate    = Column(Float, nullable=True)
+    notes            = Column(Text, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+    syn_creator  = relationship("User", foreign_keys=[created_by])
+    participants = relationship("SyndicateParticipant", back_populates="syndicate",
+                                cascade="all, delete-orphan")
+
+
+class SyndicateParticipant(Base):
+    """A lender's participation stake in a syndicated loan."""
+    __tablename__ = "syndicate_participants"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    syndicate_id       = Column(Integer, ForeignKey("loan_syndicates.id"), nullable=False, index=True)
+    org_id             = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    lender_name        = Column(String, nullable=False)
+    participation_pct  = Column(Float, nullable=False)
+    commitment_amount  = Column(Float, nullable=True)
+    contact_name       = Column(String, nullable=True)
+    contact_email      = Column(String, nullable=True)
+    reporting_email    = Column(String, nullable=True)
+    notes              = Column(Text, nullable=True)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+
+    syndicate = relationship("LoanSyndicate", back_populates="participants")
+
+
+# ─── ERP Integration Credentials ─────────────────────────────────────────────
+
+class ERPCredential(Base):
+    """ERP/accounting integration credentials — org-scoped, ready for last-mile config."""
+    __tablename__ = "erp_credentials"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    erp_type         = Column(String, nullable=False)   # acumatica | cmic | sage_intacct | dynamics365 | netsuite | jonas | foundation | sage300
+    label            = Column(String, nullable=False)
+    endpoint_url     = Column(String, nullable=True)
+    credentials      = Column(JSON, nullable=True)      # auth fields dict (type-specific)
+    is_active        = Column(Boolean, default=False)
+    last_sync        = Column(DateTime, nullable=True)
+    last_sync_status = Column(String, nullable=True)    # success | error | pending
+    sync_log         = Column(Text, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    erp_creator = relationship("User", foreign_keys=[created_by])
