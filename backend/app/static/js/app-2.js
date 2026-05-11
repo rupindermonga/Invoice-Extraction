@@ -909,53 +909,54 @@ function app() {
 
     // ── Init ──────────────────────────────────────────────────────
     async init() {
-      // Handle deep-link routes: /reset-password, /signup, /accept-invite
       const path = window.location.pathname.replace(/^\//, '');
+
+      // ── Dedicated /demo route — auto-launch demo ──────────────────
+      if (path === 'demo') {
+        this.demoLoading = true;
+        try {
+          const res = await fetch('/api/auth/demo', { method: 'POST' });
+          if (!res.ok) { this.view = 'landing'; window.location.href = '/'; return; }
+          const data = await res.json();
+          // setAuth without touching URL (we stay at /demo)
+          this.token = data.access_token;
+          this.user = data.user;
+          this.orgs = data.orgs || [];
+          const savedOrgId = parseInt(localStorage.getItem('currentOrgId'));
+          this.currentOrg = (savedOrgId && this.orgs.find(o => o.id === savedOrgId))
+            || (data.active_org_id && this.orgs.find(o => o.id === data.active_org_id))
+            || this.orgs[0] || null;
+          // Do NOT save demo token to localStorage — demo is session-only
+          this.view = 'dashboard';
+          await this.loadProjects();
+          await Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()]);
+        } catch(e) { window.location.href = '/'; }
+        this.demoLoading = false;
+        return;
+      }
+
+      // ── Deep-link routes ─────────────────────────────────────────
       if (path === 'reset-password') { this.resetToken = new URLSearchParams(window.location.search).get('token') || ''; this.view = 'reset-password'; return; }
       if (path === 'signup') { this.view = 'signup'; return; }
       if (path === 'accept-invite') { this.inviteToken = new URLSearchParams(window.location.search).get('token') || ''; this.view = 'accept-invite'; return; }
 
-      // Set initial landing history state so the browser back button works
-      // from within the app back to the marketing page
-      history.replaceState({ view: 'landing' }, '', window.location.href);
-
-      // Browser back/forward: restore view from history state
-      window.addEventListener('popstate', (e) => {
-        const target = e.state?.view;
-        if (target === 'landing' || !target) {
-          // If coming back from app to landing, clear demo sessions but keep real sessions
-          if (this.user?.is_demo) {
-            this.token = null; this.user = null;
-            localStorage.removeItem('invoice_token');
-            localStorage.removeItem('invoice_user');
-            localStorage.removeItem('currentOrgId');
-          }
-          this.view = 'landing';
-        } else if (target === 'app' && this.token) {
-          this.view = 'dashboard';
-        } else if (target === 'login') {
-          this.view = 'login';
-        }
-      });
-
+      // ── Auto-login from saved token (real accounts only) ─────────
       const saved = localStorage.getItem('invoice_token');
       const savedUser = localStorage.getItem('invoice_user');
       if (saved && savedUser) {
         this.token = saved;
         this.user = JSON.parse(savedUser);
-        // Restore org context — fetch fresh from server to get membership list
         try {
           this.orgs = await this.get('/api/org');
           const savedOrgId = parseInt(localStorage.getItem('currentOrgId'));
           this.currentOrg = (savedOrgId && this.orgs.find(o => o.id === savedOrgId)) || this.orgs[0] || null;
         } catch(e) { this.orgs = []; }
         this.view = 'dashboard';
-        // Push app state so back button returns to landing
-        history.pushState({ view: 'app' }, '', '/');
         await this.loadProjects();
         await Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()]);
         if (this.user?.is_admin) await this.loadApiKeys();
       }
+      // Otherwise: stay on landing page (view defaults to 'landing')
     },
 
 
@@ -999,8 +1000,6 @@ function app() {
       localStorage.setItem('invoice_user', JSON.stringify(this.user));
       if (this.currentOrg) localStorage.setItem('currentOrgId', this.currentOrg.id);
       this.view = 'dashboard';
-      // Push app state so browser back button returns to marketing page
-      history.pushState({ view: 'app' }, '', '/');
       this.loadProjects().then(() => {
         Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()])
           .then(() => { if (this.user?.is_admin) this.loadApiKeys(); });
@@ -1021,14 +1020,19 @@ function app() {
     },
 
     logout() {
+      const wasDemo = this.user?.is_demo;
       this.token = null; this.user = null;
       this.orgs = []; this.currentOrg = null;
       localStorage.removeItem('invoice_token');
       localStorage.removeItem('invoice_user');
       localStorage.removeItem('currentOrgId');
       if (this.sseSource) this.sseSource.close();
-      this.view = 'landing';
-      history.replaceState({ view: 'landing' }, '', '/');
+      // Demo sessions live at /demo — redirect to / on logout so URL is clean
+      if (wasDemo || window.location.pathname.startsWith('/demo')) {
+        window.location.href = '/';
+      } else {
+        this.view = 'landing';
+      }
     },
 
     // ── Org management ────────────────────────────────────────────
