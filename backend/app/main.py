@@ -1378,8 +1378,20 @@ def _seed_existing_user_orgs():
         db.close()
 
 
+def _normalize_gemini_keys():
+    """Ensure GEMINI_API_KEY (singular) reflects the round-robin next key from GEMINI_API_KEYS.
+    All Phase 10-12 routes read the singular key; this call is made once at startup
+    so the key is always available. Runtime rotation is handled by get_gemini_key()."""
+    multi = os.getenv("GEMINI_API_KEYS", "")
+    if multi:
+        keys = [k.strip() for k in multi.split(",") if k.strip()]
+        if keys and not os.getenv("GEMINI_API_KEY", ""):
+            os.environ["GEMINI_API_KEY"] = keys[0]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _normalize_gemini_keys()
     Base.metadata.create_all(bind=engine)
     _run_migrations()
     _retire_default_admin()

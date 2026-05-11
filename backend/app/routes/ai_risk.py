@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from ..database import SessionLocal
-from ..dependencies import get_current_user, require_org_member, get_current_org, FINANCE_READ_ROLES
+from ..dependencies import get_current_user, require_org_member, get_current_org, FINANCE_READ_ROLES, get_gemini_key
 from ..models import (
     Project, Draw, Invoice, CostCategory, ChangeOrder, CommittedCost,
     OrgVendor, Task, RFI, PunchItem, LenderCovenant, InterestReserve, InterestReserveDraw,
@@ -197,7 +197,7 @@ async def parse_coi(project_id: int, vendor_id: int, file: UploadFile = File(...
         raise HTTPException(404, "Vendor not found")
 
     keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = get_gemini_key()
     for k in keys:
         if k.key_value:
             api_key = k.key_value

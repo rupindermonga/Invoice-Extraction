@@ -28,6 +28,23 @@ else:
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 
+_gemini_key_index = 0
+
+def get_gemini_key() -> str:
+    """Return the next Gemini API key in round-robin order across all configured keys."""
+    global _gemini_key_index
+    multi = os.getenv("GEMINI_API_KEYS", "")
+    keys = [k.strip() for k in multi.split(",") if k.strip()] if multi else []
+    if not keys:
+        single = os.getenv("GEMINI_API_KEY", "").strip()
+        if single:
+            return single
+        raise HTTPException(status_code=503, detail="No Gemini API key configured")
+    key = keys[_gemini_key_index % len(keys)]
+    _gemini_key_index += 1
+    return key
+
+
 def require_project_access(db: Session, project_id: int, org_id: int):
     """Verify that the project exists and belongs to the requesting org. Returns project."""
     from .models import Project

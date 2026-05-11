@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from ..database import SessionLocal, get_db
-from ..dependencies import get_current_user, require_org_member, get_current_org, FINANCE_READ_ROLES, FINANCE_WRITE_ROLES
+from ..dependencies import get_current_user, require_org_member, get_current_org, FINANCE_READ_ROLES, FINANCE_WRITE_ROLES, get_gemini_key
 from ..models import (
     ClientHubPost, ClientMessage, Project, Invoice, Draw,
     UnionAgreement, CloseoutItem, CostCategory, InvoiceAllocation, ChangeOrder
@@ -395,9 +395,7 @@ async def generate_ai_client_update(project_id: int, body: dict = None,
     into a clean, professional weekly client update email.
     """
     p = _proj(project_id, user, db)
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise HTTPException(503, "GEMINI_API_KEY not configured")
+    api_key = get_gemini_key()
 
     from sqlalchemy import text
     week_ago = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")

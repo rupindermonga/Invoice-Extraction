@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from ..database import SessionLocal
-from ..dependencies import get_current_user, require_org_member, require_project_access, FINANCE_READ_ROLES
+from ..dependencies import get_current_user, require_org_member, require_project_access, FINANCE_READ_ROLES, get_gemini_key
 from ..models import User
 
 router = APIRouter(prefix="/api", tags=["phase11"])
@@ -359,9 +359,7 @@ async def ai_co_narrative(project_id: int, co_id: int, body: dict,
     """
     require_org_member(db, current_user.org_id, current_user.id, FINANCE_READ_ROLES)
     require_project_access(db, project_id, current_user.org_id)
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise HTTPException(503, "GEMINI_API_KEY not configured")
+    api_key = get_gemini_key()
 
     co = db.execute(text("SELECT co_number, description, amount, status, date FROM change_orders WHERE id=:id AND project_id=:pid"), {"id": co_id, "pid": project_id}).fetchone()
     project = db.execute(text("SELECT name, province FROM projects WHERE id=:id"), {"id": project_id}).fetchone()

@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from ..database import SessionLocal
-from ..dependencies import get_current_user, require_org_member, FINANCE_READ_ROLES
+from ..dependencies import get_current_user, require_org_member, FINANCE_READ_ROLES, get_gemini_key
 from ..models import APIKey, Webhook, WebhookDelivery, EFTBatch, EFTBatchPayment, User
 
 router = APIRouter(prefix="/api", tags=["platform"])
@@ -52,9 +52,7 @@ async def doc_qa(project_id: int, body: dict,
     if not question:
         raise HTTPException(400, "question is required")
 
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise HTTPException(503, "GEMINI_API_KEY not configured")
+    api_key = get_gemini_key()
 
     # Gather project context from DB (latest 150 records across key tables)
     context_parts = []

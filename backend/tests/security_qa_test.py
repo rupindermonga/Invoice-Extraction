@@ -43,6 +43,15 @@ def register_user(username: str, email: str, password: str) -> requests.Response
     })
 
 
+def signup_user(username: str, email: str, password: str, org_name: str = None) -> requests.Response:
+    return requests.post(f"{BASE}/api/auth/signup", json={
+        "username": username,
+        "email": email,
+        "password": password,
+        "org_name": org_name or f"{username} Org",
+    })
+
+
 # ─── AUTH TESTS ───────────────────────────────────────────────────────────────
 
 class TestAuthentication:
@@ -82,20 +91,20 @@ class TestAuthentication:
 
     def test_register_disabled(self):
         """Public registration is intentionally disabled — returns 403."""
-        ts = str(int(time.time()))
+        ts = str(time.time_ns())
         r = register_user(f"testuser_{ts}", f"test_{ts}@example.com", "TestPass123!")
         assert r.status_code == 403, f"Expected 403 (disabled), got {r.status_code}"
 
     def test_register_duplicate_username_disabled(self):
         """Public registration disabled — all register attempts return 403."""
-        ts = str(int(time.time()))
+        ts = str(time.time_ns())
         uname = f"duptest_{ts}"
         r = register_user(uname, f"{uname}@example.com", "TestPass123!")
         assert r.status_code == 403
 
     def test_register_duplicate_email_disabled(self):
         """Public registration disabled — all register attempts return 403."""
-        ts = str(int(time.time()))
+        ts = str(time.time_ns())
         r = register_user(f"user1_{ts}", f"dup_{ts}@example.com", "TestPass123!")
         assert r.status_code == 403
 
@@ -151,8 +160,8 @@ class TestAuthorization:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.admin_token = login()
-        ts = str(int(time.time()))
-        r = register_user(f"user2_{ts}", f"user2_{ts}@example.com", "Pass1234!")
+        ts = str(time.time_ns())
+        r = signup_user(f"user2_{ts}", f"user2_{ts}@example.com", "Pass1234!")
         assert r.status_code == 200
         self.user2_token = login(f"user2_{ts}", "Pass1234!")
 
@@ -689,7 +698,7 @@ class TestRateLimiting:
         # so the TestAuditFindings class (which runs later) can use the cached token.
         global _audit_user_token
         if "_audit_user_token" not in globals() or _audit_user_token is None:
-            r = register_user("audit_user_audit_stable", "audit_audit_stable@example.com", "AuditPass1!")
+            r = signup_user("audit_user_audit_stable", "audit_audit_stable@example.com", "AuditPass1!")
             globals()["_audit_user_token"] = login("audit_user_audit_stable", "AuditPass1!")
 
         # Now exhaust the rate limit with bad logins
@@ -765,7 +774,7 @@ class TestAuditFindings:
         global _audit_user_token
         if "_audit_user_token" not in globals() or _audit_user_token is None:
             _ts = "audit_stable"
-            r = register_user(f"audit_user_{_ts}", f"audit_{_ts}@example.com", "AuditPass1!")
+            r = signup_user(f"audit_user_{_ts}", f"audit_{_ts}@example.com", "AuditPass1!")
             # May already exist from prior run — that's fine
             if r.status_code == 200:
                 globals()["_audit_user_token"] = login(f"audit_user_{_ts}", "AuditPass1!")

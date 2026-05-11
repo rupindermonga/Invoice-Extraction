@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..dependencies import get_current_user, get_current_org, FINANCE_READ_ROLES
+from ..dependencies import get_current_user, get_current_org, FINANCE_READ_ROLES, get_gemini_key
 from ..models import (
     Project, Invoice, Draw, ChangeOrder, CommittedCost, CostCategory,
     InvoiceAllocation, OrgVendor, LenderCovenant, Payment, GeminiApiKey,
@@ -400,11 +400,9 @@ Project End Date: {proj.end_date or 'TBD'}
     extra_context = body.get("notes", "") if body else ""
 
     keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = get_gemini_key()
     for k in keys:
         if k.key_value: api_key = k.key_value; break
-    if not api_key: raise HTTPException(503, "No Gemini API key configured")
-
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-2.0-flash")
 

@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from ..database import SessionLocal
-from ..dependencies import get_current_user, require_org_member, require_project_access, FINANCE_READ_ROLES
+from ..dependencies import get_current_user, require_org_member, require_project_access, FINANCE_READ_ROLES, get_gemini_key
 from ..models import (
     QSReport, QSTradeItem,
     MezzTranche, TakeoutConversion,
@@ -136,9 +136,7 @@ async def ai_parse_qs_report(
     require_org_member(db, current_user.org_id, current_user.id, FINANCE_READ_ROLES)
     require_project_access(db, project_id, current_user.org_id)
 
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise HTTPException(503, "GEMINI_API_KEY not configured")
+    api_key = get_gemini_key()
 
     import httpx, base64
     content = await file.read()

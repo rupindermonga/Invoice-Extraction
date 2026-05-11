@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from ..database import SessionLocal
-from ..dependencies import get_current_user, require_org_member, FINANCE_WRITE_ROLES, FINANCE_READ_ROLES
+from ..dependencies import get_current_user, require_org_member, FINANCE_WRITE_ROLES, FINANCE_READ_ROLES, get_gemini_key
 from ..models import BankFeedConnection, BankFeedTransaction, User
 
 router = APIRouter(prefix="/api/bank-feed", tags=["bank-feed"])
@@ -364,7 +364,7 @@ async def ai_match_all(
     """
     require_org_member(db, current_user.org_id, current_user.id, FINANCE_WRITE_ROLES)
 
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = get_gemini_key()
     if not api_key:
         raise HTTPException(status_code=503, detail="GEMINI_API_KEY not configured")
 

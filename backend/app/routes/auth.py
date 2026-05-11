@@ -88,7 +88,7 @@ def create_token(user_id: int) -> str:
 
 
 @router.post("/register")
-def register(body: UserCreate, request: Request = None, db: Session = Depends(get_db)):
+def register(body: dict, request: Request = None, db: Session = Depends(get_db)):
     """Public registration is disabled. Use Admin → User Management to create accounts."""
     raise HTTPException(status_code=403, detail="Public registration is disabled. Contact your admin for an account.")
 

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
 from ..database import SessionLocal, get_db as _get_db
-from ..dependencies import get_current_user, require_org_member, FINANCE_READ_ROLES, FINANCE_WRITE_ROLES
+from ..dependencies import get_current_user, require_org_member, FINANCE_READ_ROLES, FINANCE_WRITE_ROLES, get_gemini_key
 from ..models import SpecReview, DrawingRegister, Project, GeminiApiKey
 
 # alias so inner functions can use get_db
@@ -50,11 +50,9 @@ async def analyze_spec(project_id: int, file: UploadFile = File(...),
     require_org_member(db, p.org_id, user.id, FINANCE_WRITE_ROLES)
 
     keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = get_gemini_key()
     for k in keys:
         if k.key_value: api_key = k.key_value; break
-    if not api_key: raise HTTPException(503, "No Gemini API key configured")
-
     contents = await file.read()
     review = SpecReview(
         org_id=p.org_id, project_id=project_id,
@@ -196,11 +194,9 @@ async def generate_schedule_from_drawing(
     require_org_member(db, p.org_id, user.id, FINANCE_WRITE_ROLES)
 
     keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = get_gemini_key()
     for k in keys:
         if k.key_value: api_key = k.key_value; break
-    if not api_key: raise HTTPException(503, "No Gemini API key configured")
-
     contents = await file.read()
     mime = file.content_type or ("application/pdf" if file.filename.endswith(".pdf") else "image/jpeg")
 
@@ -299,11 +295,9 @@ async def spec_qa(project_id: int, body: dict,
     import google.generativeai as genai
     p = _proj(project_id, user, db)
     keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = get_gemini_key()
     for k in keys:
         if k.key_value: api_key = k.key_value; break
-    if not api_key: raise HTTPException(503, "No Gemini API key configured")
-    question = body.get("question", "").strip()
     spec_context = body.get("spec_context", "")  # Optional spec text pasted by user
     if not question: raise HTTPException(400, "Question is required")
     genai.configure(api_key=api_key)
@@ -330,11 +324,9 @@ async def generate_rfi(project_id: int, body: dict,
     import google.generativeai as genai
     p = _proj(project_id, user, db)
     keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = get_gemini_key()
     for k in keys:
         if k.key_value: api_key = k.key_value; break
-    if not api_key: raise HTTPException(503, "No Gemini API key configured")
-    issue = body.get("issue", "").strip()
     if not issue: raise HTTPException(400, "Issue description is required")
     from ..models import RFI
     last = db.query(RFI).filter(RFI.project_id == project_id).order_by(RFI.id.desc()).first()
@@ -387,11 +379,9 @@ async def generate_submittal_log(project_id: int, file: UploadFile = File(None),
     from google.generativeai import types as genai_types
     p = _proj(project_id, user, db)
     keys = db.query(GeminiApiKey).filter(GeminiApiKey.is_active == True).order_by(GeminiApiKey.priority).all()
-    api_key = os.getenv("GEMINI_API_KEY", "")
+    api_key = get_gemini_key()
     for k in keys:
         if k.key_value: api_key = k.key_value; break
-    if not api_key: raise HTTPException(503, "No Gemini API key configured")
-    genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-2.0-flash")
     prompt = """You are a Canadian construction project manager. Generate a complete submittal log from this specification document.
 Return ONLY a JSON array of submittal objects:

@@ -287,9 +287,13 @@ check("Referrer-Policy set", "referrer-policy" in headers)
 check("No Server header leaking version", "server" not in headers or "uvicorn" not in headers.get("server","").lower(), warn=True)
 check("No X-Powered-By header", "x-powered-by" not in headers)
 
-# HTTPS redirect (only meaningful on public endpoint)
-r_http = requests.get("http://projects.finel.ai/", allow_redirects=False, timeout=10)
-check("HTTP redirects to HTTPS (301/302)", r_http.status_code in (301, 302), warn=True)
+# HTTPS redirect (only meaningful on public endpoint).  Local/offline audit
+# environments may block external sockets; keep the dynamic suite running.
+try:
+    r_http = requests.get("http://projects.finel.ai/", allow_redirects=False, timeout=10)
+    check("HTTP redirects to HTTPS (301/302)", r_http.status_code in (301, 302), warn=True)
+except requests.RequestException as exc:
+    log("WARN", "HTTP redirects to HTTPS (301/302)", f"Skipped: public endpoint unreachable ({type(exc).__name__})")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. PUBLIC ENDPOINT SECURITY
