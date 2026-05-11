@@ -221,8 +221,8 @@ def delete_eft_batch(batch_id: int, db: Session = Depends(get_db),
                                       EFTBatch.org_id == current_user.org_id).first()
     if not batch:
         raise HTTPException(404)
-    if batch.status not in ("draft", "failed"):
-        raise HTTPException(400, "Only draft or failed batches can be deleted")
+    if batch.status not in ("draft", "generated", "failed"):
+        raise HTTPException(400, "Only draft, generated, or failed batches can be deleted")
     db.delete(batch)
     db.commit()
     return {"msg": "deleted"}
