@@ -15,6 +15,7 @@ import string
 
 BASE = os.getenv("TEST_BASE_URL", "http://127.0.0.1:8002")
 ADMIN_PW = os.getenv("ADMIN_PASSWORD", "Admin@2026!")
+ADMIN_USER = os.getenv("ADMIN_USERNAME", "qa_admin")
 
 PASS = 0; FAIL = 0; WARN = 0
 FINDINGS = []
@@ -78,7 +79,7 @@ for i in range(30):
         time.sleep(5)
 
 # ── Bootstrap: admin login + demo ─────────────────────────────────────────────
-admin_tok = login("admin", ADMIN_PW)
+admin_tok = login(ADMIN_USER, ADMIN_PW)
 if not admin_tok:
     print("FATAL: Cannot login as admin. Check ADMIN_PASSWORD env var.")
     sys.exit(1)
