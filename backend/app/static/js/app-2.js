@@ -205,6 +205,37 @@ function app() {
     showSelModal: false, selEditId: null,
     selForm: { item_name:'', category_id:'', standard_option:'', client_choice:'', allowance_amount:'', actual_cost:'', upgrade_amount:'', status:'pending', due_date:'', notes:'' },
 
+    // ── Cash Flow S-Curve ──────────────────────────────────────────
+    scurveData: null, scurveLoading: false,
+
+    // ── Sub Prequalification ───────────────────────────────────────
+    prequals: [], prequalsLoading: false,
+
+    // ── Client Hub ─────────────────────────────────────────────────
+    hubPosts: [], hubMessages: [],
+    hubNewMessage: '',
+    showHubPostModal: false,
+    hubPostForm: { title:'', body:'', milestone:'', visibility:'client' },
+
+    // ── Drawing Register ───────────────────────────────────────────
+    drawings: [], drawingsLoading: false,
+    showDrawingModal: false, drawingEditId: null,
+    drawingForm: { drawing_number:'', title:'', discipline:'Architectural', current_revision:'Rev 0', revision_date:'', status:'issued', notes:'' },
+
+    // ── AI Spec Review ─────────────────────────────────────────────
+    specReviews: [], specReviewLoading: false,
+
+    // ── Union Compliance ───────────────────────────────────────────
+    unions: [], unionsLoading: false,
+    showUnionModal: false, unionEditId: null,
+    unionForm: { trade:'', local_number:'', agreement_type:'iba', apprentice_ratio:'1:4', journeymen_count:0, apprentice_count:0, expiry_date:'', notes:'' },
+
+    // ── Project Closeout ───────────────────────────────────────────
+    closeoutItems: [], closeoutLoading: false,
+    closeoutSummary: null,
+    showCloseoutModal: false,
+    closeoutForm: { category:'documents', item_name:'', responsible_party:'', due_date:'', status:'pending', notes:'' },
+
     // ── Super Admin UI ────────────────────────────────────────────
     showCreateOrgModal: false,
     createOrgForm: { name: '', owner_username: '', plan: 'starter' },
@@ -3212,6 +3243,185 @@ function app() {
       this.aiRiskLoading = true;
       try { this.aiRiskData = await this.get(`/api/project/${this.currentProject.id}/ai-risk-score`); } catch(e) { this.aiRiskData = null; }
       finally { this.aiRiskLoading = false; }
+    },
+
+    // ── Cash Flow S-Curve ────────────────────────────────────────────
+    async loadScurve() {
+      if (!this.currentProject) return;
+      this.scurveLoading = true;
+      try { this.scurveData = await this.get(`/api/project/${this.currentProject.id}/cash-flow-scurve`); } catch(e) { this.scurveData = null; }
+      finally { this.scurveLoading = false; }
+    },
+
+    // ── Sub Prequalification ─────────────────────────────────────────
+    async loadPrequals() {
+      this.prequalsLoading = true;
+      try { this.prequals = await this.get('/api/prequal/'); } catch(e) { this.prequals = []; }
+      finally { this.prequalsLoading = false; }
+    },
+    async sendPrequalInvite() {
+      const trade = prompt('Trade / Division (e.g. Electrical, Framing):') || '';
+      const email = prompt('Sub contact email (optional):') || '';
+      try {
+        const r = await this.post('/api/prequal/invite', { trade, contact_email: email });
+        await navigator.clipboard.writeText(window.location.origin + r.portal_url);
+        alert('Invite link copied to clipboard! Share with the subcontractor.');
+        await this.loadPrequals();
+      } catch(e) { alert(e.message||'Failed to create invite'); }
+    },
+    async approvePrequal(id, status) {
+      try { await this.put(`/api/prequal/${id}/status`, { status }); await this.loadPrequals(); } catch(e) {}
+    },
+    async deletePrequal(id) {
+      if (!confirm('Delete this prequalification?')) return;
+      try { await this.delete(`/api/prequal/${id}`); await this.loadPrequals(); } catch(e) {}
+    },
+    copyPrequalLink(url) {
+      if (url) navigator.clipboard.writeText(window.location.origin + url).then(() => alert('Link copied!')).catch(() => prompt('Copy this link:', window.location.origin + url));
+    },
+
+    // ── Client Hub ───────────────────────────────────────────────────
+    async loadHubPosts() {
+      if (!this.currentProject) return;
+      try { this.hubPosts = await this.get(`/api/project/${this.currentProject.id}/hub/posts`); } catch(e) { this.hubPosts = []; }
+    },
+    async loadHubMessages() {
+      if (!this.currentProject) return;
+      try { this.hubMessages = await this.get(`/api/project/${this.currentProject.id}/hub/messages`); } catch(e) { this.hubMessages = []; }
+    },
+    async saveHubPost() {
+      if (!this.currentProject || !this.hubPostForm.title.trim()) return;
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/hub/posts`, this.hubPostForm);
+        this.showHubPostModal = false;
+        await this.loadHubPosts();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteHubPost(id) {
+      if (!confirm('Delete this update?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/hub/posts/${id}`); await this.loadHubPosts(); } catch(e) {}
+    },
+    async sendHubMessage() {
+      if (!this.currentProject || !this.hubNewMessage.trim()) return;
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/hub/messages`, { message: this.hubNewMessage });
+        this.hubNewMessage = '';
+        await this.loadHubMessages();
+      } catch(e) {}
+    },
+
+    // ── Drawing Register ─────────────────────────────────────────────
+    async loadDrawings() {
+      if (!this.currentProject) return;
+      this.drawingsLoading = true;
+      try { this.drawings = await this.get(`/api/project/${this.currentProject.id}/drawings`); } catch(e) { this.drawings = []; }
+      finally { this.drawingsLoading = false; }
+    },
+    editDrawing(d) {
+      this.drawingEditId = d.id;
+      this.drawingForm = { drawing_number:d.drawing_number, title:d.title, discipline:d.discipline||'', current_revision:d.current_revision||'', revision_date:d.revision_date||'', status:d.status, notes:d.notes||'' };
+      this.showDrawingModal = true;
+    },
+    async saveDrawing() {
+      if (!this.currentProject || !this.drawingForm.drawing_number.trim() || !this.drawingForm.title.trim()) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.drawingEditId) await this.put(`/api/project/${pid}/drawings/${this.drawingEditId}`, this.drawingForm);
+        else await this.post(`/api/project/${pid}/drawings`, this.drawingForm);
+        this.showDrawingModal = false; this.drawingEditId = null;
+        await this.loadDrawings();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteDrawing(id) {
+      if (!confirm('Delete this drawing?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/drawings/${id}`); await this.loadDrawings(); } catch(e) {}
+    },
+
+    // ── AI Spec Review ───────────────────────────────────────────────
+    async loadSpecReviews() {
+      if (!this.currentProject) return;
+      try { this.specReviews = await this.get(`/api/project/${this.currentProject.id}/spec-reviews`); } catch(e) { this.specReviews = []; }
+    },
+    async uploadSpec(file) {
+      if (!file || !this.currentProject) return;
+      this.specReviewLoading = true;
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const r = await fetch(`/api/project/${this.currentProject.id}/spec-reviews/analyze`, {
+          method: 'POST', headers: { Authorization: 'Bearer ' + this.token }, body: fd
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.detail || 'Analysis failed');
+        await this.loadSpecReviews();
+      } catch(e) { alert(e.message||'Spec analysis failed'); }
+      finally { this.specReviewLoading = false; }
+    },
+    async deleteSpecReview(id) {
+      if (!confirm('Delete this review?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/spec-reviews/${id}`); await this.loadSpecReviews(); } catch(e) {}
+    },
+
+    // ── Union Compliance ─────────────────────────────────────────────
+    async loadUnions() {
+      if (!this.currentProject) return;
+      this.unionsLoading = true;
+      try { this.unions = await this.get(`/api/project/${this.currentProject.id}/unions`); } catch(e) { this.unions = []; }
+      finally { this.unionsLoading = false; }
+    },
+    editUnion(u) {
+      this.unionEditId = u.id;
+      this.unionForm = { trade:u.trade, local_number:u.local_number||'', agreement_type:u.agreement_type, apprentice_ratio:u.apprentice_ratio||'', journeymen_count:u.journeymen_count||0, apprentice_count:u.apprentice_count||0, expiry_date:u.expiry_date||'', notes:u.notes||'' };
+      this.showUnionModal = true;
+    },
+    async saveUnion() {
+      if (!this.currentProject || !this.unionForm.trade.trim()) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.unionEditId) await this.put(`/api/project/${pid}/unions/${this.unionEditId}`, this.unionForm);
+        else await this.post(`/api/project/${pid}/unions`, this.unionForm);
+        this.showUnionModal = false; this.unionEditId = null;
+        await this.loadUnions();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteUnion(id) {
+      if (!confirm('Delete this union record?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/unions/${id}`); await this.loadUnions(); } catch(e) {}
+    },
+
+    // ── Project Closeout ─────────────────────────────────────────────
+    async loadCloseout() {
+      if (!this.currentProject) return;
+      this.closeoutLoading = true;
+      try {
+        const [items, summary] = await Promise.all([
+          this.get(`/api/project/${this.currentProject.id}/closeout`),
+          this.get(`/api/project/${this.currentProject.id}/closeout/summary`),
+        ]);
+        this.closeoutItems = items; this.closeoutSummary = summary;
+      } catch(e) { this.closeoutItems = []; }
+      finally { this.closeoutLoading = false; }
+    },
+    async seedCloseout() {
+      if (!this.currentProject) return;
+      try { await this.post(`/api/project/${this.currentProject.id}/closeout/seed`, {}); await this.loadCloseout(); } catch(e) { alert(e.message); }
+    },
+    async toggleCloseoutItem(item, checked) {
+      try {
+        await this.put(`/api/project/${this.currentProject.id}/closeout/${item.id}`, { status: checked ? 'complete' : 'pending' });
+        await this.loadCloseout();
+      } catch(e) {}
+    },
+    async saveCloseoutItem() {
+      if (!this.currentProject || !this.closeoutForm.item_name.trim()) return;
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/closeout`, this.closeoutForm);
+        this.showCloseoutModal = false;
+        await this.loadCloseout();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteCloseoutItem(id) {
+      try { await this.delete(`/api/project/${this.currentProject.id}/closeout/${id}`); await this.loadCloseout(); } catch(e) {}
     },
 
     // ── ERP Exports ──────────────────────────────────────────────────

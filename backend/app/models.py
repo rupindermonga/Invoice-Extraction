@@ -1421,3 +1421,159 @@ class VendorScore(Base):
     created_at    = Column(DateTime, default=datetime.utcnow)
 
     rater = relationship("User", foreign_keys=[rated_by])
+
+
+# ─── AI Specification Review ──────────────────────────────────────────────────
+
+class SpecReview(Base):
+    """AI-powered spec review result — findings from Gemini analysis of specification docs."""
+    __tablename__ = "spec_reviews"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id   = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    filename     = Column(String, nullable=True)
+    status       = Column(String, default="pending")   # pending | processing | complete | error
+    findings     = Column(JSON, nullable=True)          # list of {type, severity, section, description}
+    summary      = Column(Text, nullable=True)
+    total_issues = Column(Integer, default=0)
+    created_by   = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Drawing Register ─────────────────────────────────────────────────────────
+
+class DrawingRegister(Base):
+    """Drawing register entry — tracks revisions, status, and transmittals."""
+    __tablename__ = "drawing_register"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id      = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    drawing_number  = Column(String, nullable=False)     # e.g. A-101
+    title           = Column(String, nullable=False)
+    discipline      = Column(String, nullable=True)      # Architectural | Structural | Mechanical | Electrical | Civil
+    current_revision = Column(String, nullable=True)    # e.g. Rev 3
+    revision_date   = Column(String, nullable=True)     # YYYY-MM-DD
+    status          = Column(String, default="issued")  # issued | superseded | void | for_review | for_construction | record
+    file_path       = Column(String, nullable=True)
+    notes           = Column(Text, nullable=True)
+    created_by      = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Subcontractor Prequalification ──────────────────────────────────────────
+
+class SubPrequalification(Base):
+    """Subcontractor prequalification record."""
+    __tablename__ = "sub_prequalifications"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    vendor_id       = Column(Integer, ForeignKey("org_vendors.id"), nullable=True)
+    company_name    = Column(String, nullable=False)
+    trade           = Column(String, nullable=True)
+    contact_name    = Column(String, nullable=True)
+    contact_email   = Column(String, nullable=True)
+    years_in_business = Column(Integer, nullable=True)
+    annual_revenue  = Column(Float, nullable=True)
+    bonding_capacity = Column(Float, nullable=True)
+    largest_project = Column(Float, nullable=True)
+    safety_record   = Column(Text, nullable=True)   # description of safety record
+    wsib_number     = Column(String, nullable=True)
+    cra_bn          = Column(String, nullable=True)
+    hst_number      = Column(String, nullable=True)
+    references      = Column(Text, nullable=True)   # JSON array of references
+    status          = Column(String, default="submitted")  # submitted | under_review | approved | rejected | expired
+    notes           = Column(Text, nullable=True)
+    invite_token    = Column(String, nullable=True, unique=True, index=True)
+    submitted_at    = Column(DateTime, nullable=True)
+    reviewed_by     = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at     = Column(DateTime, nullable=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+
+# ─── Client Communication Hub ─────────────────────────────────────────────────
+
+class ClientHubPost(Base):
+    """Progress update post visible to the client on their portal."""
+    __tablename__ = "client_hub_posts"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id  = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    title       = Column(String, nullable=False)
+    body        = Column(Text, nullable=True)
+    milestone   = Column(String, nullable=True)          # optional milestone name
+    photo_paths = Column(JSON, nullable=True)            # list of uploaded photo paths
+    visibility  = Column(String, default="client")       # client | internal | all
+    created_by  = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User", foreign_keys=[created_by])
+
+
+class ClientMessage(Base):
+    """Message between GC team and client (homeowner)."""
+    __tablename__ = "client_messages"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id  = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    sender_type = Column(String, nullable=False)         # gc | client
+    sender_name = Column(String, nullable=True)
+    message     = Column(Text, nullable=False)
+    is_read     = Column(Boolean, default=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+
+# ─── Trade Union Compliance ───────────────────────────────────────────────────
+
+class UnionAgreement(Base):
+    """Union agreement active on a project — tracks ratios, local, expiry."""
+    __tablename__ = "union_agreements"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    trade            = Column(String, nullable=False)    # Electrical, Ironworkers, etc.
+    local_number     = Column(String, nullable=True)     # e.g. IBEW Local 353
+    agreement_type   = Column(String, default="iba")    # iba | pla | nwa | other
+    apprentice_ratio = Column(String, nullable=True)     # e.g. "1:3" (1 apprentice per 3 journeymen)
+    journeymen_count = Column(Integer, default=0)
+    apprentice_count = Column(Integer, default=0)
+    expiry_date      = Column(String, nullable=True)     # YYYY-MM-DD
+    notes            = Column(Text, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Project Closeout ─────────────────────────────────────────────────────────
+
+class CloseoutItem(Base):
+    """Project closeout checklist item — tracks completion of handover requirements."""
+    __tablename__ = "closeout_items"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id  = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    category    = Column(String, nullable=False)         # documents | warranties | inspections | financial | legal | training
+    item_name   = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    responsible_party = Column(String, nullable=True)
+    due_date    = Column(String, nullable=True)          # YYYY-MM-DD
+    status      = Column(String, default="pending")      # pending | in_progress | complete | n_a
+    completed_at = Column(DateTime, nullable=True)
+    notes       = Column(Text, nullable=True)
+    created_by  = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User", foreign_keys=[created_by])

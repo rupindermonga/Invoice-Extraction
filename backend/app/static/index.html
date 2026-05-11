@@ -878,6 +878,14 @@
               <button @click="view='bid-packages'; loadBidPackages(); sidebarOpen=false" :class="view==='bid-packages'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
                 <i class="fa-solid fa-gavel w-4"></i> Bid Management
               </button>
+              <button @click="view='cash-flow-scurve'; loadScurve(); sidebarOpen=false" :class="view==='cash-flow-scurve'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-wave-square w-4"></i> Cash Flow S-Curve
+              </button>
+              <button @click="view='prequal'; loadPrequals(); sidebarOpen=false" :class="view==='prequal'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+                <i class="fa-solid fa-user-check w-4"></i>
+                <span class="flex-1 text-left">Sub Prequalification</span>
+                <span x-show="prequals.filter(p=>p.status==='submitted').length>0" x-text="prequals.filter(p=>p.status==='submitted').length" class="text-xs bg-blue-400 text-white px-1.5 py-0.5 rounded-full font-bold"></span>
+              </button>
               <button @click="view='portfolio-risk'; loadPortfolioRisk(); sidebarOpen=false" :class="view==='portfolio-risk'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
                 <i class="fa-solid fa-chart-mixed w-4"></i>
                 <span class="flex-1 text-left">Portfolio Risk</span>
@@ -961,6 +969,23 @@
             </button>
             <button @click="view='client-selections'; loadSelections(); sidebarOpen=false" :class="view==='client-selections'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-palette w-4"></i> Client Selections
+            </button>
+            <button @click="view='client-hub'; loadHubPosts(); loadHubMessages(); sidebarOpen=false" :class="view==='client-hub'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-comments w-4"></i> Client Hub
+            </button>
+            <button @click="view='drawings'; loadDrawings(); sidebarOpen=false" :class="view==='drawings'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-drafting-compass w-4"></i> Drawing Register
+            </button>
+            <button @click="view='spec-review'; loadSpecReviews(); sidebarOpen=false" :class="view==='spec-review'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-file-magnifying-glass w-4"></i> AI Spec Review
+            </button>
+            <button @click="view='union'; loadUnions(); sidebarOpen=false" :class="view==='union'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-people-group w-4"></i> Union Compliance
+            </button>
+            <button @click="view='closeout'; loadCloseout(); sidebarOpen=false" :class="view==='closeout'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+              <i class="fa-solid fa-flag-checkered w-4"></i>
+              <span class="flex-1 text-left">Closeout</span>
+              <span x-show="closeoutSummary && closeoutSummary.pct_complete<100 && closeoutSummary.total>0" x-text="closeoutSummary?.pct_complete+'%'" class="text-xs bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full font-bold"></span>
             </button>
             <button x-show="canAccessFinance" @click="view='subcontractors'; loadSubcontractors(); sidebarOpen=false" :class="view==='subcontractors'?'bg-green-700':'hover:bg-green-900'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
               <i class="fa-solid fa-hard-hat w-4"></i> Subcontractors
@@ -6492,6 +6517,342 @@
         </div>
       </div><!-- /client-selections -->
 
+      <!-- ── CASH FLOW S-CURVE ──────────────────────────────────────── -->
+      <div x-show="view==='cash-flow-scurve'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-wave-square mr-2 text-blue-600"></i>Cash Flow S-Curve</h2>
+            <p class="text-sm text-gray-500">Planned vs actual cumulative spend by month</p>
+          </div>
+          <button @click="loadScurve()" :disabled="scurveLoading" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50 transition font-semibold">
+            <i class="fa-solid" :class="scurveLoading?'fa-spinner fa-spin':'fa-rotate-right'"></i> Refresh
+          </button>
+        </div>
+        <div x-show="scurveLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="scurveData && !scurveLoading" x-cloak>
+          <div class="grid grid-cols-3 gap-3 mb-5">
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">Revised Budget</div>
+              <div class="text-2xl font-bold text-gray-800" x-text="'$'+(scurveData?.revised_budget||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">Total Invoiced</div>
+              <div class="text-2xl font-bold text-blue-600" x-text="'$'+(scurveData?.total_invoiced||0).toLocaleString('en-CA',{maximumFractionDigits:0})"></div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 text-center">
+              <div class="text-xs text-gray-400 uppercase font-bold mb-1">% Spent</div>
+              <div class="text-2xl font-bold text-indigo-600" x-text="scurveData?.revised_budget?Math.round(scurveData.total_invoiced/scurveData.revised_budget*100)+'%':'—'"></div>
+            </div>
+          </div>
+          <!-- S-Curve chart (CSS bar chart) -->
+          <div class="bg-white border rounded-xl p-5">
+            <div class="flex gap-4 text-xs mb-3">
+              <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded-sm bg-blue-200"></span>Planned</span>
+              <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded-sm bg-blue-600"></span>Actual</span>
+            </div>
+            <div class="overflow-x-auto">
+              <div class="flex items-end gap-1" style="min-width:600px;height:180px">
+                <template x-for="(month, i) in (scurveData?.months||[])" :key="month">
+                  <div class="flex flex-col items-center flex-1" style="min-width:24px">
+                    <div class="w-full flex gap-0.5 items-end" style="height:160px">
+                      <div class="flex-1 bg-blue-200 rounded-t" :style="'height:'+Math.round((scurveData.planned[i]||0)/scurveData.revised_budget*160)+'px'"></div>
+                      <div class="flex-1 bg-blue-600 rounded-t" :style="'height:'+Math.round((scurveData.actual[i]||0)/scurveData.revised_budget*160)+'px'"></div>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1 text-center" style="font-size:9px;writing-mode:vertical-rl;transform:rotate(180deg);height:40px" x-text="month"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div x-show="!scurveData && !scurveLoading" class="text-center text-gray-400 py-12">Click Refresh to generate cash flow chart.</div>
+      </div><!-- /cash-flow-scurve -->
+
+      <!-- ── SUB PREQUALIFICATION ────────────────────────────────────── -->
+      <div x-show="view==='prequal'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-user-check mr-2 text-blue-600"></i>Subcontractor Prequalification</h2>
+            <p class="text-sm text-gray-500">Invite subs to self-serve submit their qualifications via a secure link</p>
+          </div>
+          <button @click="sendPrequalInvite()" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-paper-plane"></i> Invite Sub</button>
+        </div>
+        <div x-show="prequalsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!prequalsLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Company</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Trade</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Annual Rev</th>
+              <th class="text-right px-4 py-2.5 text-xs font-semibold text-gray-500">Bonding</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Submitted</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="p in prequals" :key="p.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 font-medium" x-text="p.company_name"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="p.trade||'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs" x-text="p.annual_revenue?'$'+p.annual_revenue.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-right text-xs" x-text="p.bonding_capacity?'$'+p.bonding_capacity.toLocaleString('en-CA',{maximumFractionDigits:0}):'—'"></td>
+                  <td class="px-4 py-3 text-xs text-gray-400" x-text="p.submitted_at?p.submitted_at.slice(0,10):'Not yet'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="p.status==='approved'?'bg-green-100 text-green-700':p.status==='submitted'?'bg-blue-100 text-blue-700':p.status==='rejected'?'bg-red-100 text-red-700':'bg-gray-100 text-gray-600'"
+                    x-text="p.status.toUpperCase()"></span></td>
+                  <td class="px-4 py-3 flex gap-2">
+                    <button x-show="p.status==='submitted'" @click="approvePrequal(p.id,'approved')" class="text-xs text-green-600 hover:text-green-800 font-semibold">Approve</button>
+                    <button x-show="p.status==='submitted'" @click="approvePrequal(p.id,'rejected')" class="text-xs text-red-500 hover:text-red-700">Reject</button>
+                    <button @click="copyPrequalLink(p.portal_url)" class="text-xs text-blue-500 hover:text-blue-700">Link</button>
+                    <button @click="deletePrequal(p.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="prequals.length===0"><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">No prequalifications. Invite subcontractors to submit their qualifications.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /prequal -->
+
+      <!-- ── CLIENT HUB ─────────────────────────────────────────────── -->
+      <div x-show="view==='client-hub'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-comments mr-2 text-green-600"></i>Client / Homeowner Hub</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <button @click="hubPostForm={title:'',body:'',milestone:'',visibility:'client'}; showHubPostModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Post Update</button>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <!-- Progress posts -->
+          <div>
+            <h3 class="font-semibold text-gray-700 mb-3">Progress Updates</h3>
+            <div class="space-y-3">
+              <template x-for="post in hubPosts" :key="post.id">
+                <div class="bg-white border rounded-xl p-4">
+                  <div class="flex items-start justify-between">
+                    <div>
+                      <div class="font-semibold text-gray-800" x-text="post.title"></div>
+                      <div class="text-xs text-gray-400 mt-0.5" x-text="post.created_at.slice(0,10)"></div>
+                      <div x-show="post.milestone" class="text-xs text-green-600 mt-0.5"><i class="fa-solid fa-flag mr-1"></i><span x-text="post.milestone"></span></div>
+                    </div>
+                    <button @click="deleteHubPost(post.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </div>
+                  <div x-show="post.body" class="text-sm text-gray-600 mt-2" x-text="post.body"></div>
+                </div>
+              </template>
+              <div x-show="hubPosts.length===0" class="text-center text-gray-400 text-sm py-4">No updates posted yet.</div>
+            </div>
+          </div>
+          <!-- Messages -->
+          <div>
+            <h3 class="font-semibold text-gray-700 mb-3">Messages</h3>
+            <div class="bg-white border rounded-xl p-4 flex flex-col gap-2" style="min-height:200px">
+              <div class="flex-1 space-y-2 overflow-y-auto max-h-48">
+                <template x-for="msg in hubMessages" :key="msg.id">
+                  <div class="flex" :class="msg.sender_type==='gc'?'justify-end':''">
+                    <div class="max-w-xs rounded-xl px-3 py-2 text-sm"
+                         :class="msg.sender_type==='gc'?'bg-blue-600 text-white':'bg-gray-100 text-gray-800'">
+                      <div class="font-medium text-xs mb-0.5 opacity-70" x-text="msg.sender_name||msg.sender_type"></div>
+                      <div x-text="msg.message"></div>
+                      <div class="text-xs opacity-60 mt-0.5" x-text="msg.created_at.slice(0,16).replace('T',' ')"></div>
+                    </div>
+                  </div>
+                </template>
+                <div x-show="hubMessages.length===0" class="text-center text-gray-400 text-xs py-4">No messages yet.</div>
+              </div>
+              <div class="flex gap-2 mt-2 pt-2 border-t">
+                <input x-model="hubNewMessage" type="text" @keydown.enter="sendHubMessage()" placeholder="Type a message..." class="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-400" />
+                <button @click="sendHubMessage()" class="px-3 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700"><i class="fa-solid fa-paper-plane"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /client-hub -->
+
+      <!-- ── DRAWING REGISTER ────────────────────────────────────────── -->
+      <div x-show="view==='drawings'" class="p-6 max-w-5xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-drafting-compass mr-2 text-gray-700"></i>Drawing Register</h2>
+            <p class="text-sm text-gray-500" x-text="currentProject?.name"></p>
+          </div>
+          <button @click="drawingForm={drawing_number:'',title:'',discipline:'Architectural',current_revision:'Rev 0',revision_date:'',status:'issued',notes:''}; drawingEditId=null; showDrawingModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 text-white text-xs rounded-lg hover:bg-gray-900 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Drawing</button>
+        </div>
+        <div x-show="drawingsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!drawingsLoading" class="bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b"><tr>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Drawing #</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Title</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Discipline</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Revision</th>
+              <th class="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">Rev Date</th>
+              <th class="text-center px-4 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+              <th class="px-4 py-2.5"></th>
+            </tr></thead>
+            <tbody class="divide-y">
+              <template x-for="d in drawings" :key="d.id">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-xs font-mono font-bold text-blue-700" x-text="d.drawing_number"></td>
+                  <td class="px-4 py-3 text-sm font-medium" x-text="d.title"></td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="d.discipline||'—'"></td>
+                  <td class="px-4 py-3 text-xs font-mono" x-text="d.current_revision||'—'"></td>
+                  <td class="px-4 py-3 text-xs text-gray-400" x-text="d.revision_date||'—'"></td>
+                  <td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    :class="d.status==='for_construction'?'bg-green-100 text-green-700':d.status==='superseded'?'bg-gray-100 text-gray-500':d.status==='void'?'bg-red-100 text-red-600':d.status==='for_review'?'bg-amber-100 text-amber-700':'bg-blue-100 text-blue-700'"
+                    x-text="d.status.replace(/_/g,' ').toUpperCase()"></span></td>
+                  <td class="px-4 py-3">
+                    <button @click="editDrawing(d)" class="text-xs text-blue-500 hover:text-blue-700 mr-2">Edit</button>
+                    <button @click="deleteDrawing(d.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="drawings.length===0"><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">No drawings registered. Add architectural, structural, MEP drawings here.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div><!-- /drawings -->
+
+      <!-- ── AI SPEC REVIEW ──────────────────────────────────────────── -->
+      <div x-show="view==='spec-review'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-file-magnifying-glass mr-2 text-green-600"></i>AI Specification Review</h2>
+            <p class="text-sm text-gray-500">Upload a spec PDF — Gemini finds conflicts, gaps, and compliance issues</p>
+          </div>
+          <label class="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-semibold cursor-pointer" :class="specReviewLoading?'opacity-50 pointer-events-none':''">
+            <i class="fa-solid" :class="specReviewLoading?'fa-spinner fa-spin':'fa-cloud-arrow-up'"></i>
+            <span x-text="specReviewLoading?'Analyzing…':'Upload Spec PDF'"></span>
+            <input type="file" accept=".pdf,.txt,.docx" class="hidden" @change="uploadSpec($event.target.files[0])" :disabled="specReviewLoading" />
+          </label>
+        </div>
+        <div x-show="specReviewLoading" class="bg-blue-50 border border-blue-100 rounded-xl p-6 text-center text-blue-700 mb-4">
+          <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><br>
+          Gemini is analyzing your specification document. This may take 30-60 seconds...
+        </div>
+        <div class="space-y-4">
+          <template x-for="rev in specReviews" :key="rev.id">
+            <div class="bg-white border rounded-xl p-5">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <div class="font-semibold text-gray-800" x-text="rev.filename"></div>
+                  <div class="text-xs text-gray-400" x-text="rev.created_at.slice(0,10)"></div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div x-show="rev.total_issues>0" class="text-sm font-bold text-red-600" x-text="rev.total_issues+' issues found'"></div>
+                  <div x-show="rev.total_issues===0 && rev.status==='complete'" class="text-sm font-bold text-green-600">No critical issues</div>
+                  <button @click="deleteSpecReview(rev.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                </div>
+              </div>
+              <div x-show="rev.summary" class="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 mb-3" x-text="rev.summary"></div>
+              <div class="space-y-2">
+                <template x-for="f in (rev.findings||[])" :key="f.description">
+                  <div class="flex items-start gap-3 p-3 rounded-lg border"
+                       :class="f.severity==='critical'?'border-red-200 bg-red-50':f.severity==='major'?'border-amber-200 bg-amber-50':f.severity==='minor'?'border-yellow-100 bg-yellow-50':'border-gray-100 bg-gray-50'">
+                    <span class="text-xs px-2 py-0.5 rounded-full font-bold flex-shrink-0"
+                          :class="f.severity==='critical'?'bg-red-100 text-red-700':f.severity==='major'?'bg-amber-100 text-amber-700':f.severity==='minor'?'bg-yellow-100 text-yellow-700':'bg-gray-100 text-gray-600'"
+                          x-text="f.severity.toUpperCase()"></span>
+                    <div class="flex-1">
+                      <div class="text-xs font-semibold text-gray-600 mb-0.5" x-text="f.type.toUpperCase()+' — '+f.section"></div>
+                      <div class="text-sm text-gray-800" x-text="f.description"></div>
+                      <div x-show="f.recommendation" class="text-xs text-blue-600 mt-1"><i class="fa-solid fa-lightbulb mr-1"></i><span x-text="f.recommendation"></span></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+          <div x-show="specReviews.length===0 && !specReviewLoading" class="text-center text-gray-400 py-8">Upload a specification document to run an AI review.</div>
+        </div>
+      </div><!-- /spec-review -->
+
+      <!-- ── UNION COMPLIANCE ────────────────────────────────────────── -->
+      <div x-show="view==='union'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-people-group mr-2 text-blue-600"></i>Trade Union Compliance</h2>
+            <p class="text-sm text-gray-500">Track union agreements, local numbers, and apprenticeship ratios per trade</p>
+          </div>
+          <button @click="unionForm={trade:'',local_number:'',agreement_type:'iba',apprentice_ratio:'1:4',journeymen_count:0,apprentice_count:0,expiry_date:'',notes:''}; unionEditId=null; showUnionModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Union</button>
+        </div>
+        <div x-show="unionsLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!unionsLoading" class="space-y-3">
+          <template x-for="u in unions" :key="u.id">
+            <div class="bg-white border rounded-xl p-5">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <div class="font-semibold text-gray-800" x-text="u.trade"></div>
+                  <div class="text-xs text-gray-400" x-text="u.local_number||''"></div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span x-show="u.ratio_compliant===true" class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-semibold">Ratio OK</span>
+                  <span x-show="u.ratio_compliant===false" class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-semibold">Ratio Breach</span>
+                  <button @click="editUnion(u)" class="text-xs text-blue-500 hover:text-blue-700">Edit</button>
+                  <button @click="deleteUnion(u.id)" class="text-xs text-red-400 hover:text-red-600">Del</button>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+                <div><div class="font-bold text-gray-800" x-text="u.agreement_type.toUpperCase()"></div><div class="text-gray-400">Agreement</div></div>
+                <div><div class="font-bold text-gray-800" x-text="u.apprentice_ratio||'—'"></div><div class="text-gray-400">Required Ratio</div></div>
+                <div><div class="font-bold" :class="u.ratio_compliant===false?'text-red-600':'text-gray-800'" x-text="(u.journeymen_count||0)+' J / '+(u.apprentice_count||0)+' A'"></div><div class="text-gray-400">Current Headcount</div></div>
+                <div><div class="font-bold text-gray-800" x-text="u.max_apprentices_allowed!=null?u.max_apprentices_allowed+' max':'—'"></div><div class="text-gray-400">Max Apprentices</div></div>
+              </div>
+              <div x-show="u.expiry_date" class="text-xs text-gray-400 mt-2"><i class="fa-solid fa-calendar mr-1"></i>Agreement expires: <span x-text="u.expiry_date"></span></div>
+            </div>
+          </template>
+          <div x-show="unions.length===0" class="text-center text-gray-400 text-sm py-8">No union agreements tracked. Add trades with active union agreements on this project.</div>
+        </div>
+      </div><!-- /union -->
+
+      <!-- ── PROJECT CLOSEOUT ────────────────────────────────────────── -->
+      <div x-show="view==='closeout'" class="p-6 max-w-4xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-flag-checkered mr-2 text-gray-700"></i>Project Closeout</h2>
+            <p class="text-sm text-gray-500" x-text="closeoutSummary?closeoutSummary.complete+' of '+closeoutSummary.total+' items complete ('+closeoutSummary.pct_complete+'%)':(currentProject?.name||'')"></p>
+          </div>
+          <div class="flex gap-2">
+            <button x-show="closeoutItems.length===0" @click="seedCloseout()" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition font-semibold"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Load Standard Checklist</button>
+            <button @click="closeoutForm={category:'documents',item_name:'',responsible_party:'',due_date:'',status:'pending',notes:''}; showCloseoutModal=true" class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 text-white text-xs rounded-lg hover:bg-gray-900 transition font-semibold"><i class="fa-solid fa-plus"></i> Add Item</button>
+          </div>
+        </div>
+        <!-- Progress bar -->
+        <div x-show="closeoutSummary?.total>0" x-cloak class="bg-white border rounded-xl p-4 mb-5">
+          <div class="flex justify-between text-xs mb-1.5 text-gray-600">
+            <span>Closeout Progress</span><span x-text="closeoutSummary?.pct_complete+'%'"></span>
+          </div>
+          <div class="bg-gray-100 rounded-full h-3"><div class="h-3 rounded-full bg-green-500 transition-all" :style="'width:'+closeoutSummary?.pct_complete+'%'"></div></div>
+        </div>
+        <div x-show="closeoutLoading" class="text-center py-12 text-gray-400"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
+        <div x-show="!closeoutLoading" class="space-y-3">
+          <template x-for="cat in ['documents','warranties','inspections','financial','legal','training']" :key="cat">
+            <div x-show="closeoutItems.filter(i=>i.category===cat).length>0">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 px-1" x-text="cat.toUpperCase()"></h3>
+              <div class="space-y-1">
+                <template x-for="item in closeoutItems.filter(i=>i.category===cat)" :key="item.id">
+                  <div class="bg-white border rounded-lg p-3 flex items-center gap-3">
+                    <input type="checkbox" :checked="item.status==='complete'" @change="toggleCloseoutItem(item, $event.target.checked)" class="rounded text-green-600" />
+                    <div class="flex-1">
+                      <div class="text-sm" :class="item.status==='complete'?'line-through text-gray-400':'text-gray-800'" x-text="item.item_name"></div>
+                      <div x-show="item.responsible_party||item.due_date" class="text-xs text-gray-400 mt-0.5">
+                        <span x-show="item.responsible_party" x-text="item.responsible_party"></span>
+                        <span x-show="item.due_date" class="ml-2">Due: <span x-text="item.due_date"></span></span>
+                      </div>
+                    </div>
+                    <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                          :class="item.status==='complete'?'bg-green-100 text-green-700':item.status==='in_progress'?'bg-blue-100 text-blue-700':item.status==='n_a'?'bg-gray-100 text-gray-400':'bg-amber-100 text-amber-700'"
+                          x-text="item.status==='n_a'?'N/A':item.status.replace('_',' ').toUpperCase()"></span>
+                    <button @click="deleteCloseoutItem(item.id)" class="text-xs text-red-400 hover:text-red-600 ml-1">×</button>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+          <div x-show="closeoutItems.length===0" class="text-center text-gray-400 text-sm py-8">No closeout items. Click "Load Standard Checklist" to get started with a 19-item checklist.</div>
+        </div>
+      </div><!-- /closeout -->
+
       <!-- ── AI CONSTRUCTION ACCOUNTANT ────────────────────────────── -->
       <div x-show="view==='health-check'" class="p-6 max-w-4xl">
         <div class="flex items-center justify-between mb-6">
@@ -9099,6 +9460,125 @@
     <div class="flex gap-2 mt-5">
       <button @click="showSelModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
       <button @click="saveSelection()" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hub Post Modal -->
+<div x-show="showHubPostModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showHubPostModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-bullhorn mr-2 text-green-600"></i>Post Progress Update</h3>
+      <button @click="showHubPostModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Title *</label><input x-model="hubPostForm.title" type="text" placeholder="Foundation pour complete..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" /></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Details</label><textarea x-model="hubPostForm.body" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" placeholder="Describe the progress update..."></textarea></div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Milestone (optional)</label><input x-model="hubPostForm.milestone" type="text" placeholder="Foundation Complete, Framing Started..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" /></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showHubPostModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveHubPost()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700">Post Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- Drawing Modal -->
+<div x-show="showDrawingModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showDrawingModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-drafting-compass mr-2 text-gray-700"></i><span x-text="drawingEditId?'Edit Drawing':'Add Drawing'"></span></h3>
+      <button @click="showDrawingModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Drawing Number *</label><input x-model="drawingForm.drawing_number" type="text" placeholder="A-101" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Discipline</label>
+          <select x-model="drawingForm.discipline" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400">
+            <option>Architectural</option><option>Structural</option><option>Mechanical</option><option>Electrical</option><option>Plumbing</option><option>Civil</option><option>Landscape</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Title *</label><input x-model="drawingForm.title" type="text" placeholder="Ground Floor Plan" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Revision</label><input x-model="drawingForm.current_revision" type="text" placeholder="Rev 3" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Rev Date</label><input x-model="drawingForm.revision_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select x-model="drawingForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400">
+            <option value="issued">Issued</option><option value="for_construction">For Construction</option><option value="for_review">For Review</option><option value="superseded">Superseded</option><option value="void">Void</option><option value="record">Record</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showDrawingModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveDrawing()" class="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Union Agreement Modal -->
+<div x-show="showUnionModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showUnionModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-people-group mr-2 text-blue-600"></i><span x-text="unionEditId?'Edit Union Agreement':'Add Union Agreement'"></span></h3>
+      <button @click="showUnionModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Trade *</label><input x-model="unionForm.trade" type="text" placeholder="Electrical, Ironworkers..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Local Number</label><input x-model="unionForm.local_number" type="text" placeholder="IBEW Local 353" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Agreement Type</label>
+          <select x-model="unionForm.agreement_type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="iba">IBA (Independent Bargaining)</option><option value="pla">PLA (Project Labour Agreement)</option><option value="nwa">NWA (National Wage Agreement)</option><option value="other">Other</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Apprentice Ratio</label><input x-model="unionForm.apprentice_ratio" type="text" placeholder="1:4" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Journeymen on Site</label><input x-model="unionForm.journeymen_count" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Apprentices on Site</label><input x-model="unionForm.apprentice_count" type="number" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Agreement Expiry</label><input x-model="unionForm.expiry_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" /></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showUnionModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveUnion()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Closeout Item Modal -->
+<div x-show="showCloseoutModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showCloseoutModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-flag-checkered mr-2 text-gray-700"></i>Add Closeout Item</h3>
+      <button @click="showCloseoutModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+    </div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Category</label>
+          <select x-model="closeoutForm.category" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400">
+            <option value="documents">Documents</option><option value="warranties">Warranties</option><option value="inspections">Inspections</option><option value="financial">Financial</option><option value="legal">Legal</option><option value="training">Training</option>
+          </select>
+        </div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+          <select x-model="closeoutForm.status" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400">
+            <option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="complete">Complete</option><option value="n_a">N/A</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="block text-xs font-medium text-gray-600 mb-1">Item *</label><input x-model="closeoutForm.item_name" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Responsible Party</label><input x-model="closeoutForm.responsible_party" type="text" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+        <div><label class="block text-xs font-medium text-gray-600 mb-1">Due Date</label><input x-model="closeoutForm.due_date" type="date" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" /></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button @click="showCloseoutModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+      <button @click="saveCloseoutItem()" class="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900">Add Item</button>
     </div>
   </div>
 </div>

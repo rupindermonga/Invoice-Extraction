@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release, spec_review, prequalification, client_hub
 
 
 def _run_migrations():
@@ -720,6 +720,88 @@ def _run_migrations():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )""",
             "CREATE INDEX IF NOT EXISTS ix_lien_releases_project ON lien_releases(project_id)",
+            # AI Spec Review
+            """CREATE TABLE IF NOT EXISTS spec_reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                filename TEXT, status TEXT DEFAULT 'pending',
+                findings JSON, summary TEXT, total_issues INTEGER DEFAULT 0,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Drawing Register
+            """CREATE TABLE IF NOT EXISTS drawing_register (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                drawing_number TEXT NOT NULL, title TEXT NOT NULL,
+                discipline TEXT, current_revision TEXT, revision_date TEXT,
+                status TEXT DEFAULT 'issued', file_path TEXT, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_drawings_project ON drawing_register(project_id, discipline)",
+            # Subcontractor Prequalification
+            """CREATE TABLE IF NOT EXISTS sub_prequalifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                vendor_id INTEGER REFERENCES org_vendors(id),
+                company_name TEXT NOT NULL, trade TEXT,
+                contact_name TEXT, contact_email TEXT,
+                years_in_business INTEGER, annual_revenue REAL,
+                bonding_capacity REAL, largest_project REAL,
+                safety_record TEXT, wsib_number TEXT, cra_bn TEXT, hst_number TEXT,
+                references TEXT, status TEXT DEFAULT 'submitted',
+                notes TEXT, invite_token TEXT UNIQUE,
+                submitted_at DATETIME, reviewed_by INTEGER REFERENCES users(id), reviewed_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_prequal_token ON sub_prequalifications(invite_token)",
+            "CREATE INDEX IF NOT EXISTS ix_prequal_org ON sub_prequalifications(org_id)",
+            # Client Hub
+            """CREATE TABLE IF NOT EXISTS client_hub_posts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                title TEXT NOT NULL, body TEXT, milestone TEXT,
+                photo_paths JSON, visibility TEXT DEFAULT 'client',
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS client_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                sender_type TEXT NOT NULL, sender_name TEXT,
+                message TEXT NOT NULL, is_read INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Union Compliance
+            """CREATE TABLE IF NOT EXISTS union_agreements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                trade TEXT NOT NULL, local_number TEXT,
+                agreement_type TEXT DEFAULT 'iba',
+                apprentice_ratio TEXT,
+                journeymen_count INTEGER DEFAULT 0, apprentice_count INTEGER DEFAULT 0,
+                expiry_date TEXT, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Project Closeout
+            """CREATE TABLE IF NOT EXISTS closeout_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                category TEXT NOT NULL, item_name TEXT NOT NULL,
+                description TEXT, responsible_party TEXT, due_date TEXT,
+                status TEXT DEFAULT 'pending', completed_at DATETIME, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_closeout_project ON closeout_items(project_id)",
             # Vendor Scores
             """CREATE TABLE IF NOT EXISTS vendor_scores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -878,6 +960,13 @@ app.include_router(selections._public_router)
 app.include_router(equipment.router)
 app.include_router(notifications.router)
 app.include_router(lien_release.router)
+app.include_router(spec_review.router)
+app.include_router(prequalification.router)
+app.include_router(prequalification._public_router)
+app.include_router(client_hub.router)
+app.include_router(client_hub._weather_router)
+app.include_router(client_hub._union_router)
+app.include_router(client_hub._closeout_router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -914,7 +1003,7 @@ async def report_view():
 @app.get("/", include_in_schema=False)
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_spa(full_path: str = ""):
-    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/", "report", "bid/", "co-approval/", "selections/"}
+    _blocked = {"api/", "static/", "docs", "redoc", "openapi.json", "lender/", "report", "bid/", "co-approval/", "selections/", "prequal/"}
     if any(full_path.startswith(b) or full_path == b for b in _blocked):
         from fastapi import HTTPException
         raise HTTPException(status_code=404)
