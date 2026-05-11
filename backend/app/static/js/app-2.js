@@ -347,6 +347,11 @@ function app() {
     showCloseoutModal: false,
     closeoutForm: { category:'documents', item_name:'', responsible_party:'', due_date:'', status:'pending', notes:'' },
 
+    // ── Bank Feed (Flinks + AI Matching) ─────────────────────────
+    bankFeedConnections: [], bankFeedTxns: [], bankFeedFilter: 'unmatched',
+    bankFeedUnmatched: 0, showBankFeedModal: false, flinksLoginId: false,
+    bankFeedForm: { institution_name:'', account_name:'', account_type:'chequing', masked_account:'', flinks_login_id:'' },
+    aiMatchLoading: false, aiMatchResult: null,
     // ── Phase 11: Bank Import ─────────────────────────────────────
     bankFile: null, bankParsing: false, bankDetected: null,
     bankTransactions: [], bankMatches: [],
@@ -4375,6 +4380,68 @@ ${d.participant_shares?.map(p=>`<tr><td>${p.lender}</td><td>${p.pct}%</td><td>$$
     async deleteSelection(id) {
       if (!confirm('Delete this selection item?')) return;
       try { await this.delete(`/api/project/${this.currentProject.id}/selections/${id}`); await this.loadSelections(); } catch(e) {}
+    },
+
+    // ═══════════════ BANK FEED FUNCTIONS ════════════════════════════════════════
+
+    async loadBankFeedConnections() {
+      try {
+        const data = await this.get('/api/bank-feed/connections');
+        this.bankFeedConnections = data.connections || data || [];
+        this.bankFeedUnmatched = (data.connections||data||[]).reduce((s,c) => s + (c.unmatched_count||0), 0);
+        if (this.bankFeedConnections.length > 0 && this.view === 'bank-feed') {
+          await this.loadBankFeedTransactions();
+        }
+      } catch(e) { this.bankFeedConnections = []; }
+    },
+    async loadBankFeedTransactions() {
+      try {
+        const data = await this.get(`/api/bank-feed/transactions?status=${this.bankFeedFilter}&limit=100`);
+        this.bankFeedTxns = data.transactions || data || [];
+      } catch(e) { this.bankFeedTxns = []; }
+    },
+    openBankFeedConnectModal() {
+      this.bankFeedForm = { institution_name:'', account_name:'Operating Account', account_type:'chequing', masked_account:'', flinks_login_id:'' };
+      this.showBankFeedModal = true;
+    },
+    async saveBankFeedConnection() {
+      try {
+        await this.post('/api/bank-feed/connections', { ...this.bankFeedForm, provider: this.bankFeedForm.flinks_login_id ? 'flinks' : 'manual' });
+        this.showBankFeedModal = false;
+        await this.loadBankFeedConnections();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async syncBankFeed(connectionId) {
+      try {
+        const result = await this.post(`/api/bank-feed/connections/${connectionId}/sync`, {});
+        if (result.msg) alert(result.msg);
+        await this.loadBankFeedConnections();
+      } catch(e) { alert(e.message||'Sync failed'); }
+    },
+    async disconnectBankFeed(connectionId) {
+      if (!confirm('Disconnect this bank account? Transaction history will be preserved.')) return;
+      try { await this.delete(`/api/bank-feed/connections/${connectionId}`); await this.loadBankFeedConnections(); } catch(e) {}
+    },
+    async runAIMatch() {
+      this.aiMatchLoading = true; this.aiMatchResult = null;
+      try {
+        this.aiMatchResult = await this.post('/api/bank-feed/ai-match-all', {});
+        await this.loadBankFeedTransactions();
+      } catch(e) { alert('AI matching failed: '+e.message); }
+      this.aiMatchLoading = false;
+    },
+    async confirmBankTxn(id, txn) {
+      try {
+        const markPaid = txn.ai_invoice_id && confirm('Mark the linked invoice as paid?');
+        await this.put(`/api/bank-feed/transactions/${id}/confirm`, {
+          matched_invoice_id: txn.ai_invoice_id || null,
+          mark_paid: markPaid,
+        });
+        await this.loadBankFeedTransactions();
+      } catch(e) { alert(e.message||'Confirm failed'); }
+    },
+    async excludeBankTxn(id) {
+      try { await this.put(`/api/bank-feed/transactions/${id}/exclude`, { notes: 'Excluded by user' }); await this.loadBankFeedTransactions(); } catch(e) {}
     },
 
     // ═══════════════ PHASE 11 FUNCTIONS ════════════════════════════════════════

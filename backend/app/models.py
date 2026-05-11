@@ -2500,3 +2500,56 @@ class EFTBatchPayment(Base):
     created_at      = Column(DateTime, default=datetime.utcnow)
 
     batch = relationship("EFTBatch", back_populates="payments")
+
+
+# ─── Bank Feed Models ─────────────────────────────────────────────────────────
+
+class BankFeedConnection(Base):
+    __tablename__ = "bank_feed_connections"
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    provider = Column(String, default="flinks")  # flinks | plaid | manual
+    institution_name = Column(String, nullable=True)
+    account_name = Column(String, nullable=True)
+    account_type = Column(String, nullable=True)  # chequing | savings | credit
+    masked_account = Column(String, nullable=True)  # last 4 digits
+    flinks_login_id = Column(String, nullable=True)
+    flinks_request_id = Column(String, nullable=True)
+    status = Column(String, default="pending")  # pending | active | error | disconnected
+    last_synced_at = Column(DateTime, nullable=True)
+    balance = Column(Float, nullable=True)
+    currency = Column(String, default="CAD")
+    notes = Column(Text, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    bf_creator = relationship("User", foreign_keys=[created_by])
+    transactions = relationship("BankFeedTransaction", back_populates="connection", cascade="all, delete-orphan")
+
+
+class BankFeedTransaction(Base):
+    __tablename__ = "bank_feed_transactions"
+    id = Column(Integer, primary_key=True, index=True)
+    connection_id = Column(Integer, ForeignKey("bank_feed_connections.id"), nullable=False, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    transaction_date = Column(String, nullable=False, index=True)
+    description = Column(String, nullable=False)
+    amount = Column(Float, nullable=False)  # negative=debit, positive=credit
+    balance_after = Column(Float, nullable=True)
+    raw_description = Column(String, nullable=True)
+    transaction_type = Column(String, nullable=True)
+    reference_number = Column(String, nullable=True)
+    # AI matching
+    ai_vendor_suggestion = Column(String, nullable=True)
+    ai_category_suggestion = Column(String, nullable=True)
+    ai_invoice_id = Column(Integer, nullable=True)
+    ai_confidence = Column(String, nullable=True)  # high | medium | low | none
+    ai_reasoning = Column(String, nullable=True)
+    # Confirmed match
+    matched_invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=True)
+    matched_vendor_id = Column(Integer, ForeignKey("org_vendors.id"), nullable=True)
+    matched_category_id = Column(Integer, ForeignKey("cost_categories.id"), nullable=True)
+    status = Column(String, default="unmatched")  # unmatched | ai_suggested | confirmed | excluded
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    connection = relationship("BankFeedConnection", back_populates="transactions")
+    matched_invoice = relationship("Invoice", foreign_keys=[matched_invoice_id])

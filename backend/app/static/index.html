@@ -218,7 +218,7 @@
             <span class="text-blue-400">for Construction</span>
           </h1>
           <p class="text-lg text-slate-300 leading-relaxed mb-10 max-w-2xl">
-            AI-powered invoice extraction, draw &amp; lender management, real-time cash flow forecasting, and full project management — unified in one platform built for Canadian contractors.
+            75+ integrated modules — construction finance, lender tools, project management, Canadian compliance, AI intelligence, and field operations — built exclusively for Canadian GCs, developers, and construction lenders.
           </p>
           <div class="flex flex-wrap gap-4">
             <button @click="view='login'; history.pushState({}, '', '/login')"
@@ -235,81 +235,251 @@
       </div>
     </section>
 
-    <!-- Features -->
-    <section class="py-24 bg-white">
+    <!-- Stats Bar -->
+    <section class="bg-slate-50 border-y border-gray-100 py-8">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="text-center mb-16">
-          <h2 class="font-serif text-4xl text-slate-900 mb-4">Everything your project needs</h2>
-          <p class="text-slate-500 text-lg max-w-2xl mx-auto">From first invoice upload to final lender approval — Finel AI Projects handles the finance layer so you can focus on building.</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div><div class="text-3xl font-bold text-blue-600">75+</div><div class="text-sm text-slate-500 mt-1">Integrated Modules</div></div>
+          <div><div class="text-3xl font-bold text-blue-600">13</div><div class="text-sm text-slate-500 mt-1">Provinces &amp; Territories</div></div>
+          <div><div class="text-3xl font-bold text-blue-600">Gemini 2.0</div><div class="text-sm text-slate-500 mt-1">AI Powered</div></div>
+          <div><div class="text-3xl font-bold text-blue-600">PWA + Native</div><div class="text-sm text-slate-500 mt-1">Mobile Ready</div></div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      </div>
+    </section>
 
-          <!-- Feature 1 -->
-          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
-            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
-              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
-              </svg>
-            </div>
-            <h3 class="text-lg font-bold text-slate-900 mb-3">AI Invoice Extraction</h3>
-            <p class="text-slate-500 text-sm leading-relaxed">Upload PDFs or images. Gemini AI reads every field — vendor, invoice number, date, subtotal, HST/GST/PST, and total — in seconds. No manual data entry.</p>
+    <!-- Features — Construction Finance -->
+    <section class="py-20 bg-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-14">
+          <div class="inline-flex items-center gap-2 bg-blue-50 text-blue-700 rounded-full px-4 py-1.5 text-xs font-semibold mb-4 uppercase tracking-wide"><i class="fa-solid fa-building-columns"></i> Construction Finance</div>
+          <h2 class="font-serif text-4xl text-slate-900 mb-4">The most complete lender &amp; draw platform in Canada</h2>
+          <p class="text-slate-500 text-lg max-w-2xl mx-auto">Everything from invoice upload to credit committee report — built specifically for Canadian construction finance workflows.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div class="bg-slate-50 rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all">
+            <i class="fa-solid fa-file-invoice-dollar text-2xl text-blue-500 mb-4"></i>
+            <h3 class="font-bold text-slate-800 mb-2">AI Invoice Extraction</h3>
+            <p class="text-sm text-slate-500">Gemini reads vendor, date, GST/HST/PST, subtotal, and total from any PDF or photo in seconds. Flags duplicates and overbilling automatically.</p>
           </div>
-
-          <!-- Feature 2 -->
-          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
-            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
-              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/>
-              </svg>
-            </div>
-            <h3 class="text-lg font-bold text-slate-900 mb-3">Draw &amp; Budget Tracking</h3>
-            <p class="text-slate-500 text-sm leading-relaxed">Organize every invoice into draws. Track lender-submitted amounts, approved amounts, and lender margins. See your full cost structure across categories and subdivisions.</p>
+          <div class="bg-slate-50 rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all">
+            <i class="fa-solid fa-layer-group text-2xl text-blue-500 mb-4"></i>
+            <h3 class="font-bold text-slate-800 mb-2">Draw &amp; Lender Management</h3>
+            <p class="text-sm text-slate-500">Package invoices into draw submissions. Track lender-approved vs submitted amounts, margins, holdback, and funding conditions with a dedicated lender portal.</p>
           </div>
-
-          <!-- Feature 3 -->
-          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
-            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
-              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/>
-              </svg>
-            </div>
-            <h3 class="text-lg font-bold text-slate-900 mb-3">Government Claim Management</h3>
-            <p class="text-slate-500 text-sm leading-relaxed">Manage provincial and federal claims separately. Set margins, track submitted vs approved amounts, and export claim-ready reports — all linked back to the original invoices.</p>
+          <div class="bg-slate-50 rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all">
+            <i class="fa-solid fa-chart-line text-2xl text-blue-500 mb-4"></i>
+            <h3 class="font-bold text-slate-800 mb-2">WIP Schedule &amp; CFO Reports</h3>
+            <p class="text-sm text-slate-500">GAAP WIP Schedule (Excel export), backlog report, margin fade tracker, retainage aging, AP aging, committed vs buyout — the full CFO dashboard your accountant needs.</p>
           </div>
-
-          <!-- Feature 4 -->
-          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
-            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
-              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/>
-              </svg>
-            </div>
-            <h3 class="text-lg font-bold text-slate-900 mb-3">Categories &amp; Vendor Mapping</h3>
-            <p class="text-slate-500 text-sm leading-relaxed">Auto-classify invoices by vendor using your own category rules. Bulk re-classify in one click. Build a live cost breakdown that matches your accounting structure.</p>
+          <div class="bg-slate-50 rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all">
+            <i class="fa-solid fa-piggy-bank text-2xl text-blue-500 mb-4"></i>
+            <h3 class="font-bold text-slate-800 mb-2">Interest Reserve &amp; Covenants</h3>
+            <p class="text-sm text-slate-500">LTC/LTV monitoring, interest reserve burn tracking, covenant breach detection (DSCR, LTV, equity-in-first), credit committee report auto-generation.</p>
           </div>
-
-          <!-- Feature 5 -->
-          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
-            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
-              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776"/>
-              </svg>
-            </div>
-            <h3 class="text-lg font-bold text-slate-900 mb-3">Invoice Finder</h3>
-            <p class="text-slate-500 text-sm leading-relaxed">Point the tool at a folder of PDFs and it matches them against your database — finding missing invoices, duplicates, and already-processed files with live progress streaming.</p>
+          <div class="bg-slate-50 rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all">
+            <i class="fa-solid fa-scale-unbalanced text-2xl text-blue-500 mb-4"></i>
+            <h3 class="font-bold text-slate-800 mb-2">Sources &amp; Uses</h3>
+            <p class="text-sm text-slate-500">Track equity, senior debt, mezz, vendor take-back, and grants against all project uses. CMHC MLI Select equity-in-first verification built in.</p>
           </div>
-
-          <!-- Feature 6 -->
-          <div class="group bg-white border border-gray-100 rounded-2xl p-8 hover:shadow-lg hover:border-blue-100 transition-all duration-300">
-            <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-6 group-hover:bg-blue-500 transition-colors">
-              <svg class="w-6 h-6 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
-              </svg>
-            </div>
-            <h3 class="text-lg font-bold text-slate-900 mb-3">Export &amp; Reports</h3>
-            <p class="text-slate-500 text-sm leading-relaxed">Export filtered invoices to CSV in one click. Configure which columns appear in exports. Share clean, accountant-ready reports without manual spreadsheet work.</p>
+          <div class="bg-slate-50 rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all">
+            <i class="fa-solid fa-building-columns text-2xl text-blue-500 mb-4"></i>
+            <h3 class="font-bold text-slate-800 mb-2">Loan Syndication &amp; Mezz</h3>
+            <p class="text-sm text-slate-500">Multi-lender participation splits, mezz/second-mortgage tranche tracking with draw triggers and waterfall priority. CMHC take-out conversion tracker.</p>
           </div>
+          <div class="bg-slate-50 rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all">
+            <i class="fa-solid fa-chart-mixed text-2xl text-blue-500 mb-4"></i>
+            <h3 class="font-bold text-slate-800 mb-2">Stress Testing</h3>
+            <p class="text-sm text-slate-500">Model interest reserve burn under +100/+200bps rate scenarios and 3–6 month schedule slippage. Red/amber/green RAG dashboard for portfolio-wide exposure.</p>
+          </div>
+          <div class="bg-slate-50 rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all">
+            <i class="fa-solid fa-hard-hat text-2xl text-blue-500 mb-4"></i>
+            <h3 class="font-bold text-slate-800 mb-2">QS / Inspector Portal</h3>
+            <p class="text-sm text-slate-500">Structured QS report submissions with trade-level % complete. Upload any Altus, Pelican, or MNP PDF — Gemini extracts trades, deficiencies, and recommendation automatically.</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
+    <!-- Features — AI Intelligence -->
+    <section class="py-20 bg-gradient-to-br from-slate-900 to-blue-950 text-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-14">
+          <div class="inline-flex items-center gap-2 bg-blue-500/20 text-blue-300 rounded-full px-4 py-1.5 text-xs font-semibold mb-4 uppercase tracking-wide"><i class="fa-solid fa-robot"></i> AI Intelligence</div>
+          <h2 class="font-serif text-4xl text-white mb-4">Gemini AI runs through every module</h2>
+          <p class="text-slate-300 text-lg max-w-2xl mx-auto">Not a chatbot bolted on — AI woven into the workflow where it saves the most time.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all">
+            <i class="fa-solid fa-stethoscope text-2xl text-blue-400 mb-4"></i>
+            <h3 class="font-bold text-white mb-2">AI Accountant</h3>
+            <p class="text-sm text-slate-300">Flags duplicate invoices, stale draws, overbilling, and 8-dimension project distress score. Portfolio risk dashboard shows which projects need attention now.</p>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all">
+            <i class="fa-solid fa-file-magnifying-glass text-2xl text-blue-400 mb-4"></i>
+            <h3 class="font-bold text-white mb-2">AI Spec Review</h3>
+            <p class="text-sm text-slate-300">Upload a 500-page spec book — Gemini finds conflicts, gaps, and compliance issues. Spec Q&amp;A answers questions with Canadian code references. AI RFI and submittal log generator.</p>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all">
+            <i class="fa-solid fa-message-question text-2xl text-blue-400 mb-4"></i>
+            <h3 class="font-bold text-white mb-2">AI Document Q&amp;A</h3>
+            <p class="text-sm text-slate-300">"When was the curtain wall delivery promised?" — AI searches all RFIs, submittals, meeting minutes, daily logs, and change orders to answer with source citations.</p>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all">
+            <i class="fa-solid fa-file-contract text-2xl text-blue-400 mb-4"></i>
+            <h3 class="font-bold text-white mb-2">AI CO Narrative</h3>
+            <p class="text-sm text-slate-300">Describe a delay event — AI drafts a CCDC-clause-cited formal change order justification letter suitable for owner and lender submission. Cites GC 6.1, 6.2, 8.1 automatically.</p>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all">
+            <i class="fa-solid fa-envelope-circle-check text-2xl text-blue-400 mb-4"></i>
+            <h3 class="font-bold text-white mb-2">AI Weekly Client Update</h3>
+            <p class="text-sm text-slate-300">Gemini reads 7 days of daily logs, milestones, RFIs, and change orders, then drafts a professional client email in your chosen tone — ready to send in seconds.</p>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all">
+            <i class="fa-solid fa-building-columns text-2xl text-blue-400 mb-4"></i>
+            <h3 class="font-bold text-white mb-2">AI Bank Reconciliation</h3>
+            <p class="text-sm text-slate-500 text-slate-300">Connect your bank via Flinks or upload CSV — AI matches transactions to unpaid invoices by amount + vendor name, suggests cost categories, and marks invoices paid in one click.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features — Canadian Compliance -->
+    <section class="py-20 bg-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="lg:grid lg:grid-cols-2 lg:gap-16 items-center">
+          <div class="mb-12 lg:mb-0">
+            <div class="inline-flex items-center gap-2 bg-red-50 text-red-700 rounded-full px-4 py-1.5 text-xs font-semibold mb-6 uppercase tracking-wide"><i class="fa-solid fa-maple-leaf"></i> Canadian Compliance</div>
+            <h2 class="font-serif text-4xl text-slate-900 mb-6">The only platform built for Canadian construction law</h2>
+            <p class="text-slate-500 text-lg mb-8">US tools don't understand CCDC, holdback rules, prompt payment adjudication, or CMHC. We do — across all 13 provinces and territories.</p>
+            <div class="space-y-4">
+              <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-red-600 text-xs"></i></div><div><div class="font-semibold text-slate-800 text-sm">CCDC Contract Library</div><div class="text-sm text-slate-500">CCDC 2, 4, 5A/5B, 14, 17, 30 + statutory declarations 9A/9B</div></div></div>
+              <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-red-600 text-xs"></i></div><div><div class="font-semibold text-slate-800 text-sm">Prompt Payment &amp; Adjudication</div><div class="text-sm text-slate-500">Proper invoice validation, NNP workflow, adjudication case tracker with auto-computed deadlines — all 13 provinces</div></div></div>
+              <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-red-600 text-xs"></i></div><div><div class="font-semibold text-slate-800 text-sm">Holdback by Province</div><div class="text-sm text-slate-500">ON/BC/AB/QC/MB/SK/NS/NB/NL/PEI/YT/NT/NU holdback rules and lien windows built in</div></div></div>
+              <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-red-600 text-xs"></i></div><div><div class="font-semibold text-slate-800 text-sm">CMHC &amp; GST/HST Rebates</div><div class="text-sm text-slate-500">CMHC MLI Select financing checklist, Purpose-Built Rental 100% rebate calculator, GST190/GST524/GST531 application tracker</div></div></div>
+              <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-red-600 text-xs"></i></div><div><div class="font-semibold text-slate-800 text-sm">T5018, WSIB/WCB, Bonds</div><div class="text-sm text-slate-500">T5018 CSV export, WSIB/WCB clearance tracking, bid bond / performance bond / L&amp;M bond registry</div></div></div>
+              <div class="flex items-start gap-3"><div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fa-solid fa-check text-red-600 text-xs"></i></div><div><div class="font-semibold text-slate-800 text-sm">TARION / Provincial Warranty</div><div class="text-sm text-slate-500">30-day, year-end, 2-year, and 7-year Tarion warranty tracking. BC/AB/QC/SK/MB residential warranty programs supported</div></div></div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="bg-red-50 rounded-2xl p-5 border border-red-100">
+              <div class="text-3xl font-bold text-red-700 mb-1">13</div>
+              <div class="text-sm font-semibold text-red-800">Provinces &amp; Territories</div>
+              <div class="text-xs text-red-600 mt-1">Holdback rules, prompt payment deadlines, lien periods</div>
+            </div>
+            <div class="bg-amber-50 rounded-2xl p-5 border border-amber-100">
+              <div class="text-3xl font-bold text-amber-700 mb-1">7</div>
+              <div class="text-sm font-semibold text-amber-800">CCDC Contract Forms</div>
+              <div class="text-xs text-amber-600 mt-1">CCDC 2, 4, 5A/5B, 14, 17, 30 + 9A/9B declarations</div>
+            </div>
+            <div class="bg-blue-50 rounded-2xl p-5 border border-blue-100">
+              <div class="text-3xl font-bold text-blue-700 mb-1">8</div>
+              <div class="text-sm font-semibold text-blue-800">Proper Invoice Fields</div>
+              <div class="text-xs text-blue-600 mt-1">Ontario Construction Act validator built in</div>
+            </div>
+            <div class="bg-green-50 rounded-2xl p-5 border border-green-100">
+              <div class="text-3xl font-bold text-green-700 mb-1">100%</div>
+              <div class="text-sm font-semibold text-green-800">GST/HST Rebate</div>
+              <div class="text-xs text-green-600 mt-1">Purpose-Built Rental Housing (2024+)</div>
+            </div>
+            <div class="col-span-2 bg-slate-900 rounded-2xl p-5 text-white">
+              <div class="text-sm font-bold mb-2 text-blue-300">No US tool comes close.</div>
+              <div class="text-xs text-slate-300 leading-relaxed">Procore, Autodesk, Rabbet, Buildertrend — none of them know what holdback is, what a CCDC 9A statutory declaration means, or how Ontario prompt payment adjudication works. Finel AI Projects was built from day one for the Canadian market.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features — PM + Field -->
+    <section class="py-20 bg-slate-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-14">
+          <div class="inline-flex items-center gap-2 bg-green-50 text-green-700 rounded-full px-4 py-1.5 text-xs font-semibold mb-4 uppercase tracking-wide"><i class="fa-solid fa-hard-hat"></i> Project Management &amp; Field</div>
+          <h2 class="font-serif text-4xl text-slate-900 mb-4">Finance and field — unified</h2>
+          <p class="text-slate-500 text-lg max-w-2xl mx-auto">Your PM team and finance team in the same platform. No more data moving between Procore and QuickBooks.</p>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-list-check text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Tasks &amp; Schedule</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-calendar-day text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Daily Site Logs</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-circle-question text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">RFIs</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-clipboard-list text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Submittals</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-triangle-exclamation text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Punch List</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-users-rectangle text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Meeting Minutes</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-shield-halved text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Safety Incidents</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-person-chalkboard text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Toolbox Talks</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-clock text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Labour Timecards</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-file-signature text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Permits &amp; ESA</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-clipboard-check text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Quality Inspections</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-drafting-compass text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Drawing Register</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-cloud-sun text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Weather (Auto)</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-id-badge text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Visitor Log</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-flag-checkered text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Project Closeout</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-image text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Photo Log</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-location-dot text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">GPS Timecards</div></div>
+          <div class="bg-white rounded-xl border p-4 hover:border-green-200 hover:shadow-sm transition-all"><i class="fa-solid fa-people-group text-green-600 text-xl mb-2"></i><div class="text-xs font-semibold text-slate-700">Union Compliance</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features — Integrations & Platform -->
+    <section class="py-20 bg-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="lg:grid lg:grid-cols-2 lg:gap-16 items-start">
+          <!-- Integrations -->
+          <div class="mb-12 lg:mb-0">
+            <div class="inline-flex items-center gap-2 bg-violet-50 text-violet-700 rounded-full px-4 py-1.5 text-xs font-semibold mb-6 uppercase tracking-wide"><i class="fa-solid fa-plug"></i> Integrations</div>
+            <h2 class="font-serif text-3xl text-slate-900 mb-4">Works with your accounting stack</h2>
+            <p class="text-slate-500 mb-6">Export to QuickBooks, Sage, Foundation, Jonas — or connect via API and webhooks.</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-solid fa-cloud text-green-500 w-4"></i><span class="text-sm font-medium text-slate-700">QuickBooks Online</span></div>
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-brands fa-windows text-indigo-500 w-4"></i><span class="text-sm font-medium text-slate-700">QB Desktop IIF</span></div>
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-solid fa-leaf text-teal-500 w-4"></i><span class="text-sm font-medium text-slate-700">Sage 50 Canada</span></div>
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-solid fa-building text-amber-500 w-4"></i><span class="text-sm font-medium text-slate-700">Sage 300 CRE</span></div>
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-solid fa-hammer text-orange-500 w-4"></i><span class="text-sm font-medium text-slate-700">Foundation Software</span></div>
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-solid fa-database text-purple-500 w-4"></i><span class="text-sm font-medium text-slate-700">Jonas Construction</span></div>
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-solid fa-building-columns text-slate-500 w-4"></i><span class="text-sm font-medium text-slate-700">Bank Feed (Flinks)</span></div>
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-solid fa-money-bill-transfer text-cyan-500 w-4"></i><span class="text-sm font-medium text-slate-700">EFT / CPA-005</span></div>
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-solid fa-webhook text-rose-500 w-4"></i><span class="text-sm font-medium text-slate-700">Webhooks &amp; API</span></div>
+              <div class="flex items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 border border-gray-100"><i class="fa-solid fa-cloud-arrow-up text-blue-500 w-4"></i><span class="text-sm font-medium text-slate-700">Acumatica Connector</span></div>
+            </div>
+          </div>
+          <!-- Platform -->
+          <div>
+            <div class="inline-flex items-center gap-2 bg-blue-50 text-blue-700 rounded-full px-4 py-1.5 text-xs font-semibold mb-6 uppercase tracking-wide"><i class="fa-solid fa-mobile-screen"></i> Platform</div>
+            <h2 class="font-serif text-3xl text-slate-900 mb-4">Built for the office and the job site</h2>
+            <p class="text-slate-500 mb-6">PWA installable on any device today. Native iOS and Android builds ready — submit to App Store and Play Store when you're ready.</p>
+            <div class="space-y-4">
+              <div class="bg-slate-50 rounded-xl border border-gray-100 p-4 flex items-start gap-4">
+                <i class="fa-solid fa-wifi-slash text-2xl text-blue-500 flex-shrink-0 mt-0.5"></i>
+                <div><div class="font-semibold text-slate-800 text-sm">Offline Mode</div><div class="text-xs text-slate-500 mt-1">Service Worker v3 + IndexedDB queues mutations offline, replays via Background Sync API on reconnect. Field-tested in dead-zone job sites.</div></div>
+              </div>
+              <div class="bg-slate-50 rounded-xl border border-gray-100 p-4 flex items-start gap-4">
+                <i class="fa-solid fa-location-dot text-2xl text-green-500 flex-shrink-0 mt-0.5"></i>
+                <div><div class="font-semibold text-slate-800 text-sm">GPS on Mobile</div><div class="text-xs text-slate-500 mt-1">One-tap GPS capture on timecards and daily logs. Bottom navigation bar designed for one-thumb field use.</div></div>
+              </div>
+              <div class="bg-slate-50 rounded-xl border border-gray-100 p-4 flex items-start gap-4">
+                <i class="fa-brands fa-apple text-2xl text-slate-700 flex-shrink-0 mt-0.5"></i>
+                <div><div class="font-semibold text-slate-800 text-sm">Native App Ready (Capacitor)</div><div class="text-xs text-slate-500 mt-1">Capacitor wrapper pre-configured. Run <code class="bg-white px-1 rounded text-xs">npm install && npx cap add ios android</code> and open in Xcode/Android Studio. App Store ready.</div></div>
+              </div>
+              <div class="bg-slate-50 rounded-xl border border-gray-100 p-4 flex items-start gap-4">
+                <i class="fa-solid fa-shield-check text-2xl text-violet-500 flex-shrink-0 mt-0.5"></i>
+                <div><div class="font-semibold text-slate-800 text-sm">Multi-Tenant Security</div><div class="text-xs text-slate-500 mt-1">11 roles (owner, finance_admin, pm_admin, vendor_finance, vendor_pm, etc.), field-level data isolation, full audit log, PIPEDA-compliant data residency.</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Social Proof / Module Count -->
+    <section class="py-16 bg-blue-600">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
+        <p class="text-blue-100 text-sm uppercase tracking-widest mb-3">What you get</p>
+        <h2 class="font-serif text-4xl mb-6">75+ modules. One platform.</h2>
+        <div class="flex flex-wrap justify-center gap-2 text-xs">
+          <template x-for="m in ['AI Invoice Extraction','Draw Management','Lender Portal','WIP Schedule','CFO Reports','Covenants','Interest Reserve','Stress Testing','Sources & Uses','Syndicated Loans','QS Portal','Mezz Tranches','CMHC Take-out','Loan Closing Checklist','GST/HST Rebates','EFT Payments','Bank Feed','AI Accountant','AI Risk Score','Portfolio Risk','AI Spec Review','Spec Q&A','AI RFI Generator','AI Submittal Log','AI CO Narrative','AI Client Update','AI Doc Q&A','AI Meeting Extraction','Tasks','Daily Logs','RFIs','Submittals','Punch List','Meeting Minutes','Photo Log','Safety Incidents','Toolbox Talks','Labour Timecards','Permits','Quality Inspections','Drawing Register','Weather','Visitor Log','Closeout','GPS Timecard','Union Compliance','CCDC Library','Statutory Declarations','Prompt Payment','Adjudication','Non-Payment Notices','Substantial Performance','T5018','WSIB/WCB','Bonds','Tarion Warranty','CRM Pipeline','Proposals (e-sign)','Bid Management','Cost Assemblies','Procurement Schedule','VE Log','Client Selections','Homeowner Hub','Client Payment Schedule','Unit Sales','Subcontracts (e-sign)','Sub Prequalification','Vendor Directory','ERP Exports','QB Desktop IIF','Sage 50 CA','Acumatica','Webhooks','API Keys','Offline PWA','Capacitor Native']">
+            <span class="bg-white/10 border border-white/20 rounded-full px-3 py-1" x-text="m"></span>
+          </template>
         </div>
       </div>
     </section>
@@ -367,7 +537,7 @@
               <svg class="w-5 h-5 text-slate-400 transition-transform flex-shrink-0" :class="open===1 ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div x-show="open===1" x-cloak x-transition class="px-6 pb-5 text-slate-500 text-sm leading-relaxed border-t border-gray-100">
-              Finel AI Projects is a construction finance platform that uses Gemini AI to automatically extract data from invoices, then helps you track draws, manage lender submissions, handle government claims, and export clean reports — all in one dashboard.
+              Finel AI Projects is the complete operating system for Canadian construction — 75+ integrated modules covering construction finance (draws, lender portals, WIP reports, covenants, interest reserve, stress testing), project management (tasks, RFIs, safety, labour, permits), Canadian compliance (CCDC contracts, prompt payment, adjudication, CMHC), AI intelligence (invoice extraction, AI accountant, spec review, CO narrative, bank reconciliation), field operations, and integrations with QuickBooks, Sage, Foundation, Jonas, and bank feeds — all in one platform built exclusively for Canadian GCs, developers, and construction lenders.
             </div>
           </div>
 
@@ -428,8 +598,8 @@
     <!-- CTA strip -->
     <section class="bg-slate-900 py-20">
       <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <h2 class="font-serif text-4xl text-white mb-4">Ready to take control of your project costs?</h2>
-        <p class="text-slate-400 text-lg mb-10">Sign in to your Finel AI Projects account or contact us to get set up.</p>
+        <h2 class="font-serif text-4xl text-white mb-4">The complete platform for Canadian construction</h2>
+        <p class="text-slate-400 text-lg mb-10">75+ modules. One login. Built exclusively for Canadian GCs, developers, and lenders. Sign in or contact us to get set up.</p>
         <div class="flex flex-wrap justify-center gap-4">
           <button @click="view='login'; history.pushState({}, '', '/login')"
                   class="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-400 text-white px-10 py-4 rounded-md text-base font-semibold transition-colors shadow-lg shadow-blue-500/25">
@@ -1144,8 +1314,13 @@
             <span class="flex-1 text-left">ERP Integrations</span>
             <span x-show="erpCredentials.filter(c=>c.is_active).length>0" x-text="erpCredentials.filter(c=>c.is_active).length" class="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded-full font-bold"></span>
           </button>
+          <button @click="view='bank-feed'; loadBankFeedConnections(); sidebarOpen=false" :class="view==='bank-feed'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
+            <i class="fa-solid fa-building-columns w-4"></i>
+            <span class="flex-1 text-left">Bank Feed</span>
+            <span x-show="bankFeedUnmatched>0" x-text="bankFeedUnmatched" class="text-xs bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full font-bold"></span>
+          </button>
           <button @click="view='bank-import'; sidebarOpen=false" :class="view==='bank-import'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
-            <i class="fa-solid fa-building-columns w-4"></i> Bank Import
+            <i class="fa-solid fa-file-csv w-4"></i> Bank CSV Import
           </button>
           <button @click="view='fx-rates'; loadFXRates(); sidebarOpen=false" :class="view==='fx-rates'?'bg-blue-700':'hover:bg-blue-800'" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition">
             <i class="fa-solid fa-dollar-sign w-4"></i> FX / Currency
@@ -11988,6 +12163,131 @@
       </div>
     </div>
     <div class="flex gap-2 mt-5"><button @click="showLoanClosingModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveLoanClosingItem()" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700">Add</button></div>
+  </div>
+</div>
+
+<!-- ── BANK FEED ───────────────────────────────────────────────────────────── -->
+<div x-show="view==='bank-feed'" x-cloak class="p-6 max-w-5xl">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-building-columns mr-2 text-blue-600"></i>Bank Feed</h2>
+      <p class="text-sm text-gray-500 mt-1">Connect your bank account — AI matches transactions to unpaid invoices automatically.</p>
+    </div>
+    <button @click="openBankFeedConnectModal()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700"><i class="fa-solid fa-plus"></i> Connect Account</button>
+  </div>
+
+  <!-- Connections -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+    <template x-for="c in bankFeedConnections" :key="c.id">
+      <div class="bg-white rounded-xl border p-4 shadow-sm">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <i class="fa-solid fa-building-columns text-blue-500"></i>
+              <span class="font-semibold text-gray-800" x-text="c.institution_name||'Bank Account'"></span>
+              <span :class="c.status==='active'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'" class="text-xs font-semibold px-2 py-0.5 rounded-full capitalize" x-text="c.status"></span>
+            </div>
+            <div class="text-sm text-gray-500" x-text="(c.account_type||'Chequing')+' ••••'+(c.masked_account||'')"></div>
+            <div class="text-xs text-gray-400 mt-1" x-text="'Last synced: '+(c.last_synced_at?c.last_synced_at.split('T')[0]:'Never')"></div>
+            <div x-show="c.balance" class="text-sm font-semibold text-gray-700 mt-1" x-text="'Balance: $'+(c.balance||0).toLocaleString()"></div>
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
+            <button @click="syncBankFeed(c.id)" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 flex items-center gap-1"><i class="fa-solid fa-rotate"></i> Sync</button>
+            <button @click="disconnectBankFeed(c.id)" class="text-xs text-red-400 hover:text-red-600">Disconnect</button>
+          </div>
+        </div>
+        <div x-show="c.unmatched_count>0" class="mt-2 text-xs bg-amber-50 text-amber-700 rounded-lg px-3 py-1.5 font-medium">
+          <i class="fa-solid fa-triangle-exclamation mr-1"></i><span x-text="c.unmatched_count+' transactions need matching'"></span>
+        </div>
+      </div>
+    </template>
+    <div x-show="!bankFeedConnections.length" class="col-span-2 text-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+      <i class="fa-solid fa-building-columns text-4xl mb-3"></i>
+      <p class="font-medium">No bank accounts connected</p>
+      <p class="text-xs mt-1">Connect via Flinks (RBC, TD, Scotiabank, BMO, and 200+ Canadian banks) or upload a CSV manually</p>
+    </div>
+  </div>
+
+  <!-- Transaction Reconciliation -->
+  <div x-show="bankFeedConnections.length>0">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold text-gray-700">Transactions</h3>
+      <div class="flex gap-2">
+        <select x-model="bankFeedFilter" @change="loadBankFeedTransactions()" class="border rounded-lg px-3 py-1.5 text-sm">
+          <option value="unmatched">Unmatched</option>
+          <option value="ai_suggested">AI Suggested</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="excluded">Excluded</option>
+        </select>
+        <button @click="runAIMatch()" :disabled="aiMatchLoading" class="flex items-center gap-2 px-4 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 disabled:opacity-50">
+          <i x-show="!aiMatchLoading" class="fa-solid fa-robot"></i>
+          <i x-show="aiMatchLoading" class="fa-solid fa-spinner fa-spin"></i>
+          <span x-text="aiMatchLoading?'Matching…':'AI Match All'"></span>
+        </button>
+      </div>
+    </div>
+    <div x-show="aiMatchResult" class="mb-3 bg-purple-50 border border-purple-200 rounded-xl px-4 py-2 text-sm text-purple-800">
+      <i class="fa-solid fa-robot mr-1"></i>AI matched <b x-text="aiMatchResult?.matched"></b> of <b x-text="aiMatchResult?.total"></b> transactions. <button @click="loadBankFeedTransactions()" class="underline ml-1">Refresh</button>
+    </div>
+    <div class="space-y-2 max-h-[500px] overflow-y-auto">
+      <template x-for="t in bankFeedTxns" :key="t.id">
+        <div class="bg-white rounded-xl border px-4 py-3 shadow-sm">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-medium text-gray-800 truncate" x-text="t.description"></span>
+                <span :class="t.amount<0?'text-red-600':'text-green-600'" class="text-sm font-bold flex-shrink-0" x-text="(t.amount<0?'-':'+')+' $'+Math.abs(t.amount).toLocaleString()"></span>
+              </div>
+              <div class="text-xs text-gray-400 mt-0.5" x-text="t.transaction_date"></div>
+              <!-- AI suggestion -->
+              <div x-show="t.ai_vendor_suggestion" class="mt-2 bg-purple-50 rounded-lg px-3 py-2 text-xs">
+                <div class="flex items-center gap-1.5 mb-1">
+                  <i class="fa-solid fa-robot text-purple-500"></i>
+                  <span class="font-semibold text-purple-700">AI Suggestion</span>
+                  <span :class="t.ai_confidence==='high'?'bg-green-100 text-green-700':t.ai_confidence==='medium'?'bg-amber-100 text-amber-700':'bg-gray-100 text-gray-600'" class="px-1.5 py-0.5 rounded-full font-semibold" x-text="t.ai_confidence"></span>
+                </div>
+                <div class="text-gray-600" x-text="t.ai_vendor_suggestion+(t.ai_category_suggestion?' → '+t.ai_category_suggestion:'')"></div>
+                <div x-show="t.ai_reasoning" class="text-gray-400 mt-1 italic" x-text="t.ai_reasoning"></div>
+              </div>
+            </div>
+            <div class="flex flex-col gap-1 flex-shrink-0">
+              <button x-show="t.status==='ai_suggested'||t.status==='unmatched'" @click="confirmBankTxn(t.id, t)" class="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100 font-semibold">Confirm</button>
+              <button x-show="t.status!=='excluded'" @click="excludeBankTxn(t.id)" class="text-xs text-gray-400 hover:text-gray-600">Exclude</button>
+            </div>
+          </div>
+        </div>
+      </template>
+      <div x-show="!bankFeedTxns.length" class="text-center py-8 text-gray-400 text-sm">No transactions in this filter. Click "Sync" to pull transactions from your bank, or switch filter.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Bank Feed Connect Modal -->
+<div x-show="showBankFeedModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showBankFeedModal=false">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
+    <div class="flex justify-between items-center mb-4"><h3 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-building-columns mr-2 text-blue-600"></i>Connect Bank Account</h3><button @click="showBankFeedModal=false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+    <!-- Flinks section -->
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+      <div class="font-semibold text-blue-800 mb-1"><i class="fa-solid fa-link mr-1"></i>Flinks Open Banking (Canada)</div>
+      <div class="text-xs text-blue-600 mb-3">Flinks connects to RBC, TD, Scotiabank, BMO, CIBC, National Bank, and 200+ Canadian financial institutions via secure OAuth. Your credentials never pass through Finel servers.</div>
+      <div x-show="!flinksLoginId" class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 mb-3"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Flinks API key required. <a href="https://flinks.com" target="_blank" class="underline font-semibold">Get your Flinks account</a> → add FLINKS_API_KEY to your environment → live bank connections activate automatically.</div>
+      <div x-show="flinksLoginId">
+        <div><label class="text-xs font-medium text-blue-700 mb-1 block">Flinks Login ID (from OAuth flow)</label><input x-model="bankFeedForm.flinks_login_id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      </div>
+    </div>
+    <!-- Manual section -->
+    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Or add manually</div>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="text-xs font-medium text-gray-600 mb-1 block">Institution Name *</label><input x-model="bankFeedForm.institution_name" type="text" placeholder="RBC, TD, Scotiabank..." class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-medium text-gray-600 mb-1 block">Account Type</label><select x-model="bankFeedForm.account_type" class="w-full border rounded-lg px-3 py-2 text-sm"><option value="chequing">Chequing</option><option value="savings">Savings</option><option value="credit">Credit</option></select></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="text-xs font-medium text-gray-600 mb-1 block">Account Name</label><input x-model="bankFeedForm.account_name" type="text" placeholder="Operating Account" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+        <div><label class="text-xs font-medium text-gray-600 mb-1 block">Last 4 Digits</label><input x-model="bankFeedForm.masked_account" type="text" maxlength="4" placeholder="1234" class="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5"><button @click="showBankFeedModal=false" class="flex-1 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button><button @click="saveBankFeedConnection()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">Connect</button></div>
   </div>
 </div>
 

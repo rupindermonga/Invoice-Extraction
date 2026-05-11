@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release, spec_review, prequalification, client_hub, syndicate, erp_integration, cfo_reports, subcontract, canadian_legal, quality, crm, assemblies, advanced_reports, lender_advanced, adjudication, gst_rebates, platform_api, phase11
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release, spec_review, prequalification, client_hub, syndicate, erp_integration, cfo_reports, subcontract, canadian_legal, quality, crm, assemblies, advanced_reports, lender_advanced, adjudication, gst_rebates, platform_api, phase11, bank_feed
 
 
 def _run_migrations():
@@ -1300,6 +1300,35 @@ def _run_migrations():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )""",
             "CREATE INDEX IF NOT EXISTS ix_eft_batches_org ON eft_batches(org_id, status)",
+            # Bank Feed
+            """CREATE TABLE IF NOT EXISTS bank_feed_connections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                provider TEXT DEFAULT 'flinks',
+                institution_name TEXT, account_name TEXT, account_type TEXT, masked_account TEXT,
+                flinks_login_id TEXT, flinks_request_id TEXT,
+                status TEXT DEFAULT 'pending',
+                last_synced_at DATETIME, balance REAL, currency TEXT DEFAULT 'CAD', notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS bank_feed_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                connection_id INTEGER NOT NULL REFERENCES bank_feed_connections(id) ON DELETE CASCADE,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                transaction_date TEXT NOT NULL,
+                description TEXT NOT NULL,
+                amount REAL NOT NULL,
+                balance_after REAL, raw_description TEXT, transaction_type TEXT, reference_number TEXT,
+                ai_vendor_suggestion TEXT, ai_category_suggestion TEXT,
+                ai_invoice_id INTEGER, ai_confidence TEXT, ai_reasoning TEXT,
+                matched_invoice_id INTEGER REFERENCES invoices(id),
+                matched_vendor_id INTEGER REFERENCES org_vendors(id),
+                matched_category_id INTEGER REFERENCES cost_categories(id),
+                status TEXT DEFAULT 'unmatched', notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_bank_feed_transactions_org ON bank_feed_transactions(org_id, status, transaction_date)",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -1466,6 +1495,7 @@ app.include_router(adjudication.router)
 app.include_router(gst_rebates.router)
 app.include_router(platform_api.router)
 app.include_router(phase11.router)
+app.include_router(bank_feed.router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")
