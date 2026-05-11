@@ -564,10 +564,11 @@ if tok1:
         check("Bank feed connection delete", ok)
 
 # Bank CSV import parse (with sample CSV)
-sample_csv = """Transaction Date,Description 1,Description 2,CAD$,USD$
-2026-05-01,RONA HOME & GARDEN,TORONTO ON,2847.50,
-2026-05-02,PAYROLL DIRECT,,15000.00,
-2026-05-03,HOME DEPOT PRO,4521 TORONTO,-1250.00,
+# Using TD CSV format (Transaction Date, Description, Debit Amount, Credit Amount)
+sample_csv = """Transaction Date,Description,Debit Amount,Credit Amount,Balance
+2026-05-01,RONA LEASIDE TORONTO ON,2847.50,,45000.00
+2026-05-02,PAYROLL DIRECT DEPOSIT,,15000.00,60000.00
+2026-05-03,HOME DEPOT PRO 4521,1250.00,,58750.00
 """
 if tok1:
     r = requests.post(
@@ -600,7 +601,7 @@ if tok1:
              "amount": 1250.00, "memo": "INV-2026-090"},
         ]
     }, token=tok1)
-    check("EFT batch create with payments", ok, r.text[:100])
+    check("EFT batch create with payments", ok and r.status_code == 200, r.text[:100])
     eft_batch_id = r.json().get("id") if (ok and r.status_code == 200) else None
 
     if eft_batch_id:
@@ -814,7 +815,7 @@ check("Service worker served from root scope", r.headers.get("Service-Worker-All
 print("\n── 17. CLEANUP ──────────────────────────────────────────────────────────")
 
 if proj1_id and tok1:
-    r, ok = delete(f"/api/projects/{proj1_id}", token=tok1)
+    r, ok = delete(f"/api/project/{proj1_id}", token=tok1)
     check("QA test project deleted", ok, r.text[:80] if not ok else "")
 
 # ═══════════════════════════════════════════════════════════════════════════════
