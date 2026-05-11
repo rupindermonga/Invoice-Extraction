@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from ..database import SessionLocal
-from ..dependencies import get_current_user, require_org_member
+from ..dependencies import get_current_user, require_org_member, require_project_access
 from ..models import User
 
 router = APIRouter(prefix="/api", tags=["phase11"])
@@ -46,6 +46,7 @@ def export_qb_iif(project_id: int, db: Session = Depends(get_db),
     Imports directly via QB Desktop → File → Utilities → Import → IIF Files.
     """
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     invoices = db.execute(text("""
         SELECT i.invoice_number, i.vendor_name, i.invoice_date, i.total,
                i.subtotal, i.tax_gst, i.tax_hst, i.tax_pst, i.tax_qst,
@@ -115,6 +116,7 @@ def export_sage50(project_id: int, db: Session = Depends(get_db),
     Import via Sage 50 → File → Import/Export → Import Transactions.
     """
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     invoices = db.execute(text("""
         SELECT i.invoice_number, i.vendor_name, i.invoice_date, i.total,
                i.subtotal, i.tax_gst, i.tax_hst, i.tax_pst, i.tax_qst,
@@ -356,6 +358,7 @@ async def ai_co_narrative(project_id: int, co_id: int, body: dict,
     Output: formal CO letter suitable for owner/lender submission.
     """
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
         raise HTTPException(503, "GEMINI_API_KEY not configured")
@@ -478,6 +481,7 @@ def run_stress_test(project_id: int, body: dict,
     Scenarios: base case, rate +100bps, rate +200bps, schedule +3mo, schedule +6mo.
     """
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
 
     # Get interest reserve data
     reserve_row = db.execute(text("""
@@ -578,3 +582,5 @@ def portfolio_stress_dashboard(db: Session = Depends(get_db),
             "rag": "red" if remaining < 0 else "amber" if remaining < remaining * 0.15 else "green",
         })
     return {"projects": results, "total_reserve_remaining": sum(r["reserve_remaining"] for r in results)}
+
+require_project_access(db, project_id, current_user.org_id)

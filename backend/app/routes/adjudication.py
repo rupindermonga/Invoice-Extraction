@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import SessionLocal
-from ..dependencies import get_current_user, require_org_member
+from ..dependencies import get_current_user, require_org_member, require_project_access
 from ..models import AdjudicationCase, AdjudicationDocument, User
 
 router = APIRouter(prefix="/api", tags=["adjudication"])
@@ -46,6 +46,7 @@ def get_db():
 def list_adjudications(project_id: int, db: Session = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     rows = (db.query(AdjudicationCase)
             .filter(AdjudicationCase.project_id == project_id,
                     AdjudicationCase.org_id == current_user.org_id)
@@ -63,6 +64,7 @@ def create_adjudication(project_id: int, body: dict,
                         db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     province = body.get("province", "ON")
     rules = PROVINCE_RULES.get(province, PROVINCE_RULES["ON"])
 
@@ -95,6 +97,7 @@ def update_adjudication(project_id: int, case_id: int, body: dict,
                         db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     case = db.query(AdjudicationCase).filter(
         AdjudicationCase.id == case_id,
         AdjudicationCase.org_id == current_user.org_id
@@ -122,6 +125,7 @@ def delete_adjudication(project_id: int, case_id: int,
                         db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     case = db.query(AdjudicationCase).filter(
         AdjudicationCase.id == case_id,
         AdjudicationCase.org_id == current_user.org_id
@@ -140,6 +144,7 @@ def list_adj_documents(project_id: int, case_id: int,
                        db: Session = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     rows = (db.query(AdjudicationDocument)
             .filter(AdjudicationDocument.case_id == case_id,
                     AdjudicationDocument.org_id == current_user.org_id)
@@ -152,6 +157,7 @@ def create_adj_document(project_id: int, case_id: int, body: dict,
                         db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     doc = AdjudicationDocument(
         case_id=case_id, org_id=current_user.org_id,
         **{k: v for k, v in body.items() if hasattr(AdjudicationDocument, k)}
@@ -167,6 +173,7 @@ def delete_adj_document(project_id: int, case_id: int, doc_id: int,
                         db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     doc = db.query(AdjudicationDocument).filter(
         AdjudicationDocument.id == doc_id,
         AdjudicationDocument.org_id == current_user.org_id
@@ -182,3 +189,5 @@ def delete_adj_document(project_id: int, case_id: int, doc_id: int,
 def get_province_rules():
     """Return all province adjudication rules (no auth needed — public reference)."""
     return PROVINCE_RULES
+
+require_project_access(db, project_id, current_user.org_id)

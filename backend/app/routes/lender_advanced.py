@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from ..database import SessionLocal
-from ..dependencies import get_current_user, require_org_member
+from ..dependencies import get_current_user, require_org_member, require_project_access
 from ..models import (
     QSReport, QSTradeItem,
     MezzTranche, TakeoutConversion,
@@ -41,6 +41,7 @@ def get_db():
 def list_qs_reports(project_id: int, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     rows = (db.query(QSReport)
             .filter(QSReport.project_id == project_id, QSReport.org_id == current_user.org_id)
             .order_by(QSReport.report_date.desc()).all())
@@ -61,6 +62,7 @@ def create_qs_report(project_id: int, body: dict,
                      db: Session = Depends(get_db),
                      current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     trade_items = body.pop("trade_items", [])
     report = QSReport(
         org_id=current_user.org_id, project_id=project_id,
@@ -86,6 +88,7 @@ def update_qs_report(project_id: int, report_id: int, body: dict,
                      db: Session = Depends(get_db),
                      current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     report = db.query(QSReport).filter(QSReport.id == report_id,
                                        QSReport.org_id == current_user.org_id).first()
     if not report:
@@ -112,6 +115,7 @@ def delete_qs_report(project_id: int, report_id: int,
                      db: Session = Depends(get_db),
                      current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     report = db.query(QSReport).filter(QSReport.id == report_id,
                                        QSReport.org_id == current_user.org_id).first()
     if not report:
@@ -130,6 +134,7 @@ async def ai_parse_qs_report(
 ):
     """Upload a QS PDF report; Gemini extracts structured data."""
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
 
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
@@ -201,6 +206,7 @@ Return ONLY valid JSON with no markdown fences."""
 def list_mezz_tranches(project_id: int, db: Session = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     rows = (db.query(MezzTranche)
             .filter(MezzTranche.project_id == project_id,
                     MezzTranche.org_id == current_user.org_id)
@@ -222,6 +228,7 @@ def create_mezz_tranche(project_id: int, body: dict,
                         db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     tranche = MezzTranche(
         org_id=current_user.org_id, project_id=project_id,
         created_by=current_user.id,
@@ -238,6 +245,7 @@ def update_mezz_tranche(project_id: int, tranche_id: int, body: dict,
                         db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     tranche = db.query(MezzTranche).filter(MezzTranche.id == tranche_id,
                                            MezzTranche.org_id == current_user.org_id).first()
     if not tranche:
@@ -254,6 +262,7 @@ def delete_mezz_tranche(project_id: int, tranche_id: int,
                         db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     tranche = db.query(MezzTranche).filter(MezzTranche.id == tranche_id,
                                            MezzTranche.org_id == current_user.org_id).first()
     if not tranche:
@@ -269,6 +278,7 @@ def delete_mezz_tranche(project_id: int, tranche_id: int,
 def get_takeout_conversion(project_id: int, db: Session = Depends(get_db),
                            current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     row = db.query(TakeoutConversion).filter(
         TakeoutConversion.project_id == project_id,
         TakeoutConversion.org_id == current_user.org_id
@@ -283,6 +293,7 @@ def upsert_takeout_conversion(project_id: int, body: dict,
                               db: Session = Depends(get_db),
                               current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     row = db.query(TakeoutConversion).filter(
         TakeoutConversion.project_id == project_id,
         TakeoutConversion.org_id == current_user.org_id
@@ -365,6 +376,7 @@ _CLOSING_CHECKLIST_SEED = [
 def list_loan_closing_checklist(project_id: int, db: Session = Depends(get_db),
                                 current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     rows = (db.query(LoanClosingChecklistItem)
             .filter(LoanClosingChecklistItem.project_id == project_id,
                     LoanClosingChecklistItem.org_id == current_user.org_id)
@@ -382,6 +394,7 @@ def list_loan_closing_checklist(project_id: int, db: Session = Depends(get_db),
 def seed_loan_closing_checklist(project_id: int, db: Session = Depends(get_db),
                                 current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     existing = db.query(LoanClosingChecklistItem).filter(
         LoanClosingChecklistItem.project_id == project_id,
         LoanClosingChecklistItem.org_id == current_user.org_id
@@ -403,6 +416,7 @@ def create_loan_closing_item(project_id: int, body: dict,
                              db: Session = Depends(get_db),
                              current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     item = LoanClosingChecklistItem(
         org_id=current_user.org_id, project_id=project_id,
         created_by=current_user.id,
@@ -419,6 +433,7 @@ def update_loan_closing_item(project_id: int, item_id: int, body: dict,
                              db: Session = Depends(get_db),
                              current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     item = db.query(LoanClosingChecklistItem).filter(
         LoanClosingChecklistItem.id == item_id,
         LoanClosingChecklistItem.org_id == current_user.org_id
@@ -437,6 +452,7 @@ def delete_loan_closing_item(project_id: int, item_id: int,
                              db: Session = Depends(get_db),
                              current_user: User = Depends(get_current_user)):
     require_org_member(db, current_user.org_id, current_user.id)
+    require_project_access(db, project_id, current_user.org_id)
     item = db.query(LoanClosingChecklistItem).filter(
         LoanClosingChecklistItem.id == item_id,
         LoanClosingChecklistItem.org_id == current_user.org_id
@@ -446,3 +462,5 @@ def delete_loan_closing_item(project_id: int, item_id: int,
     db.delete(item)
     db.commit()
     return {"msg": "deleted"}
+
+require_project_access(db, project_id, current_user.org_id)

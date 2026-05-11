@@ -28,6 +28,17 @@ else:
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 
+def require_project_access(db: Session, project_id: int, org_id: int):
+    """Verify that the project exists and belongs to the requesting org. Returns project."""
+    from .models import Project
+    if project_id is None or project_id < 1:
+        raise HTTPException(status_code=404, detail="Project not found")
+    proj = db.query(Project).filter(Project.id == project_id, Project.org_id == org_id).first()
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return proj
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
