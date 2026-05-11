@@ -1519,8 +1519,8 @@ async def lender_view(token: str):
 
 @app.get("/owner/{token}", include_in_schema=False)
 async def owner_view(token: str):
-    """Serve the owner portal HTML page."""
-    return FileResponse(os.path.join(static_dir, "owner.html"))
+    """Serve the owner portal — uses the main SPA which handles /owner/ routing."""
+    return FileResponse(os.path.join(static_dir, "index.html"))
 
 
 @app.get("/report", include_in_schema=False)

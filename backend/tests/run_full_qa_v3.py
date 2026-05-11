@@ -87,15 +87,24 @@ if not admin_tok:
 demo_r = requests.post(f"{BASE}/api/auth/demo", timeout=15)
 demo_tok = demo_r.json().get("access_token") if demo_r.status_code == 200 else None
 
-# Register two isolated test users
+# Create two isolated test users via admin API (public registration is disabled in prod)
 u1 = f"qa_u1_{rnd()}"
 u2 = f"qa_u2_{rnd()}"
 email1 = f"{u1}@example.com"
 email2 = f"{u2}@example.com"
-r1, _ = post("/api/auth/register", {"username": u1, "email": email1, "password": "QaTest@2026!"})
-r2, _ = post("/api/auth/register", {"username": u2, "email": email2, "password": "QaTest@2026!"})
-tok1 = login(u1, "QaTest@2026!") if r1.status_code == 200 else None
-tok2 = login(u2, "QaTest@2026!") if r2.status_code == 200 else None
+pw_test = "QaTest@2026!"
+
+def create_user_admin(username, email, password, admin_token):
+    """Create user via superadmin API endpoint."""
+    r = requests.post(f"{BASE}/api/admin/users",
+                      json={"username": username, "email": email, "password": password},
+                      headers={"Authorization": f"Bearer {admin_token}"}, timeout=10)
+    return r
+
+r1 = create_user_admin(u1, email1, pw_test, admin_tok)
+r2 = create_user_admin(u2, email2, pw_test, admin_tok)
+tok1 = login(u1, pw_test) if r1.status_code == 200 else None
+tok2 = login(u2, pw_test) if r2.status_code == 200 else None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. AUTHENTICATION & SESSION
@@ -104,8 +113,10 @@ print("\n── 1. AUTHENTICATION & SESSION ────────────
 
 check("Admin login succeeds", admin_tok is not None)
 check("Demo login succeeds", demo_tok is not None)
-check("User1 registration succeeds", tok1 is not None)
-check("User2 registration isolated", tok2 is not None)
+check("User1 created via admin API", tok1 is not None,
+      f"Create returned {r1.status_code}: {r1.text[:80]}")
+check("User2 created via admin API", tok2 is not None,
+      f"Create returned {r2.status_code}: {r2.text[:80]}")
 
 r, _ = post("/api/auth/login", {"username": "admin", "password": "wrongpassword"})
 check("Wrong password returns 401", r.status_code == 401)
@@ -284,20 +295,29 @@ check("HTTP redirects to HTTPS (301/302)", r_http.status_code in (301, 302), war
 print("\n── 5. PUBLIC ENDPOINT SECURITY ──────────────────────────────────────────")
 
 # Public portals must not expose other orgs' data
-public_endpoints = [
-    ("/lender/FAKE_TOKEN_12345", "lender"),
-    ("/owner/FAKE_TOKEN_12345", "owner"),
-    ("/bid/FAKE_TOKEN_12345", "bid"),
+# Portals that serve HTML regardless of token validity (static page, token validated by JS)
+html_portals = ["/lender/FAKE_TOKEN_12345", "/owner/FAKE_TOKEN_12345"]
+for ep in html_portals:
+    r = requests.get(f"{BASE}{ep}", timeout=10)
+    check(f"HTML portal {ep.split('/')[1]} serves page (200)", r.status_code == 200,
+          f"Got {r.status_code}")
+
+# Portals that return 404 for invalid tokens at the server level (by design — correct behavior)
+# These return the portal HTML for VALID tokens only; fake tokens get 404 (no token leakage)
+server_validated_portals = [
     ("/co-approval/FAKE_TOKEN_12345", "co-approval"),
     ("/subcontract/FAKE_TOKEN_12345", "subcontract"),
     ("/proposal/FAKE_TOKEN_12345", "proposal"),
     ("/prequal/FAKE_TOKEN_12345", "prequal"),
 ]
-for ep, name in public_endpoints:
-    r = requests.get(f"{BASE}{ep}", timeout=10, allow_redirects=True)
-    # These are SPA routes — expect 200 HTML, not 404
-    check(f"Public portal /{name}/ accessible (200)", r.status_code == 200,
-          f"Got {r.status_code}")
+for ep, name in server_validated_portals:
+    r = requests.get(f"{BASE}{ep}", timeout=10)
+    check(f"Portal /{name}/ rejects fake token (404)", r.status_code == 404,
+          f"Got {r.status_code} — should return 404 for invalid tokens")
+
+# Bid portal returns JSON (not HTML) — API-first design
+r = requests.get(f"{BASE}/bid/FAKE_TOKEN_12345", timeout=10)
+check("Bid portal returns 404 for fake token", r.status_code == 404)
 
 # API versions of public tokens with fake tokens
 r = requests.get(f"{BASE}/api/bid/portal/FAKE_TOKEN_99999", timeout=10)
