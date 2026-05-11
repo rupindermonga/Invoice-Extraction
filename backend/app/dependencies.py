@@ -45,6 +45,14 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None or not user.is_active:
         raise credentials_exception
+    # Attach primary org_id so routes can use current_user.org_id directly
+    if not hasattr(user, '_org_id_cached'):
+        mem = db.query(OrganizationMember).filter(
+            OrganizationMember.user_id == user.id,
+            OrganizationMember.is_active == True,
+        ).order_by(OrganizationMember.id).first()
+        user.org_id = mem.org_id if mem else None
+        user._org_id_cached = True
     return user
 
 

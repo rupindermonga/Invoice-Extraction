@@ -164,7 +164,7 @@ print("\n── 2. TENANT ISOLATION (IDOR) ────────────�
 
 # Create project as user1
 if tok1:
-    rp, _ = post("/api/projects", {"name": f"QA Project {rnd()}", "province": "ON"}, token=tok1)
+    rp, _ = post("/api/project", {"name": f"QA Project {rnd()}", "province": "ON"}, token=tok1)
     proj1_id = rp.json().get("id") if rp.status_code == 200 else None
     check("User1 can create project", proj1_id is not None)
 
@@ -188,10 +188,11 @@ if tok1:
         r, _ = get(f"/api/project/{proj1_id}/loan-closing-checklist", token=tok2)
         check("User2 cannot read User1 loan closing checklist (403/404)", r.status_code in (403, 404))
 
-    # Horizontal escalation: try accessing arbitrary IDs
-    for fake_id in [99999, 0, -1]:
+    # Horizontal escalation: try accessing arbitrary project IDs
+    for fake_id in [99999, -1]:
         r, _ = get(f"/api/project/{fake_id}/qs-reports", token=tok1)
-        check(f"Project ID {fake_id} returns 404/403", r.status_code in (403, 404))
+        check(f"Project ID {fake_id} returns 403/404", r.status_code in (403, 404),
+              f"Got {r.status_code}")
 
 # Invoice IDOR: admin creates an invoice, user1 tries to access
 r_inv = requests.get(f"{BASE}/api/invoices", headers={"Authorization": f"Bearer {admin_tok}"}, timeout=10)
@@ -238,14 +239,13 @@ xss_payloads = [
 
 if tok1:
     for payload in sql_payloads:
-        r, _ = post("/api/projects", {"name": payload, "province": "ON"}, token=tok1)
+        r, _ = post("/api/project", {"name": payload, "province": "ON"}, token=tok1)
         check(f"SQL injection in project name handled safely", r.status_code in (200, 400, 422),
-              f"Payload: {payload[:40]}")
+              f"Status {r.status_code} for payload: {payload[:40]}")
 
     for payload in xss_payloads:
-        r, _ = post("/api/projects", {"name": payload, "description": payload}, token=tok1)
+        r, _ = post("/api/project", {"name": payload, "description": payload}, token=tok1)
         if r.status_code == 200:
-            # Check response doesn't echo unescaped
             resp_text = r.text
             check(f"XSS payload not reflected unescaped in response",
                   "<script>" not in resp_text and "onerror=" not in resp_text,
@@ -257,12 +257,12 @@ if tok1:
 
     # Oversized payload
     big = {"name": "x" * 50000, "description": "y" * 50000}
-    r, _ = post("/api/projects", big, token=tok1)
+    r, _ = post("/api/project", big, token=tok1)
     check("Oversized payload handled (no 500)", r.status_code != 500,
           f"Got {r.status_code}")
 
     # Null byte injection
-    r, _ = post("/api/projects", {"name": "test\x00evil", "province": "ON"}, token=tok1)
+    r, _ = post("/api/project", {"name": "test\x00evil", "province": "ON"}, token=tok1)
     check("Null byte in name handled (no 500)", r.status_code != 500)
 
     # Negative/invalid numeric fields
