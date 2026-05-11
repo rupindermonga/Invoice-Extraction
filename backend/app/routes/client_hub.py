@@ -382,3 +382,105 @@ def closeout_summary(project_id: int, db: Session = Depends(get_db_local), user=
         if i.status == "complete":
             by_cat[i.category]["complete"] += 1
     return {"total": total, "complete": complete, "pct_complete": pct, "by_category": by_cat}
+
+
+# ── AI Weekly Client Update Generator ──────────────────────────────────────────
+
+@router.post("/{project_id}/ai-client-update")
+async def generate_ai_client_update(project_id: int, body: dict = None,
+                                     db: Session = Depends(get_db_local),
+                                     user=Depends(get_current_user)):
+    """
+    Gemini summarizes the past 7 days of daily logs, RFIs, milestones, and photos
+    into a clean, professional weekly client update email.
+    """
+    p = _proj(project_id, user, db)
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(503, "GEMINI_API_KEY not configured")
+
+    from sqlalchemy import text
+    week_ago = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")
+    tone = (body or {}).get("tone", "professional")  # professional | friendly | formal
+
+    # Gather last 7 days of daily logs
+    logs = db.execute(text("""
+        SELECT log_date, weather, crew_count, work_summary, issues, delays
+        FROM pm_daily_logs
+        WHERE project_id=:pid AND log_date >= :wa
+        ORDER BY log_date DESC LIMIT 10
+    """), {"pid": project_id, "wa": week_ago}).fetchall()
+
+    # Open RFIs this week
+    rfis = db.execute(text("""
+        SELECT rfi_number, subject, status FROM pm_rfis
+        WHERE project_id=:pid AND created_at >= :wa ORDER BY created_at DESC LIMIT 15
+    """), {"pid": project_id, "wa": week_ago}).fetchall()
+
+    # Milestones nearing or just hit
+    milestones = db.execute(text("""
+        SELECT name, status, pct_complete, target_date FROM milestones
+        WHERE project_id=:pid ORDER BY target_date ASC LIMIT 10
+    """), {"pid": project_id}).fetchall()
+
+    # Change orders this week
+    cos = db.execute(text("""
+        SELECT co_number, description, amount, status FROM change_orders
+        WHERE project_id=:pid AND date >= :wa ORDER BY date DESC LIMIT 10
+    """), {"pid": project_id, "wa": week_ago}).fetchall()
+
+    # Build context string
+    ctx_parts = [f"Project: {p.name}"]
+    if logs:
+        ctx_parts.append("DAILY LOGS THIS WEEK:")
+        for l in logs:
+            ctx_parts.append(f"  {l[0]}: Crew {l[2]}, Weather {l[1]}\n  Work: {l[3] or 'N/A'}\n  Issues: {l[4] or 'None'}\n  Delays: {l[5] or 'None'}")
+    if milestones:
+        ctx_parts.append("MILESTONES:")
+        for m in milestones:
+            ctx_parts.append(f"  {m[0]}: {m[1]} ({m[2]}% complete, target {m[3]})")
+    if rfis:
+        ctx_parts.append("RFIs THIS WEEK:")
+        for r in rfis:
+            ctx_parts.append(f"  RFI {r[0]}: {r[1]} [{r[2]}]")
+    if cos:
+        ctx_parts.append("CHANGE ORDERS THIS WEEK:")
+        for c in cos:
+            ctx_parts.append(f"  CO {c[0]}: {c[1]} — ${c[2]:,.2f} [{c[3]}]")
+
+    context = "\n".join(ctx_parts)
+
+    prompt = f"""You are writing a weekly construction progress update for a homeowner or building owner.
+The tone should be {tone}. Write a professional email update (300-450 words) covering:
+1. Overall progress summary
+2. Key work completed this week
+3. Upcoming work next week (infer from context)
+4. Any issues or delays (explain in plain language, not construction jargon)
+5. A positive, reassuring closing
+
+Use plain language — the client is not a construction professional.
+Do not include any dollar amounts from change orders unless they are approved.
+Start with "Subject: Weekly Construction Update — [Project name] — Week of [date]"
+
+PROJECT DATA:
+{context}"""
+
+    import httpx
+    async with httpx.AsyncClient(timeout=45) as client:
+        resp = await client.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024}
+            }
+        )
+    resp.raise_for_status()
+    update_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+    return {
+        "update": update_text,
+        "week_of": week_ago,
+        "project_name": p.name,
+        "logs_included": len(logs),
+        "milestones_included": len(milestones),
+    }

@@ -2170,3 +2170,333 @@ class SpecializedChecklistItem(Base):
     created_at      = Column(DateTime, default=datetime.utcnow)
 
     spec_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── QS / Inspector Structured Reports ───────────────────────────────────────
+
+class QSReport(Base):
+    """Quantity Surveyor / Project Monitor report submitted at each draw."""
+    __tablename__ = "qs_reports"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    draw_id          = Column(Integer, ForeignKey("draws.id"), nullable=True)
+    report_date      = Column(String, nullable=False)
+    qs_firm          = Column(String, nullable=True)
+    qs_contact       = Column(String, nullable=True)
+    overall_pct_complete = Column(Float, nullable=True)
+    cost_to_complete = Column(Float, nullable=True)
+    contingency_remaining = Column(Float, nullable=True)
+    schedule_status  = Column(String, default="on_track")   # on_track | delayed | at_risk
+    schedule_delay_weeks = Column(Integer, nullable=True)
+    deficiency_count = Column(Integer, default=0)
+    deficiency_notes = Column(Text, nullable=True)
+    recommendation   = Column(String, default="approve")    # approve | conditional | decline
+    ai_summary       = Column(Text, nullable=True)          # Gemini-generated summary of uploaded PDF
+    file_path        = Column(String, nullable=True)
+    status           = Column(String, default="submitted")  # submitted | reviewed | accepted
+    notes            = Column(Text, nullable=True)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+    qs_creator = relationship("User", foreign_keys=[created_by])
+    trade_items = relationship("QSTradeItem", back_populates="report", cascade="all, delete-orphan")
+
+
+class QSTradeItem(Base):
+    """Trade-level % complete and cost-to-complete within a QS report."""
+    __tablename__ = "qs_trade_items"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    report_id       = Column(Integer, ForeignKey("qs_reports.id"), nullable=False, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id      = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    trade_name      = Column(String, nullable=False)   # e.g. "Concrete", "Steel"
+    csi_division    = Column(String, nullable=True)    # e.g. "03", "05"
+    budget_amount   = Column(Float, nullable=True)
+    cost_to_date    = Column(Float, nullable=True)
+    cost_to_complete = Column(Float, nullable=True)
+    pct_complete    = Column(Float, nullable=True)
+    status          = Column(String, default="on_track")  # on_track | delayed | at_risk | complete
+    deficiencies    = Column(Text, nullable=True)
+    display_order   = Column(Integer, default=100)
+
+    report = relationship("QSReport", back_populates="trade_items")
+
+
+# ─── Adjudication Workflow (Prompt Payment) ───────────────────────────────────
+
+class AdjudicationCase(Base):
+    """Statutory adjudication case under prompt-payment legislation."""
+    __tablename__ = "adjudication_cases"
+
+    id                    = Column(Integer, primary_key=True, index=True)
+    org_id                = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id            = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    case_number           = Column(String, nullable=True)
+    province              = Column(String, default="ON")
+    claimant_name         = Column(String, nullable=False)
+    respondent_name       = Column(String, nullable=False)
+    disputed_amount       = Column(Float, nullable=True)
+    description           = Column(Text, nullable=True)
+    notice_date           = Column(String, nullable=True)      # date NNP was served
+    adjudication_notice_date = Column(String, nullable=True)  # formal notice of adjudication
+    adjudicator_name      = Column(String, nullable=True)
+    adjudicator_appointed_date = Column(String, nullable=True)
+    determination_deadline = Column(String, nullable=True)    # 28 days from appointment in ON
+    determination_date    = Column(String, nullable=True)
+    determination_amount  = Column(Float, nullable=True)
+    outcome               = Column(String, nullable=True)     # claimant | respondent | partial | withdrawn
+    related_nnp_id        = Column(Integer, ForeignKey("non_payment_notices.id"), nullable=True)
+    status                = Column(String, default="initiated")  # initiated | adjudicator_appointed | document_exchange | hearing | determined | enforced | withdrawn
+    notes                 = Column(Text, nullable=True)
+    created_by            = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at            = Column(DateTime, default=datetime.utcnow)
+    updated_at            = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    adj_creator = relationship("User", foreign_keys=[created_by])
+    documents   = relationship("AdjudicationDocument", back_populates="case", cascade="all, delete-orphan")
+
+
+class AdjudicationDocument(Base):
+    """Document submitted as part of an adjudication case."""
+    __tablename__ = "adjudication_documents"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    case_id     = Column(Integer, ForeignKey("adjudication_cases.id"), nullable=False, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    doc_type    = Column(String, nullable=False)   # notice | claim | response | rebuttal | exhibit | determination
+    title       = Column(String, nullable=False)
+    submitted_by = Column(String, nullable=True)   # claimant | respondent | adjudicator
+    submit_date = Column(String, nullable=True)
+    file_path   = Column(String, nullable=True)
+    notes       = Column(Text, nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    case = relationship("AdjudicationCase", back_populates="documents")
+
+
+# ─── Mezz / Second-Mortgage Tranches ─────────────────────────────────────────
+
+class MezzTranche(Base):
+    """Mezzanine, second-mortgage, or preferred-equity financing tranche."""
+    __tablename__ = "mezz_tranches"
+
+    id                 = Column(Integer, primary_key=True, index=True)
+    org_id             = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id         = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    tranche_name       = Column(String, nullable=False)   # "Senior CMHC", "Mezz – Romspen", "Equity"
+    tranche_type       = Column(String, default="senior") # senior | mezz | preferred_equity | vendor_takeback | grant | equity
+    lender_name        = Column(String, nullable=True)
+    commitment_amount  = Column(Float, nullable=True)
+    drawn_amount       = Column(Float, default=0.0)
+    interest_rate      = Column(Float, nullable=True)
+    interest_type      = Column(String, default="fixed")  # fixed | floating | preferred_return
+    draw_trigger       = Column(Text, nullable=True)       # conditions before this tranche can draw
+    priority_rank      = Column(Integer, default=1)        # 1=senior, 2=mezz, 3=equity
+    maturity_date      = Column(String, nullable=True)
+    currency           = Column(String, default="CAD")
+    notes              = Column(Text, nullable=True)
+    created_by         = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at         = Column(DateTime, default=datetime.utcnow)
+
+    mz_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── CMHC Take-out / Permanent Financing Conversion ──────────────────────────
+
+class TakeoutConversion(Base):
+    """Construction-to-permanent financing conversion tracker (CMHC MLI Select etc.)."""
+    __tablename__ = "takeout_conversions"
+
+    id                       = Column(Integer, primary_key=True, index=True)
+    org_id                   = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id               = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    program                  = Column(String, default="CMHC MLI Select")  # CMHC MLI Select | CMHC Apt Construction | Conventional | CMHC Co-lending
+    permanent_lender         = Column(String, nullable=True)
+    permanent_loan_amount    = Column(Float, nullable=True)
+    permanent_rate           = Column(Float, nullable=True)
+    amortization_years       = Column(Integer, nullable=True)
+    expected_conversion_date = Column(String, nullable=True)
+    actual_conversion_date   = Column(String, nullable=True)
+    stabilization_period_end = Column(String, nullable=True)
+    target_occupancy_pct     = Column(Float, nullable=True)
+    actual_occupancy_pct     = Column(Float, nullable=True)
+    dscr_at_stabilization    = Column(Float, nullable=True)
+    final_cost_certification_date = Column(String, nullable=True)
+    final_cost_certified_by  = Column(String, nullable=True)
+    status                   = Column(String, default="construction")  # construction | stabilizing | converting | converted | cancelled
+    notes                    = Column(Text, nullable=True)
+    created_by               = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at               = Column(DateTime, default=datetime.utcnow)
+
+    tc_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Loan Pre-Funding Closing Checklist ───────────────────────────────────────
+
+class LoanClosingChecklistItem(Base):
+    """Pre-funding document checklist — tracks 30-80 items required before loan advances."""
+    __tablename__ = "loan_closing_checklist"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id       = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    category         = Column(String, nullable=False)   # zoning | environmental | title | construction | insurance | corporate | legal | financial
+    item_name        = Column(String, nullable=False)
+    description      = Column(Text, nullable=True)
+    responsible_party = Column(String, nullable=True)
+    required_by      = Column(String, nullable=True)    # YYYY-MM-DD
+    received_date    = Column(String, nullable=True)
+    expiry_date      = Column(String, nullable=True)
+    status           = Column(String, default="outstanding")  # outstanding | received | waived | n_a
+    notes            = Column(Text, nullable=True)
+    display_order    = Column(Integer, default=100)
+    created_by       = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+    lcc_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── GST/HST Rebate Applications ─────────────────────────────────────────────
+
+class GSTRebateApplication(Base):
+    """GST/HST New Housing Rebate or NRRP Rebate application tracker."""
+    __tablename__ = "gst_rebate_applications"
+
+    id                   = Column(Integer, primary_key=True, index=True)
+    org_id               = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    project_id           = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    rebate_type          = Column(String, nullable=False)  # new_housing | nrrp | purpose_built_rental | owner_built
+    cra_form             = Column(String, nullable=True)   # GST190 | GST524 | GST531
+    unit_address         = Column(String, nullable=True)
+    unit_number          = Column(String, nullable=True)
+    applicant_name       = Column(String, nullable=True)
+    purchase_price       = Column(Float, nullable=True)
+    gst_paid             = Column(Float, nullable=True)
+    hst_paid             = Column(Float, nullable=True)
+    eligible_amount      = Column(Float, nullable=True)   # amount eligible for rebate
+    rebate_pct           = Column(Float, nullable=True)   # e.g. 36% for NHR, 100% for PBRL
+    estimated_rebate     = Column(Float, nullable=True)   # computed
+    submitted_date       = Column(String, nullable=True)
+    cra_reference        = Column(String, nullable=True)  # CRA file number
+    refund_received_date = Column(String, nullable=True)
+    refund_amount        = Column(Float, nullable=True)
+    province             = Column(String, default="ON")
+    is_purpose_built_rental = Column(Boolean, default=False)  # 2024+ 100% rebate
+    notes                = Column(Text, nullable=True)
+    status               = Column(String, default="calculating")  # calculating | submitted | under_review | approved | received | rejected
+    created_by           = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at           = Column(DateTime, default=datetime.utcnow)
+
+    gst_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── API Keys (Public API) ────────────────────────────────────────────────────
+
+class APIKey(Base):
+    """Org-level API keys for the public REST API."""
+    __tablename__ = "api_keys"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    name         = Column(String, nullable=False)           # human-readable label
+    key_prefix   = Column(String, nullable=False, index=True)  # first 8 chars for lookup
+    key_hash     = Column(String, nullable=False)           # bcrypt hash of full key
+    scopes       = Column(String, default="read")           # read | write | admin (comma-separated)
+    last_used_at = Column(DateTime, nullable=True)
+    expires_at   = Column(DateTime, nullable=True)
+    is_active    = Column(Boolean, default=True)
+    created_by   = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+    ak_creator = relationship("User", foreign_keys=[created_by])
+
+
+# ─── Webhooks ────────────────────────────────────────────────────────────────
+
+class Webhook(Base):
+    """Outbound webhook endpoint registered by an org."""
+    __tablename__ = "webhooks"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    name         = Column(String, nullable=False)
+    url          = Column(String, nullable=False)
+    secret       = Column(String, nullable=True)            # HMAC-SHA256 signing secret
+    events       = Column(String, nullable=False)           # comma-separated: invoice.created,draw.submitted,...
+    is_active    = Column(Boolean, default=True)
+    failure_count = Column(Integer, default=0)
+    last_triggered_at = Column(DateTime, nullable=True)
+    created_by   = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+    wh_creator   = relationship("User", foreign_keys=[created_by])
+    deliveries   = relationship("WebhookDelivery", back_populates="webhook", cascade="all, delete-orphan")
+
+
+class WebhookDelivery(Base):
+    """Log of webhook delivery attempts."""
+    __tablename__ = "webhook_deliveries"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    webhook_id   = Column(Integer, ForeignKey("webhooks.id"), nullable=False, index=True)
+    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    event        = Column(String, nullable=False)
+    payload      = Column(Text, nullable=True)
+    http_status  = Column(Integer, nullable=True)
+    response_body = Column(Text, nullable=True)
+    duration_ms  = Column(Integer, nullable=True)
+    success      = Column(Boolean, default=False)
+    attempt_count = Column(Integer, default=1)
+    delivered_at = Column(DateTime, nullable=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+    webhook = relationship("Webhook", back_populates="deliveries")
+
+
+# ─── EFT Payment Batches ─────────────────────────────────────────────────────
+
+class EFTBatch(Base):
+    """CPA Standard 005 / EFT payment batch for bank upload."""
+    __tablename__ = "eft_batches"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    org_id         = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    batch_number   = Column(String, nullable=False)
+    value_date     = Column(String, nullable=False)     # YYYY-MM-DD — date funds transfer
+    total_amount   = Column(Float, default=0.0)
+    payment_count  = Column(Integer, default=0)
+    originator_id  = Column(String, nullable=True)      # company's CPA originator ID
+    bank_name      = Column(String, nullable=True)
+    status         = Column(String, default="draft")    # draft | generated | submitted | processed | failed
+    file_path      = Column(String, nullable=True)      # path to generated CPA 005 file
+    notes          = Column(Text, nullable=True)
+    created_by     = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at     = Column(DateTime, default=datetime.utcnow)
+
+    eft_creator = relationship("User", foreign_keys=[created_by])
+    payments    = relationship("EFTBatchPayment", back_populates="batch", cascade="all, delete-orphan")
+
+
+class EFTBatchPayment(Base):
+    """Individual payment record within an EFT batch."""
+    __tablename__ = "eft_batch_payments"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    batch_id        = Column(Integer, ForeignKey("eft_batches.id"), nullable=False, index=True)
+    org_id          = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    project_id      = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    vendor_id       = Column(Integer, ForeignKey("org_vendors.id"), nullable=True)
+    invoice_id      = Column(Integer, ForeignKey("invoices.id"), nullable=True)
+    payee_name      = Column(String, nullable=False)
+    payee_bank_transit = Column(String, nullable=True)   # 5-digit transit
+    payee_bank_institution = Column(String, nullable=True)  # 3-digit institution
+    payee_bank_account = Column(String, nullable=True)   # account number
+    amount          = Column(Float, nullable=False)
+    memo            = Column(String, nullable=True)
+    status          = Column(String, default="pending")  # pending | processed | returned | cancelled
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    batch = relationship("EFTBatch", back_populates="payments")

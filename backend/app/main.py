@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from .database import engine, Base
-from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release, spec_review, prequalification, client_hub, syndicate, erp_integration, cfo_reports, subcontract, canadian_legal, quality, crm, assemblies, advanced_reports
+from .routes import auth, invoices, upload, columns, export, categories, admin, project, filetools, org, audit, pm, construction_health, compliance, lender_plus, lender_risk, permits, safety, labour, bid, ai_risk, co_approval, selections, equipment, notifications, lien_release, spec_review, prequalification, client_hub, syndicate, erp_integration, cfo_reports, subcontract, canadian_legal, quality, crm, assemblies, advanced_reports, lender_advanced, adjudication, gst_rebates, platform_api
 
 
 def _run_migrations():
@@ -1132,6 +1132,174 @@ def _run_migrations():
                 rated_by INTEGER NOT NULL REFERENCES users(id),
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )""",
+            # Phase 10: QS Inspector Reports
+            """CREATE TABLE IF NOT EXISTS qs_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                draw_id INTEGER REFERENCES draws(id),
+                report_date TEXT NOT NULL,
+                qs_firm TEXT, qs_contact TEXT,
+                overall_pct_complete REAL, cost_to_complete REAL, contingency_remaining REAL,
+                schedule_status TEXT DEFAULT 'on_track',
+                schedule_delay_weeks INTEGER, deficiency_count INTEGER DEFAULT 0,
+                deficiency_notes TEXT, recommendation TEXT DEFAULT 'approve',
+                ai_summary TEXT, file_path TEXT,
+                status TEXT DEFAULT 'submitted', notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS qs_trade_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_id INTEGER NOT NULL REFERENCES qs_reports(id) ON DELETE CASCADE,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                trade_name TEXT NOT NULL, csi_division TEXT,
+                budget_amount REAL, cost_to_date REAL, cost_to_complete REAL,
+                pct_complete REAL, status TEXT DEFAULT 'on_track',
+                deficiencies TEXT, display_order INTEGER DEFAULT 100
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_qs_reports_project ON qs_reports(project_id, report_date)",
+            # Phase 10: Adjudication Cases
+            """CREATE TABLE IF NOT EXISTS adjudication_cases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                case_number TEXT, province TEXT DEFAULT 'ON',
+                claimant_name TEXT NOT NULL, respondent_name TEXT NOT NULL,
+                disputed_amount REAL, description TEXT,
+                notice_date TEXT, adjudication_notice_date TEXT,
+                adjudicator_name TEXT, adjudicator_appointed_date TEXT,
+                determination_deadline TEXT, determination_date TEXT,
+                determination_amount REAL, outcome TEXT,
+                related_nnp_id INTEGER REFERENCES non_payment_notices(id),
+                status TEXT DEFAULT 'initiated', notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS adjudication_documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                case_id INTEGER NOT NULL REFERENCES adjudication_cases(id) ON DELETE CASCADE,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                doc_type TEXT NOT NULL, title TEXT NOT NULL,
+                submitted_by TEXT, submit_date TEXT, file_path TEXT, notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_adjudication_project ON adjudication_cases(project_id)",
+            # Phase 10: Mezz Tranches
+            """CREATE TABLE IF NOT EXISTS mezz_tranches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                tranche_name TEXT NOT NULL, tranche_type TEXT DEFAULT 'senior',
+                lender_name TEXT, commitment_amount REAL, drawn_amount REAL DEFAULT 0,
+                interest_rate REAL, interest_type TEXT DEFAULT 'fixed',
+                draw_trigger TEXT, priority_rank INTEGER DEFAULT 1,
+                maturity_date TEXT, currency TEXT DEFAULT 'CAD', notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_mezz_tranches_project ON mezz_tranches(project_id, priority_rank)",
+            # Phase 10: CMHC Take-out Conversion
+            """CREATE TABLE IF NOT EXISTS takeout_conversions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                program TEXT DEFAULT 'CMHC MLI Select',
+                permanent_lender TEXT, permanent_loan_amount REAL, permanent_rate REAL,
+                amortization_years INTEGER, expected_conversion_date TEXT,
+                actual_conversion_date TEXT, stabilization_period_end TEXT,
+                target_occupancy_pct REAL, actual_occupancy_pct REAL,
+                dscr_at_stabilization REAL, final_cost_certification_date TEXT,
+                final_cost_certified_by TEXT,
+                status TEXT DEFAULT 'construction', notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # Phase 10: Loan Pre-Funding Closing Checklist
+            """CREATE TABLE IF NOT EXISTS loan_closing_checklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                category TEXT NOT NULL, item_name TEXT NOT NULL, description TEXT,
+                responsible_party TEXT, required_by TEXT, received_date TEXT, expiry_date TEXT,
+                status TEXT DEFAULT 'outstanding', notes TEXT, display_order INTEGER DEFAULT 100,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_loan_closing_project ON loan_closing_checklist(project_id, category)",
+            # Phase 10: GST/HST Rebate Applications
+            """CREATE TABLE IF NOT EXISTS gst_rebate_applications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER NOT NULL REFERENCES projects(id),
+                rebate_type TEXT NOT NULL, cra_form TEXT, unit_address TEXT, unit_number TEXT,
+                applicant_name TEXT, purchase_price REAL, gst_paid REAL, hst_paid REAL,
+                eligible_amount REAL, rebate_pct REAL, estimated_rebate REAL,
+                submitted_date TEXT, cra_reference TEXT, refund_received_date TEXT, refund_amount REAL,
+                province TEXT DEFAULT 'ON', is_purpose_built_rental INTEGER DEFAULT 0,
+                notes TEXT, status TEXT DEFAULT 'calculating',
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_gst_rebates_project ON gst_rebate_applications(project_id)",
+            # Phase 10: API Keys
+            """CREATE TABLE IF NOT EXISTS api_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                name TEXT NOT NULL, key_prefix TEXT NOT NULL, key_hash TEXT NOT NULL,
+                scopes TEXT DEFAULT 'read', last_used_at DATETIME, expires_at DATETIME,
+                is_active INTEGER DEFAULT 1,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_api_keys_org ON api_keys(org_id, is_active)",
+            # Phase 10: Webhooks
+            """CREATE TABLE IF NOT EXISTS webhooks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                name TEXT NOT NULL, url TEXT NOT NULL, secret TEXT,
+                events TEXT NOT NULL, is_active INTEGER DEFAULT 1,
+                failure_count INTEGER DEFAULT 0, last_triggered_at DATETIME,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS webhook_deliveries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                webhook_id INTEGER NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                event TEXT NOT NULL, payload TEXT,
+                http_status INTEGER, response_body TEXT, duration_ms INTEGER,
+                success INTEGER DEFAULT 0, attempt_count INTEGER DEFAULT 1,
+                delivered_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_webhooks_org ON webhooks(org_id)",
+            # Phase 10: EFT Batches
+            """CREATE TABLE IF NOT EXISTS eft_batches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                batch_number TEXT NOT NULL, value_date TEXT NOT NULL,
+                total_amount REAL DEFAULT 0, payment_count INTEGER DEFAULT 0,
+                originator_id TEXT, bank_name TEXT,
+                status TEXT DEFAULT 'draft', file_path TEXT, notes TEXT,
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE IF NOT EXISTS eft_batch_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                batch_id INTEGER NOT NULL REFERENCES eft_batches(id) ON DELETE CASCADE,
+                org_id INTEGER NOT NULL REFERENCES organizations(id),
+                project_id INTEGER REFERENCES projects(id),
+                vendor_id INTEGER REFERENCES org_vendors(id),
+                invoice_id INTEGER REFERENCES invoices(id),
+                payee_name TEXT NOT NULL,
+                payee_bank_transit TEXT, payee_bank_institution TEXT, payee_bank_account TEXT,
+                amount REAL NOT NULL, memo TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""",
+            "CREATE INDEX IF NOT EXISTS ix_eft_batches_org ON eft_batches(org_id, status)",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -1293,6 +1461,10 @@ app.include_router(crm.router)
 app.include_router(crm._public_router)
 app.include_router(assemblies.router)
 app.include_router(advanced_reports.router)
+app.include_router(lender_advanced.router)
+app.include_router(adjudication.router)
+app.include_router(gst_rebates.router)
+app.include_router(platform_api.router)
 
 # Serve static frontend
 static_dir = os.path.join(os.path.dirname(__file__), "static")

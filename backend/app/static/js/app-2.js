@@ -347,6 +347,42 @@ function app() {
     showCloseoutModal: false,
     closeoutForm: { category:'documents', item_name:'', responsible_party:'', due_date:'', status:'pending', notes:'' },
 
+    // ── Phase 10: QS Reports ──────────────────────────────────────
+    qsReports: [], showQSModal: false, qsEditId: null,
+    qsForm: { report_date:'', qs_firm:'', overall_pct_complete:'', cost_to_complete:'', recommendation:'approve', schedule_status:'on_track', schedule_delay_weeks:'', deficiency_count:0, deficiency_notes:'', notes:'' },
+    showQSAIParseModal: false, qsAIFile: null, qsAIParsing: false, qsAIResult: null,
+    // ── Phase 10: Mezz Tranches ───────────────────────────────────
+    mezzData: null, showMezzModal: false, mezzEditId: null,
+    mezzForm: { tranche_name:'', tranche_type:'senior', lender_name:'', commitment_amount:'', drawn_amount:0, interest_rate:'', interest_type:'fixed', priority_rank:1, maturity_date:'', draw_trigger:'', notes:'' },
+    // ── Phase 10: CMHC Take-out ───────────────────────────────────
+    takeoutData: null, showTakeoutModal: false,
+    takeoutForm: { program:'CMHC MLI Select', permanent_lender:'', permanent_loan_amount:'', permanent_rate:'', amortization_years:'', expected_conversion_date:'', target_occupancy_pct:'', dscr_at_stabilization:'', status:'construction', notes:'' },
+    // ── Phase 10: Loan Closing Checklist ──────────────────────────
+    loanClosingItems: [], loanClosingSummary: null, showLoanClosingModal: false,
+    loanClosingForm: { category:'zoning', item_name:'', description:'', required_by:'', status:'outstanding', notes:'' },
+    // ── Phase 10: GST/HST Rebates ────────────────────────────────
+    gstRebates: [], showGSTModal: false, gstEditId: null,
+    gstForm: { rebate_type:'new_housing', province:'ON', applicant_name:'', unit_address:'', purchase_price:'', gst_paid:'', status:'calculating', refund_amount:'' },
+    gstCalc: { rebate_type:'new_housing', purchase_price:'', gst_paid:'', province:'ON', is_purpose_built_rental:false }, gstCalcResult: null,
+    // ── Phase 10: EFT Batches ─────────────────────────────────────
+    eftBatches: [], showEFTModal: false,
+    eftForm: { batch_number:'', value_date:'', bank_name:'', originator_id:'', notes:'' },
+    // ── Phase 10: API Keys ────────────────────────────────────────
+    apiKeys: [], newAPIKey: null,
+    // ── Phase 10: Webhooks ────────────────────────────────────────
+    webhooks: [], showWebhookModal: false, newWebhookSecret: null,
+    webhookForm: { name:'', url:'', events:'invoice.created' },
+    // ── Phase 10: Adjudication ────────────────────────────────────
+    adjudications: [], showAdjModal: false, adjEditId: null,
+    adjForm: { case_number:'', province:'ON', claimant_name:'', respondent_name:'', disputed_amount:'', status:'initiated', adjudicator_name:'', adjudicator_appointed_date:'', description:'' },
+    // ── Phase 10: Doc Q&A ─────────────────────────────────────────
+    docQAQuestion: '', docQAAnswer: null, docQALoading: false, docQASources: [],
+    docQASuggestions: ['Which RFIs are still open?', 'What delays were reported this week?', 'When was the last draw approved?', 'What change orders are pending owner approval?'],
+    // ── Phase 10: AI Client Update ────────────────────────────────
+    clientUpdateText: null, clientUpdateLoading: false, clientUpdateTone: 'professional', clientUpdateMeta: null,
+    // ── Loan closing categories ───────────────────────────────────
+    get loanClosingCategories() { return [...new Set((this.loanClosingItems||[]).map(i=>i.category))]; },
+
     // ── Super Admin UI ────────────────────────────────────────────
     showCreateOrgModal: false,
     createOrgForm: { name: '', owner_username: '', plan: 'starter' },
@@ -4324,6 +4360,301 @@ ${d.participant_shares?.map(p=>`<tr><td>${p.lender}</td><td>${p.pct}%</td><td>$$
     async deleteSelection(id) {
       if (!confirm('Delete this selection item?')) return;
       try { await this.delete(`/api/project/${this.currentProject.id}/selections/${id}`); await this.loadSelections(); } catch(e) {}
+    },
+
+    // ═══════════════ PHASE 10 FUNCTIONS ══════════════════════════════════════
+
+    // ── QS / Inspector Reports ────────────────────────────────────────────────
+    async loadQSReports() {
+      if (!this.currentProject) return;
+      try { this.qsReports = await this.get(`/api/project/${this.currentProject.id}/qs-reports`); } catch(e) { this.qsReports = []; }
+    },
+    openQSModal(r=null) {
+      this.qsEditId = r?.id||null;
+      this.qsForm = r ? { report_date:r.report_date||'', qs_firm:r.qs_firm||'', overall_pct_complete:r.overall_pct_complete||'', cost_to_complete:r.cost_to_complete||'', recommendation:r.recommendation||'approve', schedule_status:r.schedule_status||'on_track', schedule_delay_weeks:r.schedule_delay_weeks||'', deficiency_count:r.deficiency_count||0, deficiency_notes:r.deficiency_notes||'', notes:r.notes||'' }
+              : { report_date:new Date().toISOString().slice(0,10), qs_firm:'', overall_pct_complete:'', cost_to_complete:'', recommendation:'approve', schedule_status:'on_track', schedule_delay_weeks:'', deficiency_count:0, deficiency_notes:'', notes:'' };
+      this.showQSModal = true;
+    },
+    async saveQSReport() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.qsEditId) await this.put(`/api/project/${pid}/qs-reports/${this.qsEditId}`, this.qsForm);
+        else await this.post(`/api/project/${pid}/qs-reports`, this.qsForm);
+        this.showQSModal = false; this.qsEditId = null;
+        await this.loadQSReports();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteQSReport(id) {
+      if (!confirm('Delete this QS report?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/qs-reports/${id}`); await this.loadQSReports(); } catch(e) {}
+    },
+    async aiParseQSReport() {
+      if (!this.qsAIFile || !this.currentProject) return;
+      this.qsAIParsing = true;
+      try {
+        const fd = new FormData(); fd.append('file', this.qsAIFile);
+        const resp = await fetch(`/api/project/${this.currentProject.id}/qs-reports/ai-parse`, { method:'POST', headers:{ Authorization:`Bearer ${this.token}` }, body:fd });
+        if (!resp.ok) throw new Error(await resp.text());
+        this.qsAIResult = await resp.json();
+      } catch(e) { alert('AI parse failed: '+e.message); }
+      this.qsAIParsing = false;
+    },
+    applyQSAIParsed() {
+      if (!this.qsAIResult) return;
+      const r = this.qsAIResult;
+      this.qsForm = { report_date:r.report_date||new Date().toISOString().slice(0,10), qs_firm:r.qs_firm||'', overall_pct_complete:r.overall_pct_complete||'', cost_to_complete:r.cost_to_complete||'', recommendation:r.recommendation||'approve', schedule_status:r.schedule_status||'on_track', schedule_delay_weeks:r.schedule_delay_weeks||'', deficiency_count:r.deficiency_count||0, deficiency_notes:r.deficiency_notes||'', notes:'' };
+      this.showQSAIParseModal = false; this.qsAIResult = null;
+      this.showQSModal = true;
+    },
+
+    // ── Mezz Tranches ─────────────────────────────────────────────────────────
+    async loadMezzTranches() {
+      if (!this.currentProject) return;
+      try { this.mezzData = await this.get(`/api/project/${this.currentProject.id}/mezz-tranches`); } catch(e) { this.mezzData = null; }
+    },
+    openMezzModal(t=null) {
+      this.mezzEditId = t?.id||null;
+      this.mezzForm = t ? { tranche_name:t.tranche_name, tranche_type:t.tranche_type||'senior', lender_name:t.lender_name||'', commitment_amount:t.commitment_amount||'', drawn_amount:t.drawn_amount||0, interest_rate:t.interest_rate||'', interest_type:t.interest_type||'fixed', priority_rank:t.priority_rank||1, maturity_date:t.maturity_date||'', draw_trigger:t.draw_trigger||'', notes:t.notes||'' }
+                 : { tranche_name:'', tranche_type:'senior', lender_name:'', commitment_amount:'', drawn_amount:0, interest_rate:'', interest_type:'fixed', priority_rank:1, maturity_date:'', draw_trigger:'', notes:'' };
+      this.showMezzModal = true;
+    },
+    async saveMezzTranche() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.mezzEditId) await this.put(`/api/project/${pid}/mezz-tranches/${this.mezzEditId}`, this.mezzForm);
+        else await this.post(`/api/project/${pid}/mezz-tranches`, this.mezzForm);
+        this.showMezzModal = false; this.mezzEditId = null;
+        await this.loadMezzTranches();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteMezzTranche(id) {
+      if (!confirm('Delete this tranche?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/mezz-tranches/${id}`); await this.loadMezzTranches(); } catch(e) {}
+    },
+
+    // ── CMHC Take-out ─────────────────────────────────────────────────────────
+    async loadTakeoutConversion() {
+      if (!this.currentProject) return;
+      try { this.takeoutData = await this.get(`/api/project/${this.currentProject.id}/takeout-conversion`); } catch(e) { this.takeoutData = null; }
+    },
+    openTakeoutModal() {
+      const t = this.takeoutData;
+      this.takeoutForm = t ? { program:t.program||'CMHC MLI Select', permanent_lender:t.permanent_lender||'', permanent_loan_amount:t.permanent_loan_amount||'', permanent_rate:t.permanent_rate||'', amortization_years:t.amortization_years||'', expected_conversion_date:t.expected_conversion_date||'', target_occupancy_pct:t.target_occupancy_pct||'', dscr_at_stabilization:t.dscr_at_stabilization||'', status:t.status||'construction', notes:t.notes||'' }
+                       : { program:'CMHC MLI Select', permanent_lender:'', permanent_loan_amount:'', permanent_rate:'', amortization_years:'', expected_conversion_date:'', target_occupancy_pct:'', dscr_at_stabilization:'', status:'construction', notes:'' };
+      this.showTakeoutModal = true;
+    },
+    async saveTakeoutConversion() {
+      if (!this.currentProject) return;
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/takeout-conversion`, this.takeoutForm);
+        this.showTakeoutModal = false;
+        await this.loadTakeoutConversion();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+
+    // ── Loan Closing Checklist ────────────────────────────────────────────────
+    async loadLoanClosingChecklist() {
+      if (!this.currentProject) return;
+      try {
+        const data = await this.get(`/api/project/${this.currentProject.id}/loan-closing-checklist`);
+        this.loanClosingItems = data.items||[]; this.loanClosingSummary = data.summary;
+      } catch(e) { this.loanClosingItems = []; }
+    },
+    async seedLoanClosingChecklist() {
+      if (!this.currentProject) return;
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/loan-closing-checklist/seed`, {});
+        await this.loadLoanClosingChecklist();
+      } catch(e) { alert(e.message||'Seed failed'); }
+    },
+    openLoanClosingModal() {
+      this.loanClosingForm = { category:'zoning', item_name:'', description:'', required_by:'', status:'outstanding', notes:'' };
+      this.showLoanClosingModal = true;
+    },
+    async saveLoanClosingItem() {
+      if (!this.currentProject) return;
+      try {
+        await this.post(`/api/project/${this.currentProject.id}/loan-closing-checklist`, this.loanClosingForm);
+        this.showLoanClosingModal = false;
+        await this.loadLoanClosingChecklist();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async toggleLoanClosingStatus(item) {
+      const next = item.status === 'outstanding' ? 'received' : item.status === 'received' ? 'waived' : 'outstanding';
+      await this.updateLoanClosingStatus(item, next);
+    },
+    async updateLoanClosingStatus(item, status) {
+      if (!this.currentProject) return;
+      try {
+        await this.put(`/api/project/${this.currentProject.id}/loan-closing-checklist/${item.id}`, { status });
+        item.status = status;
+        await this.loadLoanClosingChecklist();
+      } catch(e) {}
+    },
+    async deleteLoanClosingItem(id) {
+      if (!confirm('Remove this checklist item?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/loan-closing-checklist/${id}`); await this.loadLoanClosingChecklist(); } catch(e) {}
+    },
+
+    // ── GST/HST Rebates ───────────────────────────────────────────────────────
+    async loadGSTRebates() {
+      if (!this.currentProject) return;
+      try { this.gstRebates = await this.get(`/api/project/${this.currentProject.id}/gst-rebates`); } catch(e) { this.gstRebates = []; }
+    },
+    async calculateGSTRebate() {
+      try {
+        this.gstCalcResult = await this.post('/api/tax/calculate-rebate', this.gstCalc);
+      } catch(e) { alert('Calculation failed'); }
+    },
+    openGSTModal(r=null) {
+      this.gstEditId = r?.id||null;
+      this.gstForm = r ? { rebate_type:r.rebate_type||'new_housing', province:r.province||'ON', applicant_name:r.applicant_name||'', unit_address:r.unit_address||'', purchase_price:r.purchase_price||'', gst_paid:r.gst_paid||'', status:r.status||'calculating', refund_amount:r.refund_amount||'' }
+                      : { rebate_type:'new_housing', province:'ON', applicant_name:'', unit_address:'', purchase_price:'', gst_paid:'', status:'calculating', refund_amount:'' };
+      this.showGSTModal = true;
+    },
+    async saveGSTRebate() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        if (this.gstEditId) await this.put(`/api/project/${pid}/gst-rebates/${this.gstEditId}`, this.gstForm);
+        else await this.post(`/api/project/${pid}/gst-rebates`, this.gstForm);
+        this.showGSTModal = false; this.gstEditId = null;
+        await this.loadGSTRebates();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteGSTRebate(id) {
+      if (!confirm('Delete this rebate application?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/gst-rebates/${id}`); await this.loadGSTRebates(); } catch(e) {}
+    },
+
+    // ── EFT Batches ───────────────────────────────────────────────────────────
+    async loadEFTBatches() {
+      try { this.eftBatches = await this.get('/api/eft-batches'); } catch(e) { this.eftBatches = []; }
+    },
+    openEFTModal() {
+      this.eftForm = { batch_number:'EFT-'+(this.eftBatches.length+1).toString().padStart(3,'0'), value_date:new Date().toISOString().slice(0,10), bank_name:'', originator_id:'', notes:'' };
+      this.showEFTModal = true;
+    },
+    async saveEFTBatch() {
+      try {
+        await this.post('/api/eft-batches', this.eftForm);
+        this.showEFTModal = false;
+        await this.loadEFTBatches();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    downloadEFTFile(batchId) {
+      window.open(`/api/eft-batches/${batchId}/download?token=${encodeURIComponent(this.token)}`, '_blank');
+    },
+    async deleteEFTBatch(id) {
+      if (!confirm('Delete this draft batch?')) return;
+      try { await this.delete(`/api/eft-batches/${id}`); await this.loadEFTBatches(); } catch(e) {}
+    },
+
+    // ── API Keys ──────────────────────────────────────────────────────────────
+    async loadAPIKeys() {
+      try { this.apiKeys = await this.get('/api/api-keys'); } catch(e) { this.apiKeys = []; }
+    },
+    async createAPIKey() {
+      const name = prompt('API key name (e.g. Zapier Integration):');
+      if (!name) return;
+      const scopes = prompt('Scopes (read / write / admin):', 'read') || 'read';
+      try {
+        const result = await this.post('/api/api-keys', { name, scopes });
+        this.newAPIKey = result.key;
+        await this.loadAPIKeys();
+      } catch(e) { alert(e.message||'Failed'); }
+    },
+    async toggleAPIKey(id) {
+      try { await this.put(`/api/api-keys/${id}/toggle`, {}); await this.loadAPIKeys(); } catch(e) {}
+    },
+    async deleteAPIKey(id) {
+      if (!confirm('Permanently revoke and delete this API key?')) return;
+      try { await this.delete(`/api/api-keys/${id}`); await this.loadAPIKeys(); } catch(e) {}
+    },
+
+    // ── Webhooks ──────────────────────────────────────────────────────────────
+    async loadWebhooks() {
+      try { this.webhooks = await this.get('/api/webhooks'); } catch(e) { this.webhooks = []; }
+    },
+    openWebhookModal() {
+      this.webhookForm = { name:'', url:'', events:'invoice.created' };
+      this.showWebhookModal = true;
+    },
+    async saveWebhook() {
+      try {
+        const result = await this.post('/api/webhooks', this.webhookForm);
+        this.newWebhookSecret = result.signing_secret;
+        this.showWebhookModal = false;
+        await this.loadWebhooks();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async testWebhook(id) {
+      try {
+        const r = await this.post(`/api/webhooks/${id}/test`, {});
+        alert(r.success ? `✓ Webhook responded with HTTP ${r.http_status} in ${r.duration_ms}ms` : `✗ Webhook failed: HTTP ${r.http_status}`);
+      } catch(e) { alert('Test failed: '+e.message); }
+    },
+    async deleteWebhook(id) {
+      if (!confirm('Delete this webhook?')) return;
+      try { await this.delete(`/api/webhooks/${id}`); await this.loadWebhooks(); } catch(e) {}
+    },
+
+    // ── Adjudication Cases ────────────────────────────────────────────────────
+    async loadAdjudications() {
+      if (!this.currentProject) return;
+      try { this.adjudications = await this.get(`/api/project/${this.currentProject.id}/adjudications`); } catch(e) { this.adjudications = []; }
+    },
+    openAdjModal(c=null) {
+      this.adjEditId = c?.id||null;
+      this.adjForm = c ? { case_number:c.case_number||'', province:c.province||'ON', claimant_name:c.claimant_name||'', respondent_name:c.respondent_name||'', disputed_amount:c.disputed_amount||'', status:c.status||'initiated', adjudicator_name:c.adjudicator_name||'', adjudicator_appointed_date:c.adjudicator_appointed_date||'', description:c.description||'' }
+                   : { case_number:'', province:'ON', claimant_name:'', respondent_name:'', disputed_amount:'', status:'initiated', adjudicator_name:'', adjudicator_appointed_date:'', description:'' };
+      this.showAdjModal = true;
+    },
+    async saveAdjudication() {
+      if (!this.currentProject) return;
+      const pid = this.currentProject.id;
+      try {
+        const result = this.adjEditId
+          ? await this.put(`/api/project/${pid}/adjudications/${this.adjEditId}`, this.adjForm)
+          : await this.post(`/api/project/${pid}/adjudications`, this.adjForm);
+        this.showAdjModal = false; this.adjEditId = null;
+        if (result.determination_deadline) alert(`Determination deadline set: ${result.determination_deadline}`);
+        await this.loadAdjudications();
+      } catch(e) { alert(e.message||'Save failed'); }
+    },
+    async deleteAdjudication(id) {
+      if (!confirm('Delete this adjudication case?')) return;
+      try { await this.delete(`/api/project/${this.currentProject.id}/adjudications/${id}`); await this.loadAdjudications(); } catch(e) {}
+    },
+
+    // ── AI Document Q&A ───────────────────────────────────────────────────────
+    async askDocQA() {
+      if (!this.currentProject || !this.docQAQuestion.trim()) return;
+      this.docQALoading = true; this.docQAAnswer = null; this.docQASources = [];
+      try {
+        const result = await this.post(`/api/project/${this.currentProject.id}/doc-qa`, { question: this.docQAQuestion });
+        this.docQAAnswer = result.answer;
+        this.docQASources = result.sources_searched||[];
+      } catch(e) { this.docQAAnswer = 'Error: '+e.message; }
+      this.docQALoading = false;
+    },
+
+    // ── AI Client Update Generator ────────────────────────────────────────────
+    async generateClientUpdate() {
+      if (!this.currentProject) return;
+      this.clientUpdateLoading = true; this.clientUpdateText = null;
+      try {
+        const result = await this.post(`/api/project/${this.currentProject.id}/ai-client-update`, { tone: this.clientUpdateTone });
+        this.clientUpdateText = result.update;
+        this.clientUpdateMeta = result;
+      } catch(e) { alert('Generation failed: '+e.message); }
+      this.clientUpdateLoading = false;
+    },
+    async copyClientUpdate() {
+      if (!this.clientUpdateText) return;
+      try { await navigator.clipboard.writeText(this.clientUpdateText); alert('Copied to clipboard!'); } catch(e) {}
     },
 
   };
