@@ -450,6 +450,7 @@ function app() {
     memberForm: { username: '', role: 'editor' },
     memberFormError: '',
     memberFormLoading: false,
+    availableRoles: [],   // loaded from /api/org/roles
     vendorForm: { vendor_code: '', name: '', trade: '', contact_name: '', contact_email: '', contact_phone: '', payment_terms: '', hst_number: '', notes: '' },
     vendorFormError: '',
     vendorFormLoading: false,
@@ -1050,7 +1051,28 @@ function app() {
 
     // ── Org management ────────────────────────────────────────────
     async loadOrgMembers() {
-      try { this.orgMembers = await this.get('/api/org/members'); } catch(e) {}
+      try {
+        [this.orgMembers, this.availableRoles] = await Promise.all([
+          this.get('/api/org/members'),
+          this.get('/api/org/roles'),
+        ]);
+      } catch(e) { this.orgMembers = []; }
+    },
+
+    async loadAllOrgs() {
+      if (!this.user?.is_admin) return;
+      try { this.allOrgsList = await this.get('/api/org/all'); } catch(e) {}
+    },
+
+    async adminJoinOrg(orgId, role) {
+      try {
+        await this.post(`/api/org/admin-join/${orgId}`, { role });
+        await this.loadAllOrgs();
+        // Refresh org list so new org appears in switcher
+        const orgsResp = await this.get('/api/org');
+        this.orgs = orgsResp;
+        alert(`Joined org as ${role}. Switch to it using the org switcher.`);
+      } catch(e) { alert('Failed: ' + e.message); }
     },
 
     async loadOrgVendors() {

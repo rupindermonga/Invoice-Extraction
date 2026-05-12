@@ -19,7 +19,39 @@ router = APIRouter(prefix="/api/org", tags=["org"])
 
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9\-]{1,48}[a-z0-9]$")
 
-ROLES = ("owner", "admin", "editor", "viewer")
+ROLES = (
+    "owner",          # Full access — all modules read+write, manage members
+    "admin",          # Full access — all modules read+write, manage members (not ownership transfer)
+    "finance_admin",  # Finance module full access + read PM
+    "finance_viewer", # Finance module read-only
+    "pm_admin",       # PM module full access + read Finance
+    "pm_viewer",      # PM module read-only
+    "site_supervisor",# PM module write, Finance read
+    "editor",         # Both Finance + PM read+write (non-admin)
+    "viewer",         # Both Finance + PM read-only
+    "vendor_pm",      # PM module write (external vendor access)
+    "vendor_finance", # Finance module read-only (external vendor/lender access)
+)
+
+ROLE_LABELS = {
+    "owner":           "Owner — full access, can transfer ownership",
+    "admin":           "Admin — full access, manage members",
+    "finance_admin":   "Finance Admin — Finance read+write, PM read",
+    "finance_viewer":  "Finance Viewer — Finance read-only",
+    "pm_admin":        "PM Admin — PM read+write, Finance read",
+    "pm_viewer":       "PM Viewer — PM read-only",
+    "site_supervisor": "Site Supervisor — PM read+write, Finance read",
+    "editor":          "Editor — Finance + PM read+write",
+    "viewer":          "Viewer — Finance + PM read-only",
+    "vendor_pm":       "Vendor PM — PM write (external vendor)",
+    "vendor_finance":  "Vendor / Lender — Finance read-only (external)",
+}
+
+
+@router.get("/roles")
+def list_roles():
+    """Return all available roles with labels — used by member management UI."""
+    return [{"role": r, "label": ROLE_LABELS[r]} for r in ROLES]
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -89,6 +121,66 @@ def create_org(
     db.commit()
     db.refresh(org)
     return org
+
+
+# ─── Super-admin: list all orgs ───────────────────────────────────────────────
+
+@router.get("/all")
+def list_all_orgs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Super-admin only: list every org on the platform."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Super-admin access required")
+    orgs = db.query(Organization).order_by(Organization.created_at.desc()).all()
+    result = []
+    for org in orgs:
+        stats = _org_stats(org, db)
+        my_mem = db.query(OrganizationMember).filter(
+            OrganizationMember.org_id == org.id,
+            OrganizationMember.user_id == current_user.id,
+        ).first()
+        result.append({
+            "id": org.id, "name": org.name, "slug": org.slug,
+            "plan": org.plan, "is_active": org.is_active,
+            "created_at": str(org.created_at),
+            "my_role": my_mem.role if my_mem else None,
+            **stats,
+        })
+    return result
+
+
+@router.post("/admin-join/{org_id}")
+def admin_join_org(
+    org_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Super-admin: join any org with a specified role (default: admin)."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Super-admin access required")
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    role = body.get("role", "admin")
+    if role not in ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role")
+    existing = db.query(OrganizationMember).filter(
+        OrganizationMember.org_id == org_id,
+        OrganizationMember.user_id == current_user.id,
+    ).first()
+    if existing:
+        existing.is_active = True
+        existing.role = role
+        db.commit()
+        return _member_out(existing)
+    mem = OrganizationMember(org_id=org_id, user_id=current_user.id, role=role)
+    db.add(mem)
+    db.commit()
+    db.refresh(mem)
+    return _member_out(mem)
 
 
 # ─── Get org ──────────────────────────────────────────────────────────────────
