@@ -167,11 +167,25 @@ def build_extraction_prompt(columns: List[ColumnConfig], categories: List[Catego
             for c in cost_categories:
                 subs = c.get("sub_categories", [])
                 if subs:
-                    sc_parts.append(f"if work is '{c['name']}' type: [{', '.join(s['name'] for s in subs)}]")
+                    sc_parts.append(f"If invoice category is '{c['name']}': [{', '.join(s['name'] for s in subs)}]")
             if sc_parts:
                 li_sc_hint = (
-                    " cost_sub_category (string — the most specific sub-category for THIS line item's work. "
-                    + "; ".join(sc_parts) + ". Use null if no match.),"
+                    " cost_sub_category (string — sub-category for THIS specific line item's work. "
+                    + "; ".join(sc_parts) + ". "
+                    "NEVER return null — always pick the closest match. "
+                    "Telecom/FTTH keyword guide: "
+                    "Plow/Bore/Directional Bore/HDD/Trench/Underground/Vault Install/Open Trench/Conduit → 'Underground Installation'; "
+                    "Aerial/Guy/Down Guy/Strand/Pole Plant/Pole Set/Lash/Arm/Make-Ready → 'Aerial Installation'; "
+                    "Drop/Service Drop/Customer Connect/ONT Install → 'Drops'; "
+                    "Mobiliz/Travel Day/Setup/Move-In/Move-Out/Float → 'Mobilization'; "
+                    "Design/Engineering/Drawing/Survey/As-Built → 'Drawings / Design and Engineering'; "
+                    "Supervision/Support/Inspection/QA/Safety/Breaker/Traffic → 'Construction Support'; "
+                    "Material/Supply/Hardware/Equipment (for Material category) → pick best sub-category based on item type: "
+                    "vault/handhole/manhole → 'Vaults and Handholes'; "
+                    "fibre/fiber/cable/conduit/duct → 'Fibre and Cable Infrastructure'; "
+                    "splice/termination/fusion → 'Splicing & Terminations'; "
+                    "OLT/ONT/chassis/module → 'OLT & Chassis Kits' or 'ONTs & Optical Modules'; "
+                    "anchor/guy-wire/strand → 'Vaults and Handholes'.),"
                 )
         fields_desc["line_items"] = (
             "Array of ALL line items on the invoice. Each item must include: "
@@ -220,13 +234,15 @@ def build_extraction_prompt(columns: List[ColumnConfig], categories: List[Catego
         )
         fields_desc["cost_category"] = (
             f"Project cost category for this invoice. Must be EXACTLY one of: [{', '.join(cat_names)}]. "
-            "Choose the BEST single match — never return null, always pick the closest category. "
-            f"Guide: {cat_guide}. "
-            "Rules: vault/civil/underground work → usually Make Ready or Fiber Build; "
-            "OLT/cabinet/optical equipment → Electronics; "
-            "fibre cable/conduit/materials → Material; "
-            "labour/wages/crew costs → Payroll; "
-            "installation/build/construction work → Fiber Build. (string, required)"
+            "Choose the BEST single match based on the PRIMARY work type — never return null. "
+            f"Category guide: {cat_guide}. "
+            "FTTH/telecom decision rules (in priority order): "
+            "1. If majority of lines are hours/perdiem/travel/wages with no materials → Payroll. "
+            "2. If invoice is primarily supply of physical materials (cable, vaults, conduit, equipment) → Material. "
+            "3. If invoice is primarily optical/network equipment (OLT, ONT, chassis, modules) → Electronics. "
+            "4. If invoice is preliminary/prep work (permits, design, make-ready, clearing) → Make Ready. "
+            "5. If invoice is construction/installation (plow, bore, aerial, drops, pole work) → Fiber Build. "
+            "(string, required)"
         )
         # Build sub-category hints per cost category
         sc_parts = []
