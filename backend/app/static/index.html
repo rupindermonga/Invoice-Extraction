@@ -67,10 +67,27 @@
 </head>
 <body class="bg-gray-50 font-sans" x-data="app()" x-init="init()">
 
+  <!-- Demo loading overlay — shown while demo session is initialising -->
+  <div x-show="demoLoading" x-cloak
+       class="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gray-950">
+    <div class="flex flex-col items-center gap-5">
+      <div class="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center shadow-xl">
+        <i class="fa-solid fa-chart-gantt text-white text-2xl"></i>
+      </div>
+      <div class="flex gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce" style="animation-delay:0s"></span>
+        <span class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce" style="animation-delay:.15s"></span>
+        <span class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-bounce" style="animation-delay:.3s"></span>
+      </div>
+      <p class="text-white text-lg font-semibold tracking-wide">Loading demo…</p>
+      <p class="text-gray-400 text-sm">Preparing your sample project</p>
+    </div>
+  </div>
+
   <!-- ══════════════════════════════════════════════════════════════
        LANDING / MARKETING PAGE
   ══════════════════════════════════════════════════════════════ -->
-  <div x-show="view === 'landing'" class="min-h-screen bg-white font-sans">
+  <div x-show="view === 'landing' && !demoLoading" class="min-h-screen bg-white font-sans">
 
     <!-- FinelAppNav — ported from finel-hub/brand/nav-example.tsx -->
     <nav x-data="{ servicesOpen: false, aiOpen: false, mobileOpen: false }"
