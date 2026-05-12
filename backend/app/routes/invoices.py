@@ -439,18 +439,19 @@ def retry_error_invoices(
     from ..services.extractor import process_invoice_file
     import asyncio
 
-    error_invoices = db.query(Invoice).filter(
+    # Pick up both error AND stuck-pending invoices (pending = queued but task died)
+    stale_invoices = db.query(Invoice).filter(
         Invoice.user_id == current_user.id,
-        Invoice.status == "error",
+        Invoice.status.in_(["error", "pending"]),
     ).all()
-    if not error_invoices:
-        return {"message": "No error invoices to retry", "queued": 0}
+    if not stale_invoices:
+        return {"message": "No invoices to retry", "queued": 0}
 
-    valid = [(inv.id, inv.source_file) for inv in error_invoices
+    valid = [(inv.id, inv.source_file) for inv in stale_invoices
              if inv.source_file and os.path.isfile(inv.source_file)]
 
-    # Mark all as pending immediately so the UI shows them
-    for inv in error_invoices:
+    # Reset all to pending so UI counters show immediately
+    for inv in stale_invoices:
         if inv.source_file and os.path.isfile(inv.source_file):
             inv.status = "pending"
             inv.error_message = None
