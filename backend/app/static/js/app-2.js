@@ -1455,8 +1455,8 @@ function app() {
         if (this.view && !['landing','login','forgot-password','reset-password','signup','accept-invite'].includes(this.view)) {
           history.replaceState({}, '', '/' + this.view);
         }
-        if ((this.stats.pending || 0) > 0) {
-          // Active processing — poll fast
+        if ((this.stats.pending || 0) > 0 || (this.stats.errors || 0) > 0) {
+          // Active processing or worker retrying errors — poll fast
           setTimeout(() => { this.loadStats(); this.loadInvoices(); }, 4000);
         } else {
           // Idle — refresh every 30s so newly uploaded invoices appear automatically
