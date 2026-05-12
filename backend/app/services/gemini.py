@@ -155,6 +155,19 @@ def build_extraction_prompt(columns: List[ColumnConfig], categories: List[Catego
         fields_desc[col.field_key] = f"{desc} ({type_hint})"
 
     if line_item_col:
+        # Build per-line-item sub-category hint if cost categories are available
+        li_sc_hint = ""
+        if cost_categories:
+            sc_parts = []
+            for c in cost_categories:
+                subs = c.get("sub_categories", [])
+                if subs:
+                    sc_parts.append(f"if work is '{c['name']}' type: [{', '.join(s['name'] for s in subs)}]")
+            if sc_parts:
+                li_sc_hint = (
+                    " cost_sub_category (string — the most specific sub-category for THIS line item's work. "
+                    + "; ".join(sc_parts) + ". Use null if no match.),"
+                )
         fields_desc["line_items"] = (
             "Array of ALL line items on the invoice. Each item must include: "
             "{ "
@@ -167,8 +180,9 @@ def build_extraction_prompt(columns: List[ColumnConfig], categories: List[Catego
             "unit_price (number — unit rate), "
             "discount_amount (number), "
             "tax_rate (number — percentage), "
-            "line_total (number), "
-            "sub_division (string — construction trade/CSI division for this line, null if not applicable)"
+            "line_total (number),"
+            + li_sc_hint +
+            " sub_division (string — construction trade/CSI division for this line, null if not applicable)"
             " }"
         )
 
@@ -196,7 +210,8 @@ def build_extraction_prompt(columns: List[ColumnConfig], categories: List[Catego
         cat_names = [c["name"] for c in cost_categories]
         fields_desc["cost_category"] = (
             f"Project cost category for this invoice. Must be EXACTLY one of: [{', '.join(cat_names)}]. "
-            "Use null if unsure. (string or null)"
+            "Choose the BEST match based on the invoice description — do NOT return null unless the invoice "
+            "is completely unrelated to any category. Examples: electrical/civil/vault/cabinet/splicing/fibre work → pick the closest match. (string or null)"
         )
         # Build sub-category hints per cost category
         sc_parts = []
