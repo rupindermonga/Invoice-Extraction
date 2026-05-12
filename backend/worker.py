@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger("invoice-worker")
 
 POLL_INTERVAL = 10    # seconds between idle polls
-GAP_BETWEEN   = 15    # seconds between invoices (rate-limit buffer)
+GAP_BETWEEN   = 5     # seconds between invoices (key blacklist handles rate limits now)
 
 
 async def run():

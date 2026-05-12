@@ -2,11 +2,16 @@ import google.generativeai as genai
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import List, Optional
 from ..models import ColumnConfig, CategoryConfig
 
 logger = logging.getLogger(__name__)
+
+# Module-level key blacklist: key → timestamp when it can be retried
+# Shared across all calls within the same process (the worker)
+_rate_limited_until: dict = {}
 
 SUPPORTED_MIME = {
     ".pdf": "application/pdf",
@@ -336,8 +341,14 @@ async def extract_invoice_from_file(
 
     total = len(keys_to_try)
     last_error: Exception = Exception("No keys available")
+    now = time.time()
     for idx, key in enumerate(keys_to_try, start=1):
         tag = _key_tag(key, idx, total)
+        # Skip keys that are still in the rate-limit blacklist
+        retry_at = _rate_limited_until.get(key, 0)
+        if retry_at > now:
+            logger.info("Gemini %s skipped (rate-limited, recovers in %.0fs)", tag, retry_at - now)
+            continue
         try:
             genai.configure(api_key=key)
             model = genai.GenerativeModel(model_name)
@@ -368,6 +379,8 @@ async def extract_invoice_from_file(
         except Exception as e:
             last_error = e
             reason = _classify_error(e)
+            if "rate-limited" in reason or "quota" in reason:
+                _rate_limited_until[key] = time.time() + 65  # blacklist for 65s
             logger.warning("Gemini %s failed (%s) — trying next key.", tag, reason)
             continue  # try the next key
 
