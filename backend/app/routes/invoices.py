@@ -26,6 +26,11 @@ router = APIRouter(prefix="/api/invoices", tags=["invoices"])
 # In-memory processing status store (invoice_id -> status dict)
 processing_store: dict = {}
 
+# Prevent concurrent retry threads
+import threading as _threading
+_retry_lock = _threading.Lock()
+_retry_running = False
+
 
 def _apply_filters(query, user_id, start_date, end_date, vendor, currency, status_filter, org_id=None):
     if org_id:
@@ -435,7 +440,12 @@ def retry_error_invoices(
     current_user: User = Depends(get_current_user),
 ):
     """Re-queue error/pending invoices via a real thread (reliable across restarts)."""
+    global _retry_running
     import threading, asyncio
+
+    # Prevent two concurrent retry threads
+    if _retry_running:
+        return {"message": "Retry already in progress", "queued": 0}
 
     stale_invoices = db.query(Invoice).filter(
         Invoice.user_id == current_user.id,
@@ -456,7 +466,10 @@ def retry_error_invoices(
             inv.error_message = None
     db.commit()
 
+    _retry_running = True
+
     def _run_in_thread():
+        global _retry_running
         from ..services.extractor import process_invoice_file
         from ..database import SessionLocal
 
@@ -479,6 +492,7 @@ def retry_error_invoices(
             loop.run_until_complete(_sequential())
         finally:
             loop.close()
+            _retry_running = False
 
     t = threading.Thread(target=_run_in_thread, daemon=True)
     t.start()

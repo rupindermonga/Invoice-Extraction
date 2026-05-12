@@ -1005,10 +1005,6 @@ function app() {
         await Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()]);
         if (this.user?.is_admin) await this.loadApiKeys();
 
-        // Auto-retry if invoices are stuck in pending/error after server restart
-        if ((this.stats.pending || 0) > 0 || (this.stats.errors || 0) > 0) {
-          await this.retryErrorInvoices();
-        }
       }
       // Otherwise: stay on landing page (view defaults to 'landing')
     },
