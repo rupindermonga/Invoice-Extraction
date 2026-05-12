@@ -957,6 +957,19 @@ function app() {
       // ── Auto-login from saved token (real accounts only) ─────────
       const saved = localStorage.getItem('invoice_token');
       const savedUser = localStorage.getItem('invoice_user');
+      // Purge any stale demo token that was incorrectly saved to localStorage
+      if (saved && savedUser) {
+        try {
+          const u = JSON.parse(savedUser);
+          if (u?.is_demo || u?.username === 'demo') {
+            localStorage.removeItem('invoice_token');
+            localStorage.removeItem('invoice_user');
+            localStorage.removeItem('currentOrgId');
+            this.view = 'landing';
+            return;
+          }
+        } catch(e) {}
+      }
       if (saved && savedUser) {
         this.token = saved;
         this.user = JSON.parse(savedUser);
@@ -1349,7 +1362,14 @@ function app() {
           throw new Error(err.detail || 'Demo unavailable — please try again later.');
         }
         const data = await res.json();
-        this.setAuth(data);
+        // Session-only — do NOT save to localStorage so real logins aren't overwritten
+        this.token = data.access_token;
+        this.user = data.user;
+        this.orgs = data.orgs || [];
+        this.currentOrg = this.orgs[0] || null;
+        this.view = 'dashboard';
+        await this.loadProjects();
+        await Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()]);
       } catch (e) {
         this.demoError = e.message;
       } finally {
