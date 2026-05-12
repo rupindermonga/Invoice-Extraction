@@ -1058,7 +1058,12 @@ function app() {
       this.view = 'dashboard';
       this.loadProjects().then(() => {
         Promise.all([this.loadInvoices(), this.loadColumns(), this.loadStats(), this.loadCategories(), this.loadProjectDashboard(), this.loadSubdivisions(), this.loadPayroll(), this.loadUsers()])
-          .then(() => { if (this.user?.is_admin) this.loadApiKeys(); });
+          .then(() => {
+            if (this.user?.is_admin) this.loadApiKeys();
+            if ((this.stats.pending || 0) > 0 || (this.stats.errors || 0) > 0) {
+              this.retryErrorInvoices();
+            }
+          });
       });
     },
 
