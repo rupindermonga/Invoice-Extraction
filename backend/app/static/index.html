@@ -1539,7 +1539,7 @@
           <i class="fa-solid fa-spinner fa-spin text-blue-500"></i>
           <div class="text-sm text-blue-800">
             <strong>Processing invoices one-by-one…</strong>
-            <span class="text-blue-600 ml-2">Each invoice takes ~15 seconds. Processing: <strong x-text="stats.processing||0"></strong> · Processed: <strong x-text="stats.processed||0"></strong> · Remaining errors: <strong x-text="stats.errors||0"></strong></span>
+            <span class="text-blue-600 ml-2">Each invoice takes ~15 seconds. Queued/Active: <strong x-text="stats.pending||0"></strong> · Processed: <strong x-text="stats.processed||0"></strong> · Errors: <strong x-text="stats.errors||0"></strong></span>
           </div>
         </div>
 

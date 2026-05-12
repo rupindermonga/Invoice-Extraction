@@ -1411,7 +1411,7 @@ function app() {
       try {
         this.stats = await this.get('/api/invoices/stats');
         // Auto-poll while invoices are still processing
-        if ((this.stats.processing || 0) > 0) {
+        if ((this.stats.pending || 0) > 0) {
           setTimeout(() => { this.loadStats(); this.loadInvoices(); }, 4000);
         }
       } catch (e) {}
@@ -1430,9 +1430,8 @@ function app() {
       const poll = async () => {
         await this.loadStats();
         await this.loadInvoices();
-        const processing = this.stats.processing || 0;
-        const pending = (this.invoices || []).filter(i => i.status === 'pending').length;
-        if (processing > 0 || pending > 0) {
+        const pending = this.stats.pending || 0;
+        if (pending > 0) {
           setTimeout(poll, 3000);
         } else {
           this.retryingInvoices = false;
