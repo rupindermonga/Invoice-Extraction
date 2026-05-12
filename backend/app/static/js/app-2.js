@@ -1017,6 +1017,7 @@ function app() {
             localStorage.removeItem('currentOrgId');
           }
           this.view = 'landing';
+          history.replaceState({}, '', '/');
           return;
         }
         // Restore the view the user was on before refresh
@@ -1028,7 +1029,8 @@ function app() {
         if (this.user?.is_admin) await this.loadApiKeys();
 
       }
-      // Otherwise: stay on landing page (view defaults to 'landing')
+      // No token — reset URL to root so /dashboard doesn't show in address bar
+      if (window.location.pathname !== '/') history.replaceState({}, '', '/');
     },
 
 
