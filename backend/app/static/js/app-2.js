@@ -1845,9 +1845,14 @@ function app() {
           if (assigns.length) await Promise.all(assigns);
         }
 
-        // Add to processing queue
-        data.results.filter(r => r.status === 'queued').forEach(r => {
-          this.processingQueue.push({ id: r.invoice_id, filename: r.filename, status: 'processing' });
+        // Add to processing queue (queued = processing, duplicate/rejected = show inline)
+        data.results.forEach(r => {
+          if (r.status === 'queued')
+            this.processingQueue.push({ id: r.invoice_id, filename: r.filename, status: 'processing' });
+          else if (r.status === 'duplicate')
+            this.processingQueue.push({ id: r.existing_id, filename: r.filename, status: 'duplicate', reason: r.reason });
+          else if (r.status === 'rejected')
+            this.processingQueue.push({ id: null, filename: r.filename, status: 'rejected', reason: r.reason });
         });
 
         // Start SSE listener

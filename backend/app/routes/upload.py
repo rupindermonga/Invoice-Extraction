@@ -1,5 +1,5 @@
-import asyncio
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, Query
+import hashlib
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pathlib import Path
@@ -7,9 +7,8 @@ from pathlib import Path
 from ..database import get_db
 from ..models import Invoice, User, Project
 from ..dependencies import get_current_user, get_current_org
-from ..services.extractor import save_upload_file, process_invoice_file
+from ..services.extractor import save_upload_file
 from ..services.gemini import check_api_key
-from .invoices import processing_store
 from .audit import log as audit_log
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
@@ -40,7 +39,6 @@ def _validate_magic(header: bytes) -> bool:
 
 @router.post("")
 async def upload_invoices(
-    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     project_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
@@ -117,6 +115,21 @@ async def upload_invoices(
             })
             continue
 
+        # Duplicate detection: SHA-256 hash of file content
+        file_hash = hashlib.sha256(content).hexdigest()
+        existing = db.query(Invoice).filter(
+            Invoice.org_id == org.id,
+            Invoice.file_hash == file_hash,
+        ).first()
+        if existing:
+            results.append({
+                "filename": upload.filename,
+                "status": "duplicate",
+                "reason": f"Already uploaded as '{existing.original_filename}' (Invoice #{existing.invoice_number or existing.id})",
+                "existing_id": existing.id,
+            })
+            continue
+
         # File is valid — now check Gemini API key before queueing processing
         if not _api_key_ok:
             results.append({
@@ -129,7 +142,7 @@ async def upload_invoices(
         # Save file to disk
         saved_path = save_upload_file(content, upload.filename)
 
-        # Create invoice record
+        # Create invoice record — status='error' so the standalone worker picks it up immediately
         invoice = Invoice(
             user_id=current_user.id,
             org_id=org.id,
@@ -137,23 +150,15 @@ async def upload_invoices(
             source="upload",
             source_file=saved_path,
             original_filename=upload.filename,
-            status="pending",
+            file_hash=file_hash,
+            status="error",
+            error_message="Queued for AI extraction",
         )
         db.add(invoice)
         db.commit()
         db.refresh(invoice)
         audit_log(db, org.id, current_user, "upload_invoice", entity_type="invoice",
                   entity_id=invoice.id, detail=f"Uploaded '{upload.filename}' to project #{invoice.project_id}")
-
-        # Queue background extraction
-        background_tasks.add_task(
-            process_invoice_file,
-            invoice.id,
-            saved_path,
-            current_user.id,
-            db,
-            processing_store
-        )
 
         results.append({
             "invoice_id": invoice.id,

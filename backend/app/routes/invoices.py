@@ -107,11 +107,17 @@ def get_stats(
     current_user: User = Depends(get_current_user)
 ):
     base = db.query(Invoice).filter(Invoice.user_id == current_user.id)
+    # "queued" = error with our own queue message (new upload, not a real failure)
+    queued = base.filter(
+        Invoice.status == "error",
+        Invoice.error_message == "Queued for AI extraction",
+    ).count()
+    errors = base.filter(Invoice.status == "error").count()
     return {
         "total": base.count(),
         "processed": base.filter(Invoice.status == "processed").count(),
-        "pending": base.filter(Invoice.status.in_(["pending", "processing"])).count(),
-        "errors": base.filter(Invoice.status == "error").count(),
+        "pending": base.filter(Invoice.status.in_(["pending", "processing"])).count() + queued,
+        "errors": errors - queued,
     }
 
 

@@ -1557,7 +1557,11 @@
                 <span x-show="item.status==='processing'" class="text-amber-500"><i class="fa-solid fa-spinner fa-spin"></i></span>
                 <span x-show="item.status==='processed'" class="text-green-600"><i class="fa-solid fa-circle-check"></i></span>
                 <span x-show="item.status==='error'" class="text-red-500"><i class="fa-solid fa-circle-xmark"></i></span>
+                <span x-show="item.status==='duplicate'" class="text-orange-500"><i class="fa-solid fa-copy"></i></span>
+                <span x-show="item.status==='rejected'" class="text-gray-400"><i class="fa-solid fa-ban"></i></span>
                 <span class="font-medium text-gray-700" x-text="item.filename"></span>
+                <span x-show="item.status==='duplicate'" class="text-orange-600 font-semibold">Duplicate —</span>
+                <span x-show="item.status==='duplicate' || item.status==='rejected'" class="text-gray-500 italic" x-text="item.reason"></span>
                 <span x-show="item.invoice_number" class="text-gray-500">· <span x-text="item.invoice_number"></span></span>
                 <span x-show="item.vendor_name" class="text-gray-500">· <span x-text="item.vendor_name"></span></span>
                 <span x-show="item.total_due" class="text-gray-700 font-medium">· <span x-text="item.currency || ''"></span> <span x-text="item.total_due ? item.total_due.toLocaleString('en-CA', {minimumFractionDigits:2}) : ''"></span></span>

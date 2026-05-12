@@ -33,6 +33,7 @@ class Invoice(Base):
     source_file = Column(String, nullable=True)
     source_email = Column(String, nullable=True)
     original_filename = Column(String, nullable=True)
+    file_hash = Column(String, nullable=True, index=True)  # SHA-256 of file content for duplicate detection
 
     # Processing metadata
     processed_at = Column(DateTime, default=datetime.utcnow)
