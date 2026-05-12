@@ -499,6 +499,33 @@ def retry_error_invoices(
     return {"message": f"Processing {len(valid)} invoices (12s apart). Watch the counter.", "queued": len(valid)}
 
 
+@router.post("/bulk-assign-claim")
+def bulk_assign_claim(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Assign a claim to multiple invoices at once."""
+    ids = body.get("ids", [])
+    claim_id = body.get("claim_id")
+    claim_type = body.get("claim_type", "provincial")
+    if not ids or not claim_id:
+        return {"message": "No ids or claim_id provided", "updated": 0}
+    invs = db.query(Invoice).filter(
+        Invoice.id.in_(ids),
+        Invoice.user_id == current_user.id,
+    ).all()
+    updated = 0
+    for inv in invs:
+        if claim_type == "provincial":
+            inv.provincial_claim_id = claim_id
+        else:
+            inv.federal_claim_id = claim_id
+        updated += 1
+    db.commit()
+    return {"message": f"Updated {updated} invoices", "updated": updated}
+
+
 @router.post("/reprocess-bulk")
 def reprocess_bulk(
     body: dict,

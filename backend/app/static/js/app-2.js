@@ -1625,6 +1625,24 @@ function app() {
       else
         this.selectedInvoiceIds = this.invoices.map(i => i.id);
     },
+    async bulkAssignClaim(claimId, claimType) {
+      if (!this.selectedInvoiceIds.length || !claimId) return;
+      try {
+        const r = await this.post('/api/invoices/bulk-assign-claim', {
+          ids: this.selectedInvoiceIds,
+          claim_id: claimId,
+          claim_type: claimType,
+        });
+        // Update local state immediately
+        const field = claimType === 'provincial' ? 'provincial_claim_id' : 'federal_claim_id';
+        for (const inv of this.invoices) {
+          if (this.selectedInvoiceIds.includes(inv.id)) inv[field] = claimId;
+        }
+        this.selectedInvoiceIds = [];
+        alert(`Claim assigned to ${r.updated} invoice(s).`);
+      } catch (e) { alert('Could not assign claim: ' + e.message); }
+    },
+
     async reprocessSelected() {
       if (!this.selectedInvoiceIds.length) return;
       try {
