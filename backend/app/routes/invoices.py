@@ -437,8 +437,6 @@ def retry_error_invoices(
 ):
     """Re-queue all error-status invoices for AI re-processing."""
     from ..services.extractor import process_invoice_file
-    from .invoices import _UPLOAD_DIR
-    from . import processing_store
 
     error_invoices = db.query(Invoice).filter(
         Invoice.user_id == current_user.id,
