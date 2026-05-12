@@ -206,9 +206,10 @@ def build_extraction_prompt(columns: List[ColumnConfig], categories: List[Catego
                 sub_names = [s["name"] for s in subs]
                 sc_parts.append(f"If cost_category='{c['name']}': [{', '.join(sub_names)}]")
         if sc_parts:
-            fields_desc["cost_sub_category"] = (
-                "Sub-category within the cost category. Options — " + "; ".join(sc_parts) +
-                ". Use null if not applicable. (string or null)"
+            fields_desc["cost_sub_categories"] = (
+                "List of ALL sub-categories that apply to this invoice — an invoice can cover multiple types of work. "
+                "Return as a JSON array of strings. Options — " + "; ".join(sc_parts) +
+                ". Use empty array [] if none apply. Example: [\"Aerial Installation\", \"Underground Installation\"]"
             )
 
         # Sub-division hint for per-subdivision categories

@@ -463,8 +463,7 @@ def retry_error_invoices(
                 await asyncio.sleep(15)  # 15s gap — stays within paid key per-min limit
             fresh_db = SessionLocal()
             try:
-                await asyncio.get_event_loop().run_in_executor(
-                    None, process_invoice_file,
+                await process_invoice_file(
                     inv_id, src_file, current_user.id, fresh_db, processing_store,
                 )
             except Exception:

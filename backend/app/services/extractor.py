@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-from ..models import Invoice, ColumnConfig, CategoryConfig, GeminiApiKey, Correction, CostCategory, Project
+from ..models import Invoice, ColumnConfig, CategoryConfig, GeminiApiKey, Correction, CostCategory, CostSubCategory, InvoiceAllocation, Project
 from .gemini import extract_invoice_from_file
 
 
@@ -140,6 +140,48 @@ async def process_invoice_file(
         invoice.extracted_data = data
         invoice.status = "processed"
         invoice.processed_at = datetime.utcnow()
+
+        # Save cost category → create InvoiceAllocation records per sub-category
+        ai_cost_cat = data.get("cost_category")
+        ai_sub_cats = data.get("cost_sub_categories") or []
+        if isinstance(ai_sub_cats, str):
+            ai_sub_cats = [ai_sub_cats] if ai_sub_cats else []
+
+        if ai_cost_cat and invoice.project_id:
+            cat_rec = db.query(CostCategory).filter(
+                CostCategory.project_id == invoice.project_id,
+                CostCategory.name == ai_cost_cat,
+            ).first()
+            if cat_rec:
+                # Clear old AI-generated allocations for this invoice
+                db.query(InvoiceAllocation).filter(
+                    InvoiceAllocation.invoice_id == invoice.id
+                ).delete()
+
+                if ai_sub_cats:
+                    # One allocation per sub-category, split equally
+                    pct = round(100.0 / len(ai_sub_cats), 2)
+                    for sc_name in ai_sub_cats:
+                        sc_rec = db.query(CostSubCategory).filter(
+                            CostSubCategory.category_id == cat_rec.id,
+                            CostSubCategory.name == sc_name,
+                        ).first()
+                        amt = round((invoice.total_due or 0) * pct / 100, 2)
+                        db.add(InvoiceAllocation(
+                            invoice_id=invoice.id,
+                            category_id=cat_rec.id,
+                            sub_category_id=sc_rec.id if sc_rec else None,
+                            percentage=pct,
+                            amount=amt,
+                        ))
+                else:
+                    # No sub-categories — one allocation for the whole invoice
+                    db.add(InvoiceAllocation(
+                        invoice_id=invoice.id,
+                        category_id=cat_rec.id,
+                        percentage=100.0,
+                        amount=invoice.total_due or 0,
+                    ))
 
         processing_store[invoice_id] = {
             "user_id": user_id,
