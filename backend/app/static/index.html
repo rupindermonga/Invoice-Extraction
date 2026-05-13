@@ -12567,12 +12567,42 @@
   </div>
 
   <!-- Filters (shared) -->
-  <div x-show="efTab!=='import'" class="flex gap-3 mb-4 flex-wrap">
-    <select x-model="efFilterSD" @change="efTab==='grid'?loadEFGrid():(efTab==='summary'?loadEFSummary():loadEFActualsForm())" class="text-sm border rounded px-2 py-1.5">
-      <option value="">All Subdivisions</option>
-      <template x-for="sd in efSDs" :key="sd"><option :value="sd" x-text="sd"></option></template>
-    </select>
-    <span class="text-sm text-gray-400 self-center" x-show="efPeriods.length" x-text="efPeriods.length + ' periods loaded'"></span>
+  <div x-show="efTab!=='import'" class="bg-gray-50 border rounded-lg px-4 py-3 mb-4 flex flex-wrap gap-3 items-end">
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">Subdivision</label>
+      <select x-model="efFilterSD" class="text-sm border rounded px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+        <option value="">All SDs</option>
+        <template x-for="sd in efSDs" :key="sd"><option :value="sd" x-text="sd"></option></template>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">OLT</label>
+      <select x-model="efFilterNode" class="text-sm border rounded px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+        <option value="">All OLTs</option>
+        <template x-for="n in efNodes" :key="n.node_code"><option :value="n.node_code" x-text="n.node_code"></option></template>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1">Vendor / Sub-contractor</label>
+      <select x-model="efFilterVendor" class="text-sm border rounded px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+        <option value="">All Vendors</option>
+        <template x-for="v in efVendors" :key="v"><option :value="v" x-text="v"></option></template>
+      </select>
+    </div>
+    <div x-show="efTab==='summary' || efTab==='dashboard'">
+      <label class="block text-xs font-medium text-gray-500 mb-1">Group By</label>
+      <select x-model="efSummaryGroupBy" class="text-sm border rounded px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+        <option value="workstream">Workstream</option>
+        <option value="sd_code">Subdivision</option>
+        <option value="node_code">OLT</option>
+        <option value="vendor">Vendor / Sub-contractor</option>
+      </select>
+    </div>
+    <button @click="applyEFFilters()" class="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700 transition">
+      <i class="fa-solid fa-filter mr-1"></i>Apply
+    </button>
+    <button @click="clearEFFilters()" class="px-3 py-1.5 bg-gray-200 text-gray-600 rounded text-sm hover:bg-gray-300 transition">Clear</button>
+    <span class="text-sm text-gray-400 self-center" x-show="efPeriods.length" x-text="efPeriods.length + ' periods'"></span>
   </div>
 
   <!-- ── Tab: Plan vs Actual Grid ─────────────────────────────────────────── -->
@@ -12636,7 +12666,7 @@
       <table class="text-xs w-full whitespace-nowrap">
         <thead class="bg-gray-700 text-white sticky top-0">
           <tr>
-            <th class="px-3 py-2 text-left min-w-40 sticky left-0 bg-gray-700 z-10">Workstream</th>
+            <th class="px-3 py-2 text-left min-w-40 sticky left-0 bg-gray-700 z-10" x-text="efSummaryGroupByLabel()"></th>
             <th class="px-2 py-2 text-left">Unit</th>
             <th class="px-2 py-2 text-right">Total Scope</th>
             <template x-for="p in efSummaryPeriods" :key="p.iso">

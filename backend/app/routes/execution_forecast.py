@@ -410,12 +410,14 @@ async def import_excel(project_id: int,
 def get_grid(project_id: int,
              sd_code: Optional[str] = None,
              node_id: Optional[int] = None,
+             node_code: Optional[str] = None,
+             vendor: Optional[str] = None,
              workstream_id: Optional[int] = None,
              db: Session = Depends(get_db),
              current_user: User = Depends(get_current_user)):
     """
     Returns a flat list of task rows, each with all period plan/actual values.
-    Filter by sd_code, node_id, or workstream_id.
+    Filter by sd_code, node_id, node_code, vendor, or workstream_id.
     """
     require_org_member(db, current_user.org_id, current_user.id, FINANCE_READ_ROLES)
     require_project_access(db, project_id, current_user.org_id)
@@ -433,6 +435,12 @@ def get_grid(project_id: int,
     if workstream_id:
         where += " AND t.workstream_id=:wsid"
         params["wsid"] = workstream_id
+    if node_code:
+        where += " AND n.node_code=:nc"
+        params["nc"] = node_code
+    if vendor:
+        where += " AND t.vendor=:vendor"
+        params["vendor"] = vendor
 
     tasks = db.execute(text(f"""
         SELECT t.id, n.sd_code, n.node_code, w.name AS workstream, w.unit,
@@ -494,46 +502,68 @@ def get_grid(project_id: int,
 @router.get("/{project_id}/execution/summary")
 def get_summary(project_id: int,
                 sd_code: Optional[str] = None,
+                node_code: Optional[str] = None,
+                vendor: Optional[str] = None,
+                group_by: str = "workstream",
                 db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):
     """
-    Returns totals rolled up by workstream (optionally filtered to one subdivision).
-    Matches the 'Summarized Execution Plan' sheet structure.
+    Returns totals rolled up by the chosen dimension.
+    group_by: workstream | sd_code | node_code | vendor
     """
     require_org_member(db, current_user.org_id, current_user.id, FINANCE_READ_ROLES)
     require_project_access(db, project_id, current_user.org_id)
     oid = current_user.org_id
     pid = project_id
 
-    sd_filter = "AND n.sd_code=:sd" if sd_code else ""
+    # Build WHERE
+    filters = "p.project_id=:pid AND p.org_id=:oid"
     params: dict = {"pid": pid, "oid": oid}
     if sd_code:
-        params["sd"] = sd_code
+        filters += " AND n.sd_code=:sd"; params["sd"] = sd_code
+    if node_code:
+        filters += " AND n.node_code=:nc"; params["nc"] = node_code
+    if vendor:
+        filters += " AND t.vendor=:v"; params["v"] = vendor
+
+    # Build SELECT / GROUP BY based on group_by dimension
+    if group_by == "sd_code":
+        grp_select = "COALESCE(n.sd_code,'Unknown') AS grp_name, '' AS unit, COALESCE(n.sd_code,'') AS grp_ord"
+        grp_col = "n.sd_code"
+    elif group_by == "node_code":
+        grp_select = "n.node_code AS grp_name, '' AS unit, n.node_code AS grp_ord"
+        grp_col = "n.node_code"
+    elif group_by == "vendor":
+        grp_select = "COALESCE(t.vendor,'Unknown') AS grp_name, '' AS unit, COALESCE(t.vendor,'') AS grp_ord"
+        grp_col = "COALESCE(t.vendor,'Unknown')"
+    else:  # workstream (default)
+        grp_select = "w.name AS grp_name, w.unit AS unit, w.display_order AS grp_ord"
+        grp_col = "w.id"
+
+    ws_join = "JOIN wf_workstreams w ON w.id = t.workstream_id" if group_by == "workstream" else "LEFT JOIN wf_workstreams w ON w.id = t.workstream_id"
 
     rows = db.execute(text(f"""
-        SELECT w.name, w.unit, w.display_order,
-               p.period, SUM(p.planned_qty), SUM(p.actual_qty),
-               SUM(t.total_scope)
+        SELECT {grp_select}, p.period, SUM(p.planned_qty), SUM(p.actual_qty), SUM(t.total_scope)
         FROM wf_progress p
         JOIN wf_tasks t ON t.id = p.task_id
-        JOIN wf_workstreams w ON w.id = t.workstream_id
+        {ws_join}
         JOIN wf_nodes n ON n.id = t.node_id
-        WHERE p.project_id=:pid AND p.org_id=:oid {sd_filter}
-        GROUP BY w.id, p.period
-        ORDER BY w.display_order, p.period
+        WHERE {filters}
+        GROUP BY {grp_col}, p.period
+        ORDER BY grp_ord, p.period
     """), params).fetchall()
 
     workstreams: dict[str, dict] = {}
     all_periods: set[str] = set()
-    for ws_name, unit, ws_ord, period, plan_sum, actual_sum, scope_sum in rows:
+    for grp_name, unit, grp_ord, period, plan_sum, actual_sum, scope_sum in rows:
         all_periods.add(period)
-        if ws_name not in workstreams:
-            workstreams[ws_name] = {
-                "workstream": ws_name, "unit": unit,
+        if grp_name not in workstreams:
+            workstreams[grp_name] = {
+                "workstream": grp_name, "unit": unit or "km",
                 "total_scope": 0, "periods": {},
             }
-        workstreams[ws_name]["total_scope"] = scope_sum  # last value wins (same per workstream)
-        workstreams[ws_name]["periods"][period] = {
+        workstreams[grp_name]["total_scope"] = scope_sum or 0
+        workstreams[grp_name]["periods"][period] = {
             "plan": plan_sum or 0,
             "actual": actual_sum,
         }
@@ -542,8 +572,22 @@ def get_summary(project_id: int,
     return {
         "workstreams": list(workstreams.values()),
         "periods": [{"iso": p, "label": _period_label(p)} for p in periods_sorted],
-        "sd_code": sd_code,
+        "group_by": group_by,
     }
+
+
+@router.get("/{project_id}/execution/vendors")
+def list_vendors(project_id: int, db: Session = Depends(get_db),
+                 current_user: User = Depends(get_current_user)):
+    """Return distinct vendor names for this project."""
+    require_org_member(db, current_user.org_id, current_user.id, FINANCE_READ_ROLES)
+    require_project_access(db, project_id, current_user.org_id)
+    rows = db.execute(text(
+        "SELECT DISTINCT t.vendor FROM wf_tasks t "
+        "WHERE t.project_id=:pid AND t.org_id=:oid AND t.vendor IS NOT NULL "
+        "ORDER BY t.vendor"
+    ), {"pid": project_id, "oid": current_user.org_id}).fetchall()
+    return [r[0] for r in rows]
 
 
 # ─── Available periods ────────────────────────────────────────────────────────

@@ -353,8 +353,9 @@ function app() {
     _efCharts: {},
     efGrid: [], efPeriods: [],        // full plan vs actual table
     efSummary: [], efSummaryPeriods: [],
-    efFilterSD: '', efFilterPeriod: '',
-    efSDs: [],                        // available subdivisions
+    efFilterSD: '', efFilterNode: '', efFilterVendor: '',
+    efSummaryGroupBy: 'workstream',
+    efSDs: [], efVendors: [],
     efActualsPeriod: '', efActualsEntries: [], efActualsSaving: false,
     efWorkstreams: [], efNodes: [],   // master lists for manual entry
     efShowAddNode: false, efShowAddWS: false,
@@ -5155,15 +5156,23 @@ ${d.participant_shares?.map(p=>`<tr><td>${p.lender}</td><td>${p.pct}%</td><td>$$
       if (!this.currentProject) return;
       const pid = this.currentProject.id;
       try {
-        const [sds, periods] = await Promise.all([
+        const [sds, periods, nodes, vendors] = await Promise.all([
           this.get(`/api/project/${pid}/execution/subdivisions`),
           this.get(`/api/project/${pid}/execution/periods`),
+          this.get(`/api/project/${pid}/execution/nodes`),
+          this.get(`/api/project/${pid}/execution/vendors`),
         ]);
         this.efSDs = sds || [];
         this.efPeriods = periods || [];
+        this.efNodes = (nodes || []).sort((a, b) => a.node_code.localeCompare(b.node_code));
+        this.efVendors = (vendors || []).sort();
         if (this.efTab === 'grid') await this.loadEFGrid();
         if (this.efTab === 'summary') await this.loadEFSummary();
         if (this.efTab === 'actuals') await this.loadEFActualsForm();
+        if (this.efTab === 'dashboard') {
+          await Promise.all([this.loadEFGrid(), this.loadEFSummary()]);
+          setTimeout(() => this.renderEFCharts(), 120);
+        }
       } catch(e) { console.error('EF load error', e); }
     },
 
@@ -5172,7 +5181,9 @@ ${d.participant_shares?.map(p=>`<tr><td>${p.lender}</td><td>${p.pct}%</td><td>$$
       const pid = this.currentProject.id;
       let url = `/api/project/${pid}/execution/grid`;
       const qs = [];
-      if (this.efFilterSD) qs.push(`sd_code=${encodeURIComponent(this.efFilterSD)}`);
+      if (this.efFilterSD)     qs.push(`sd_code=${encodeURIComponent(this.efFilterSD)}`);
+      if (this.efFilterNode)   qs.push(`node_code=${encodeURIComponent(this.efFilterNode)}`);
+      if (this.efFilterVendor) qs.push(`vendor=${encodeURIComponent(this.efFilterVendor)}`);
       if (qs.length) url += '?' + qs.join('&');
       try {
         const data = await this.get(url);
@@ -5185,7 +5196,13 @@ ${d.participant_shares?.map(p=>`<tr><td>${p.lender}</td><td>${p.pct}%</td><td>$$
       if (!this.currentProject) return;
       const pid = this.currentProject.id;
       let url = `/api/project/${pid}/execution/summary`;
-      if (this.efFilterSD) url += `?sd_code=${encodeURIComponent(this.efFilterSD)}`;
+      const qs = [];
+      if (this.efFilterSD)         qs.push(`sd_code=${encodeURIComponent(this.efFilterSD)}`);
+      if (this.efFilterNode)       qs.push(`node_code=${encodeURIComponent(this.efFilterNode)}`);
+      if (this.efFilterVendor)     qs.push(`vendor=${encodeURIComponent(this.efFilterVendor)}`);
+      if (this.efSummaryGroupBy && this.efSummaryGroupBy !== 'workstream')
+        qs.push(`group_by=${this.efSummaryGroupBy}`);
+      if (qs.length) url += '?' + qs.join('&');
       try {
         const data = await this.get(url);
         this.efSummary = data.workstreams || [];
@@ -5216,12 +5233,11 @@ ${d.participant_shares?.map(p=>`<tr><td>${p.lender}</td><td>${p.pct}%</td><td>$$
 
     async switchEFTab(tab) {
       this.efTab = tab;
-      if (tab === 'grid') await this.loadEFGrid();
+      if (tab === 'grid')    await this.loadEFGrid();
       if (tab === 'summary') await this.loadEFSummary();
       if (tab === 'actuals' && this.efActualsPeriod) await this.loadEFActualsForm();
       if (tab === 'dashboard') {
-        if (!this.efSummary.length) await this.loadEFSummary();
-        if (!this.efGrid.length) await this.loadEFGrid();
+        await Promise.all([this.loadEFGrid(), this.loadEFSummary()]);
         setTimeout(() => this.renderEFCharts(), 120);
       }
     },
@@ -5284,6 +5300,26 @@ ${d.participant_shares?.map(p=>`<tr><td>${p.lender}</td><td>${p.pct}%</td><td>$$
     efPct(planned, actual) {
       if (!planned || planned == 0 || actual === null || actual === undefined || actual === '') return '—';
       return Math.round((parseFloat(actual) / parseFloat(planned)) * 100) + '%';
+    },
+
+    async applyEFFilters() {
+      if (this.efTab === 'grid')    await this.loadEFGrid();
+      if (this.efTab === 'summary') await this.loadEFSummary();
+      if (this.efTab === 'actuals') await this.loadEFActualsForm();
+      if (this.efTab === 'dashboard') {
+        await Promise.all([this.loadEFGrid(), this.loadEFSummary()]);
+        setTimeout(() => this.renderEFCharts(), 120);
+      }
+    },
+
+    clearEFFilters() {
+      this.efFilterSD = ''; this.efFilterNode = ''; this.efFilterVendor = '';
+      this.efSummaryGroupBy = 'workstream';
+      this.applyEFFilters();
+    },
+
+    efSummaryGroupByLabel() {
+      return { workstream:'Workstream', sd_code:'Subdivision', node_code:'OLT', vendor:'Vendor / Sub-contractor' }[this.efSummaryGroupBy] || 'Workstream';
     },
 
     renderEFCharts() {
