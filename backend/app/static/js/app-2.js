@@ -934,6 +934,8 @@ function app() {
         const savedKeys = new Set(savedLI.map(c => c.key));
         if (!savedKeys.has('cost_sub_category'))
           savedLI.push({ key: 'cost_sub_category', label: 'Sub-Category', active: true, visible: true, exportable: true });
+        if (!savedKeys.has('invoice_description'))
+          savedLI.splice(0, 0, { key: 'invoice_description', label: 'Description', active: true, visible: true, exportable: true });
         if (!savedKeys.has('cost_category'))
           savedLI.splice(savedLI.findIndex(c => c.key === 'sub_division') + 1, 0, { key: 'cost_category', label: 'Category', active: true, visible: true, exportable: true });
         if (!savedKeys.has('olt_id'))
@@ -1719,6 +1721,7 @@ function app() {
       { key: 'line_total', label: 'Line Total', active: true, visible: true, exportable: true },
       { key: 'manufacturer', label: 'Manufacturer', active: false, visible: false, exportable: true },
       { key: 'sub_division', label: 'Sub-Division', active: true, visible: true, exportable: true },
+      { key: 'invoice_description', label: 'Description', active: true, visible: true, exportable: true },
       { key: 'cost_category', label: 'Category', active: true, visible: true, exportable: true },
       { key: 'cost_sub_category', label: 'Sub-Category', active: true, visible: true, exportable: true },
       { key: 'olt_id', label: 'OLT', active: true, visible: true, exportable: true },
