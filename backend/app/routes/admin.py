@@ -1,5 +1,7 @@
 """Admin-only routes: manage Gemini API keys and user accounts."""
 import os
+import subprocess
+import pathlib
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
@@ -290,3 +292,32 @@ def system_health(db: Session = Depends(get_db), current_user: User = Depends(ge
         "gemini": gemini,
         "db": {"connected": True},
     }
+
+
+@router.post("/deploy")
+def deploy(admin: User = Depends(_require_admin)):
+    """Pull latest code from git and touch main.py to trigger uvicorn reload."""
+    # Find repo root (two levels up from routes/)
+    here = pathlib.Path(__file__).resolve()
+    repo_root = here.parent.parent.parent.parent  # routes -> app -> backend -> repo
+    results = {}
+
+    # git pull
+    try:
+        r = subprocess.run(
+            ["git", "pull", "--ff-only", "origin", "master"],
+            cwd=str(repo_root), capture_output=True, text=True, timeout=60,
+        )
+        results["git_pull"] = {"stdout": r.stdout.strip(), "stderr": r.stderr.strip(), "code": r.returncode}
+    except Exception as e:
+        results["git_pull"] = {"error": str(e)}
+
+    # touch main.py so uvicorn --reload picks up any Python changes
+    try:
+        main_py = here.parent.parent / "main.py"
+        main_py.touch()
+        results["touch"] = str(main_py)
+    except Exception as e:
+        results["touch"] = {"error": str(e)}
+
+    return results
