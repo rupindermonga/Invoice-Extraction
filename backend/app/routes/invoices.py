@@ -32,7 +32,7 @@ _retry_lock = _threading.Lock()
 _retry_running = False
 
 
-def _apply_filters(query, user_id, start_date, end_date, vendor, currency, status_filter, org_id=None):
+def _apply_filters(query, user_id, start_date, end_date, vendor, currency, status_filter, org_id=None, invoice_number=None):
     if org_id:
         from sqlalchemy import or_
         query = query.filter(or_(Invoice.org_id == org_id, Invoice.user_id == user_id))
@@ -42,6 +42,8 @@ def _apply_filters(query, user_id, start_date, end_date, vendor, currency, statu
         query = query.filter(Invoice.invoice_date >= start_date)
     if end_date:
         query = query.filter(Invoice.invoice_date <= end_date)
+    if invoice_number:
+        query = query.filter(Invoice.invoice_number.ilike(f"%{invoice_number}%"))
     if vendor:
         query = query.filter(Invoice.vendor_name.ilike(f"%{vendor}%"))
     if currency:
@@ -55,6 +57,7 @@ def _apply_filters(query, user_id, start_date, end_date, vendor, currency, statu
 def list_invoice_ids(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    invoice_number: Optional[str] = None,
     vendor: Optional[str] = None,
     currency: Optional[str] = None,
     status: Optional[str] = None,
@@ -67,7 +70,7 @@ def list_invoice_ids(
     """Return only invoice IDs (no heavy extracted_data) — used for select-all."""
     org, _ = org_ctx
     query = db.query(Invoice.id)
-    query = _apply_filters(query, current_user.id, start_date, end_date, vendor, currency, status, org_id=org.id)
+    query = _apply_filters(query, current_user.id, start_date, end_date, vendor, currency, status, org_id=org.id, invoice_number=invoice_number)
     if draw_id == "none":
         query = query.filter(Invoice.draw_id.is_(None))
     elif draw_id:
@@ -91,6 +94,7 @@ def list_invoices(
     limit: int = Query(50, ge=1, le=500),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    invoice_number: Optional[str] = None,
     vendor: Optional[str] = None,
     currency: Optional[str] = None,
     status: Optional[str] = None,
@@ -103,7 +107,7 @@ def list_invoices(
 ):
     org, _ = org_ctx
     query = db.query(Invoice)
-    query = _apply_filters(query, current_user.id, start_date, end_date, vendor, currency, status, org_id=org.id)
+    query = _apply_filters(query, current_user.id, start_date, end_date, vendor, currency, status, org_id=org.id, invoice_number=invoice_number)
     # Draw filter
     if draw_id == "none":
         query = query.filter(Invoice.draw_id.is_(None))

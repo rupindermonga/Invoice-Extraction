@@ -472,7 +472,7 @@ function app() {
     _statsTimer: null,
     // ── System Health ─────────────────────────────────────────────
     systemHealth: null, _healthTimer: null,
-    filters: { start_date: '', end_date: '', vendor: '', currency: '', status: '', draw_id: '', claim_id: '' },
+    filters: { start_date: '', end_date: '', invoice_number: '', vendor: '', currency: '', status: '', draw_id: '', claim_id: '' },
     exportDates: { start: '', end: '' },
     exportMode: 'summary',
     pagination: { page: 1, limit: 50, total: 0, pages: 0 },
@@ -1438,13 +1438,14 @@ function app() {
     // ── Invoices ──────────────────────────────────────────────────
     async loadInvoices() {
       const params = new URLSearchParams({ page: this.pagination.page, limit: this.pagination.limit });
-      if (this.filters.start_date) params.set('start_date', this.filters.start_date);
-      if (this.filters.end_date)   params.set('end_date',   this.filters.end_date);
-      if (this.filters.vendor)     params.set('vendor',     this.filters.vendor);
-      if (this.filters.currency)   params.set('currency',   this.filters.currency);
-      if (this.filters.status)     params.set('status',     this.filters.status);
-      if (this.filters.draw_id)    params.set('draw_id',    this.filters.draw_id);
-      if (this.filters.claim_id)   params.set('claim_id',   this.filters.claim_id);
+      if (this.filters.start_date)     params.set('start_date',     this.filters.start_date);
+      if (this.filters.end_date)       params.set('end_date',       this.filters.end_date);
+      if (this.filters.invoice_number) params.set('invoice_number', this.filters.invoice_number);
+      if (this.filters.vendor)         params.set('vendor',         this.filters.vendor);
+      if (this.filters.currency)       params.set('currency',       this.filters.currency);
+      if (this.filters.status)         params.set('status',         this.filters.status);
+      if (this.filters.draw_id)        params.set('draw_id',        this.filters.draw_id);
+      if (this.filters.claim_id)       params.set('claim_id',       this.filters.claim_id);
 
       try {
         const data = await this.get(`/api/invoices?${params}`);
@@ -1511,7 +1512,7 @@ function app() {
     },
 
     clearFilters() {
-      this.filters = { start_date: '', end_date: '', vendor: '', currency: '', status: '', draw_id: '', claim_id: '' };
+      this.filters = { start_date: '', end_date: '', invoice_number: '', vendor: '', currency: '', status: '', draw_id: '', claim_id: '' };
       this.pagination.page = 1;
       this.loadInvoices();
     },
@@ -1653,13 +1654,14 @@ function app() {
       // Use lightweight /ids endpoint — returns only IDs, no heavy extracted_data serialization
       try {
         const params = new URLSearchParams();
-        if (this.filters.start_date) params.set('start_date', this.filters.start_date);
-        if (this.filters.end_date)   params.set('end_date',   this.filters.end_date);
-        if (this.filters.vendor)     params.set('vendor',     this.filters.vendor);
-        if (this.filters.currency)   params.set('currency',   this.filters.currency);
-        if (this.filters.status)     params.set('status',     this.filters.status);
-        if (this.filters.draw_id)    params.set('draw_id',    this.filters.draw_id);
-        if (this.filters.claim_id)   params.set('claim_id',   this.filters.claim_id);
+        if (this.filters.start_date)     params.set('start_date',     this.filters.start_date);
+        if (this.filters.end_date)       params.set('end_date',       this.filters.end_date);
+        if (this.filters.invoice_number) params.set('invoice_number', this.filters.invoice_number);
+        if (this.filters.vendor)         params.set('vendor',         this.filters.vendor);
+        if (this.filters.currency)       params.set('currency',       this.filters.currency);
+        if (this.filters.status)         params.set('status',         this.filters.status);
+        if (this.filters.draw_id)        params.set('draw_id',        this.filters.draw_id);
+        if (this.filters.claim_id)       params.set('claim_id',       this.filters.claim_id);
         const qs = params.toString();
         const data = await this.get(`/api/invoices/ids${qs ? '?' + qs : ''}`);
         this.selectedInvoiceIds = data.ids;
